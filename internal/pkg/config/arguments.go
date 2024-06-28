@@ -1,6 +1,6 @@
 package config
 
-type Arguments struct {
+type Federation struct {
     MeshPeers          MeshPeers
     ExportedServiceSet ExportedServices
     ImportedServiceSet ImportedServices

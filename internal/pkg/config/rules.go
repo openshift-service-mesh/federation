@@ -1,15 +1,14 @@
 package config
 
-type MatchLabels struct {
-	ExportService string `yaml:"export-service"`
-}
-
 type MatchExpressions struct {
+	Key      string `yaml:"key"`
+	Operator string `yaml:"operator"`
+	Values   []string `yaml:"values"`
 }
 
 type LabelSelectors struct {
-	MatchLabels      MatchLabels      `yaml:"matchLabels,omitempty"`
-	MatchExpressions MatchExpressions `yaml:"matchExpressions,omitempty"`
+	MatchLabels      map[string]string      `yaml:"matchLabels,omitempty"`
+	MatchExpressions []MatchExpressions 	`yaml:"matchExpressions,omitempty"`	
 }
 
 type Rules struct {
