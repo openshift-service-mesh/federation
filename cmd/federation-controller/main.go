@@ -10,7 +10,6 @@ import (
 
 // Global variable to store the parsed arguments and "flag" arguments
 var (
-	AppConfig config.Federation
 	meshPeer = flag.String("meshPeers", "meshPeers Yml",
 		"MeshPeers that include address ip/hostname to remote Peer, and the ports for dataplane and discovery")
 	exportedServiceSet = flag.String("exportedServiceSet", "exportedServiceSet Yml",
@@ -30,7 +29,7 @@ func unmarshalYAML(yamlStr string, out interface{}) {
 
 // Parse the command line arguments by using the flag package
 // Export the parsed arguments to the AppConfig variable
-func parse() {
+func parse() *config.Federation {
 	var (
 		peers    config.MeshPeers
 		exported config.ExportedServices
@@ -41,7 +40,7 @@ func parse() {
 	unmarshalYAML(*exportedServiceSet, &exported)
 	unmarshalYAML(*importedServiceSet, &imported)
 
-	AppConfig = config.Federation{
+	return &config.Federation{
 		MeshPeers:          peers,
 		ExportedServiceSet: exported,
 		ImportedServiceSet: imported,
