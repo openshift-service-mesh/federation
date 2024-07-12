@@ -74,7 +74,7 @@ var (
 
 // recvFromStream receives discovery requests from the subscriber.
 func recvFromStream(id int64, downstream DiscoveryStream) {
-	log.Println("Received from stream")
+	log.Println("Received from stream ", id)
 	recvLoop:
 		for {
 			discoveryRequest, err := downstream.Recv()
@@ -108,10 +108,8 @@ func sendToStream(downstream DiscoveryStream, typeUrl string, mcpResources []*an
 
 // pushToSubscribers pushes MCP resources to active subscribers.
 func (adss *adsServer) pushToSubscribers() error {
-	log.Print("Sending to subscriber")
 	mcpResources, err := makeMCPResources(numMCPResources)
-	log.Println("mcpResources", mcpResources)
-	log.Println("Adds", adss.subscribers)
+
 	if err != nil {
 		return fmt.Errorf("creating MCP resource: %w", err)
 	}
