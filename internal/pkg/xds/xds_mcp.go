@@ -170,7 +170,7 @@ func makeMCPResources(n int) ([]*anypb.Any, error) {
 // buffer message.
 func makeMCPServiceEntry(idx int) (*anypb.Any, error) {
 	seSpec := &istionetv1alpha3.ServiceEntry{
-		Hosts:    []string{fmt.Sprintf("fake%03d.example.com", idx)},
+		Hosts:    []string{fmt.Sprintf("test%03d.toto.com", idx)},
 		Location: istionetv1alpha3.ServiceEntry_MESH_EXTERNAL,
 		Ports: []*istionetv1alpha3.ServicePort{{
 			Number:   443,
@@ -179,7 +179,7 @@ func makeMCPServiceEntry(idx int) (*anypb.Any, error) {
 		}},
 		Resolution: istionetv1alpha3.ServiceEntry_STATIC,
 		Endpoints: []*istionetv1alpha3.WorkloadEntry{{
-			Address: "192.0.2.42",
+			Address: "192.0.0.2",
 		}},
 	}
 
