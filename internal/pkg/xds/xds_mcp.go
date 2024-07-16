@@ -3,6 +3,10 @@ package xds
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"log"
 	"math"
 	"os"
@@ -10,10 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
+
 	envoycfgcorev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	mcpv1alpha1 "istio.io/api/mcp/v1alpha1"
@@ -23,7 +24,7 @@ import (
 // DeltaDiscoveryStream is a server interface for XDS.
 // DeltaDiscoveryStream is a server interface for Delta XDS.
 type (
-	DiscoveryStream = discovery.AggregatedDiscoveryService_StreamAggregatedResourcesServer
+	DiscoveryStream      = discovery.AggregatedDiscoveryService_StreamAggregatedResourcesServer
 	DeltaDiscoveryStream = discovery.AggregatedDiscoveryService_DeltaAggregatedResourcesServer
 )
 
@@ -36,7 +37,7 @@ type adsServer struct {
 
 // subscriber represents a client that is subscribed to MCP resources.
 type subscriber struct {
-	id uint64
+	id          uint64
 	stream      DiscoveryStream
 	closeStream func()
 }
@@ -66,7 +67,6 @@ func (adss *adsServer) DeltaAggregatedResources(downstream DeltaDiscoveryStream)
 	return status.Errorf(codes.Unimplemented, "Not Implemented")
 }
 
-
 var (
 	maxUintDigits = len(strconv.FormatUint(uint64(math.MaxUint64), 10))
 	subIDFmtStr   = `%0` + strconv.Itoa(maxUintDigits) + `d`
@@ -75,20 +75,20 @@ var (
 // recvFromStream receives discovery requests from the subscriber.
 func recvFromStream(id int64, downstream DiscoveryStream) {
 	log.Println("Received from stream ", id)
-	recvLoop:
-		for {
-			discoveryRequest, err := downstream.Recv()
-			if err != nil {
-				log.Print("Error while recv discovery request from subscriber ", fmt.Sprintf(subIDFmtStr, id), err)
-				break recvLoop
-			}
-			log.Print("Got discovery request from subscriber ", fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
-			if discoveryRequest.GetVersionInfo() == "" {
-				log.Print("Send initial empty config snapshot for type ", discoveryRequest.GetTypeUrl())
-				sendToStream(downstream, discoveryRequest.GetTypeUrl(), make([]*anypb.Any, 0), strconv.FormatInt(time.Now().Unix(), 10))
-			}
+recvLoop:
+	for {
+		discoveryRequest, err := downstream.Recv()
+		if err != nil {
+			log.Print("Error while recv discovery request from subscriber ", fmt.Sprintf(subIDFmtStr, id), err)
+			break recvLoop
+		}
+		log.Print("Got discovery request from subscriber ", fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
+		if discoveryRequest.GetVersionInfo() == "" {
+			log.Print("Send initial empty config snapshot for type ", discoveryRequest.GetTypeUrl())
+			sendToStream(downstream, discoveryRequest.GetTypeUrl(), make([]*anypb.Any, 0), strconv.FormatInt(time.Now().Unix(), 10))
 		}
 	}
+}
 
 // sendToStream sends MCP resources to the subscriber.
 func sendToStream(downstream DiscoveryStream, typeUrl string, mcpResources []*anypb.Any, version string) error {
