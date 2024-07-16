@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"os"
 	"github.com/jewertow/federation/internal/pkg/config"
+	server "github.com/jewertow/federation/internal/pkg/xds"
 	"gopkg.in/yaml.v3"
+	"os/signal"
+	"syscall"
+	"context"
+	"log"
 )
 
 // Global variable to store the parsed arguments and "flag" arguments
@@ -50,5 +55,13 @@ func parse() *config.Federation {
 func main() {
 	flag.Parse()
 	parse()
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	if err := server.Run(ctx); err != nil {
+		log.Fatal("Error starting server: ", err)
+	}
+
     os.Exit(0)
 }
