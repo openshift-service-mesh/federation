@@ -84,8 +84,10 @@ recvLoop:
 		}
 		log.Print("Got discovery request from subscriber ", fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
 		if discoveryRequest.GetVersionInfo() == "" {
-			log.Print("Send initial empty config snapshot for type ", discoveryRequest.GetTypeUrl())
-			sendToStream(downstream, discoveryRequest.GetTypeUrl(), make([]*anypb.Any, 0), strconv.FormatInt(time.Now().Unix(), 10))
+			log.Print("Sending initial empty config snapshot for type ", discoveryRequest.GetTypeUrl())
+			if err := sendToStream(downstream, discoveryRequest.GetTypeUrl(), make([]*anypb.Any, 0), strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
+				log.Printf("failed to send initial config snapshot for type %s: %v", discoveryRequest.GetTypeUrl(), err)
+			}
 		}
 	}
 }
