@@ -1,4 +1,31 @@
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: federation-controller
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: federation-controller
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: federation-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: federation-controller
+subjects:
+  - kind: ServiceAccount
+    name: federation-controller
+    namespace: istio-system
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: federation-controller
@@ -24,6 +51,7 @@ spec:
       labels:
         app.kubernetes.io/name: federation-controller
     spec:
+      serviceAccount: federation-controller
       containers:
       - name: server
         image: quay.io/jewertow/federation-controller:latest

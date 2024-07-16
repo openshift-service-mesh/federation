@@ -6,7 +6,11 @@ import (
 	"flag"
 	"fmt"
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/export"
 	server "github.com/jewertow/federation/internal/pkg/xds"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"log"
 	"os"
 	"os/signal"
@@ -68,6 +72,19 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+
+	kubeConfig, err := rest.InClusterConfig()
+	if err != nil {
+		klog.Fatal("failed to create in-cluster config: %v", err)
+	}
+	clientset, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		klog.Fatalf("failed to create Kubernetes clientset: %s", err.Error())
+	}
+
+	if err := export.InitWatcher(ctx, clientset); err != nil {
+		klog.Fatal("failed to init watcher for exported service set: %v", err)
+	}
 
 	if err := server.Run(ctx); err != nil {
 		log.Fatal("Error starting server: ", err)
