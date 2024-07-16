@@ -1,5 +1,7 @@
 OUT := $(shell pwd)
 
+.PHONY: build
+
 build:
 	go get ./...
 	go build -C cmd/federation-controller -o "${OUT}/out/"
