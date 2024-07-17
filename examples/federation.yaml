@@ -54,12 +54,12 @@ spec:
       serviceAccount: federation-controller
       containers:
       - name: server
-        image: quay.io/jewertow/federation-controller:latest
+        image: quay.io/jewertow/federation-controller:test-1
         args:
         - --meshPeers
         - '{"spec":{"remote":{"addresses":["lb-1234567890.us-east-1.elb.amazonaws.com","192.168.10.56"],"ports":{"dataPlane":15443,"discoery":15020}}}}'
         - --exportedServiceSet
-        - '{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}'
+        - '{"rules":[{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}]}'
         - --importedServiceSet
         - '{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}'
         env:
