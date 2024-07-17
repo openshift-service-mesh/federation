@@ -2,24 +2,35 @@ package mcp
 
 import (
 	"fmt"
+	"github.com/jewertow/federation/internal/pkg/config"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	mcpv1alpha1 "istio.io/api/mcp/v1alpha1"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
-type ResourceGenerator struct {
-	exportedServiceCache *ServiceCache
+type resourceGenerator struct {
+	cfg             config.Federation
+	serviceInformer cache.SharedIndexInformer
 }
 
-func NewResourceGenerator(exportedServiceCache *ServiceCache) *ResourceGenerator {
-	return &ResourceGenerator{exportedServiceCache}
+func newResourceGenerator(cfg config.Federation, serviceInformer cache.SharedIndexInformer) *resourceGenerator {
+	return &resourceGenerator{cfg, serviceInformer}
 }
 
-func (g *ResourceGenerator) generateGatewayForExportedServices() ([]*anypb.Any, error) {
+func (g *resourceGenerator) generateGatewayForExportedServices() ([]*anypb.Any, error) {
 	var hosts []string
-	for _, svcInfo := range g.exportedServiceCache.List() {
-		hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svcInfo.Name, svcInfo.Namespace))
+	for _, obj := range g.serviceInformer.GetStore().List() {
+		svc := obj.(*corev1.Service)
+		for _, rule := range g.cfg.ExportedServiceSet.Rules {
+			for _, selectors := range rule.LabelSelectors {
+				if matchesLabelSelector(svc, selectors.MatchLabels) {
+					hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace))
+				}
+			}
+		}
 	}
 	gwSpec := &istionetv1alpha3.Gateway{
 		Selector: map[string]string{

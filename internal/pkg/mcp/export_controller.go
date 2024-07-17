@@ -13,20 +13,23 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-type ExportedServiceSetWatcher struct {
-	cfg       config.Federation
-	cache     *ServiceCache
-	generator *ResourceGenerator
-	pushMCP   chan<- []*anypb.Any
+type ExportedServiceSetController struct {
+	cfg             config.Federation
+	serviceInformer cache.SharedIndexInformer
+	pushMCP         chan<- []*anypb.Any
+	generator       *resourceGenerator
 }
 
-func NewExportedServiceSetWatcher(cfg config.Federation, pushMCP chan<- []*anypb.Any) *ExportedServiceSetWatcher {
-	exportedServiceCache := NewServiceCache()
-	generator := NewResourceGenerator(exportedServiceCache)
-	return &ExportedServiceSetWatcher{cfg: cfg, cache: exportedServiceCache, generator: generator, pushMCP: pushMCP}
+func NewExportedServiceSetWatcher(cfg config.Federation, serviceInformer cache.SharedIndexInformer, pushMCP chan<- []*anypb.Any) *ExportedServiceSetController {
+	return &ExportedServiceSetController{
+		cfg:             cfg,
+		serviceInformer: serviceInformer,
+		pushMCP:         pushMCP,
+		generator:       newResourceGenerator(cfg, serviceInformer),
+	}
 }
 
-func (w *ExportedServiceSetWatcher) AddHandlers(serviceInformer cache.SharedIndexInformer) error {
+func (w *ExportedServiceSetController) AddHandlers(serviceInformer cache.SharedIndexInformer) error {
 	_, err := serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			svc := obj.(*corev1.Service)
@@ -36,15 +39,19 @@ func (w *ExportedServiceSetWatcher) AddHandlers(serviceInformer cache.SharedInde
 					continue
 				}
 				for _, selectors := range rules.LabelSelectors {
-					fmt.Printf("Checking selectors: %v\n", selectors)
 					if matchesLabelSelector(svc, selectors.MatchLabels) {
 						fmt.Printf("Found a service matching selector: %s/%s\n", svc.Namespace, svc.Name)
-						w.cache.Update(svc.Name, ServiceInfo{Name: svc.Name, Namespace: svc.Namespace})
+						var svcNames []string
+						for _, cachedSvc := range serviceInformer.GetStore().List() {
+							svcNames = append(svcNames, cachedSvc.(*corev1.Service).Name)
+						}
+						// TODO: generator should notified via a channel and debounce push requests
 						gateway, err := w.generator.generateGatewayForExportedServices()
 						if err != nil {
 							klog.Errorf("Error generating gateway for exported services: %v", err)
 						}
 						w.pushMCP <- gateway
+						// TODO: return and do not check selector next selectors if current was matched
 					}
 				}
 			}
@@ -52,16 +59,12 @@ func (w *ExportedServiceSetWatcher) AddHandlers(serviceInformer cache.SharedInde
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			svc := newObj.(*corev1.Service)
 			fmt.Printf("Service updated: %v\n", svc.Name)
-			//if matchesLabelSelector(svc, labelSelector) {
-			//	fmt.Printf("Service updated: %s/%s\n", svc.Namespace, svc.Name)
-			//}
+			// TODO
 		},
 		DeleteFunc: func(obj interface{}) {
 			svc := obj.(*corev1.Service)
 			fmt.Printf("Service deleted: %v\n", svc.Name)
-			//if matchesLabelSelector(svc, labelSelector) {
-			//	fmt.Printf("Service deleted: %s/%s\n", svc.Namespace, svc.Name)
-			//}
+			// TODO
 		},
 	})
 	if err != nil {

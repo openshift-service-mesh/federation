@@ -17,7 +17,9 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
+	"time"
 )
 
 // Global variable to store the parsed arguments and "flag" arguments
@@ -86,7 +88,6 @@ func main() {
 	}
 
 	pushMCP := make(chan []*anypb.Any)
-	w := mcp.NewExportedServiceSetWatcher(*cfg, pushMCP)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
@@ -94,17 +95,27 @@ func main() {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
+	w := mcp.NewExportedServiceSetWatcher(*cfg, serviceInformer, pushMCP)
 	if err := w.AddHandlers(serviceInformer); err != nil {
 		klog.Fatal("failed to init watcher for exported service set: %v", err)
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := server.Run(ctx, pushMCP); err != nil {
+			log.Fatal("Error starting server: ", err)
+		}
+	}()
+
+	// TODO: informers should be somehow notified by the server that it already started and receives connection
+	time.Sleep(5 * time.Second)
 	informerFactory.Start(stopCh)
 	if ok := cache.WaitForCacheSync(stopCh, serviceInformer.HasSynced); !ok {
 		klog.Fatalf("Failed to wait for caches to sync")
 	}
 
-	if err := server.Run(ctx, pushMCP); err != nil {
-		log.Fatal("Error starting server: ", err)
-	}
-
+	wg.Wait()
 	os.Exit(0)
 }

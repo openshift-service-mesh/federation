@@ -19,7 +19,7 @@ istioctl install -f examples/istio.yaml -y
 ```
 4. Create a service:
 ```shell
-kubectl apply -f <<EOF
+kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Service
 metadata:
