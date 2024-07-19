@@ -5,21 +5,21 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/mcp"
-	server "github.com/jewertow/federation/internal/pkg/xds"
-	"google.golang.org/protobuf/types/known/anypb"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog/v2"
 	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/mcp"
+	server "github.com/jewertow/federation/internal/pkg/xds"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 )
 
 // Global variable to store the parsed arguments and "flag" arguments
@@ -80,25 +80,21 @@ func main() {
 
 	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
-		klog.Fatal("failed to create in-cluster config: %v", err)
+		klog.Fatal("failed to create in-cluster config: ", err)
 	}
 	clientset, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		klog.Fatalf("failed to create Kubernetes clientset: %s", err.Error())
 	}
 
-	pushMCP := make(chan []*anypb.Any)
-
-	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	serviceInformer := informerFactory.Core().V1().Services().Informer()
-
+	pushMCP := make(chan mcp.McpResources)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
-	w := mcp.NewExportedServiceSetWatcher(*cfg, serviceInformer, pushMCP)
-	if err := w.AddHandlers(serviceInformer); err != nil {
-		klog.Fatal("failed to init watcher for exported service set: %v", err)
-	}
+	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
+	serviceInformer := informerFactory.Core().V1().Services().Informer()
+	serviceController := mcp.NewResourceController(clientset, serviceInformer, corev1.Service{})
+	serviceController.AddEventHandler(mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, pushMCP))
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -111,10 +107,8 @@ func main() {
 
 	// TODO: informers should be somehow notified by the server that it already started and receives connection
 	time.Sleep(5 * time.Second)
-	informerFactory.Start(stopCh)
-	if ok := cache.WaitForCacheSync(stopCh, serviceInformer.HasSynced); !ok {
-		klog.Fatalf("Failed to wait for caches to sync")
-	}
+
+	go serviceController.Run(stopCh)
 
 	wg.Wait()
 	os.Exit(0)
