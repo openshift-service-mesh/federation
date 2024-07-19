@@ -46,8 +46,8 @@ func unmarshalJSON(input string, out interface{}) error {
 func parse() (*config.Federation, error) {
 	var (
 		peers    config.MeshPeers
-		exported config.ExportedServices
-		imported config.ImportedServices
+		exported config.ExportedServiceSet
+		imported config.ImportedServiceSet
 	)
 
 	if err := unmarshalJSON(*meshPeer, &peers); err != nil {

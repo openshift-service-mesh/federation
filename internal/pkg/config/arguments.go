@@ -1,7 +1,7 @@
 package config
 
 type Federation struct {
-    MeshPeers          MeshPeers
-    ExportedServiceSet ExportedServices
-    ImportedServiceSet ImportedServices
+	MeshPeers          MeshPeers
+	ExportedServiceSet ExportedServiceSet
+	ImportedServiceSet ImportedServiceSet
 }
