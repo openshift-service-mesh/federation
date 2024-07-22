@@ -108,6 +108,27 @@ func sendToStream(downstream DiscoveryStream, typeUrl string, mcpResources []*an
 	return nil
 }
 
+func (adss *adsServer) push(resources []*anypb.Any) error {
+	adss.subscribers.Range(func(key, value any) bool {
+		log.Print("Sending to subscriber ", fmt.Sprintf(subIDFmtStr, key.(uint64)))
+
+		if err := value.(*subscriber).stream.Send(&discovery.DiscoveryResponse{
+			TypeUrl:     "networking.istio.io/v1alpha3/Gateway",
+			VersionInfo: strconv.FormatInt(time.Now().Unix(), 10),
+			Resources:   resources,
+			ControlPlane: &envoycfgcorev3.ControlPlane{
+				Identifier: os.Getenv("POD_NAME"),
+			},
+		}); err != nil {
+			log.Print("Error sending MCP resources: ", err)
+			value.(*subscriber).closeStream()
+			adss.subscribers.Delete(key)
+		}
+		return true
+	})
+	return nil
+}
+
 // pushToSubscribers pushes MCP resources to active subscribers.
 func (adss *adsServer) pushToSubscribers() error {
 	var mcpResources []*anypb.Any

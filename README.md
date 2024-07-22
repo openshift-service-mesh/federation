@@ -17,14 +17,35 @@ kubectl apply -f examples/federation.yaml -n istio-system
 ```shell
 istioctl install -f examples/istio.yaml -y
 ```
-4. Deploy an app and test provided configuration:
+4. Create a service:
 ```shell
-kubectl label namespace default istio-injection=enabled
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.20/samples/sleep/sleep.yaml
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Service
+metadata:
+  name: sleep
+  labels:
+    app: sleep
+    service: sleep
+    export-service: "true"
+spec:
+  ports:
+  - port: 80
+    name: http
+  selector:
+    app: sleep
+EOF
 ```
+5. Check listeners applied to the federation ingress gateway:
 ```shell
-kubectl exec $(kubectl get pods -l app=sleep -o jsonpath='{.items[].metadata.name}') -c sleep -- curl -v https://example.com
-kubectl exec $(kubectl get pods -l app=sleep -o jsonpath='{.items[].metadata.name}') -c sleep -- curl -v https://istio.io
+istioctl pc l deploy/istio-eastwestgateway -n istio-system
+```
+It should return the following output:
+```
+ADDRESSES PORT  MATCH                                                                                                                       DESTINATION
+0.0.0.0   15021 ALL                                                                                                                         Inline Route: /healthz/ready*
+0.0.0.0   15090 ALL                                                                                                                         Inline Route: /stats/prometheus*
+0.0.0.0   15443 SNI: outbound_.80_._.sleep.default.svc.cluster.local; App: istio,istio-peer-exchange,istio-http/1.0,istio-http/1.1,istio-h2 Cluster: outbound_.80_._.sleep.default.svc.cluster.local
 ```
 
 ### Development
