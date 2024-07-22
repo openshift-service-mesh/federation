@@ -3,20 +3,20 @@ package xds
 import (
 	"context"
 	"fmt"
+	"net"
+
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	"github.com/jewertow/federation/internal/pkg/mcp"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/anypb"
-	"log"
-	"net"
-	"time"
+	"k8s.io/klog/v2"
 )
 
 // defaultServerPort is the default port for the gRPC server.
 const defaultServerPort string = "15010"
 
 // Run starts the gRPC server and the controllers.
-func Run(ctx context.Context, pushMCP <-chan []*anypb.Any) error {
+func Run(ctx context.Context, pushMCP <-chan mcp.McpResources) error {
 	var routinesGroup errgroup.Group
 	grpcServer := grpc.NewServer()
 	adsServerImpl := &adsServer{}
@@ -32,23 +32,16 @@ func Run(ctx context.Context, pushMCP <-chan []*anypb.Any) error {
 
 	routinesGroup.Go(func() error {
 		defer cancel()
-		log.Println("Running MCP RPC server")
+		klog.Info("Running MCP RPC server")
 		return grpcServer.Serve(listener)
 	})
 
 	routinesGroup.Go(func() error {
-		return nil
-	})
-
-	routinesGroup.Go(func() error {
-		defer log.Print("MCP gRPC server was shut down")
+		defer klog.Info("MCP gRPC server was shut down")
 		<-ctx.Done()
 		grpcServer.GracefulStop()
 		return nil
 	})
-
-	ticker := time.NewTicker(time.Second * 30)
-	defer ticker.Stop()
 
 loop:
 	for {
@@ -57,15 +50,10 @@ loop:
 			adsServerImpl.closeSubscribers()
 			break loop
 
-		case <-ticker.C:
-			log.Println("Pushing to subscribers")
-			if err := adsServerImpl.pushToSubscribers(); err != nil {
-				log.Print("Error pushing to subscribers: ", err)
-			}
 		case mcpResources := <-pushMCP:
-			log.Println("Pushing MCP resources to subscribers: ", mcpResources)
+			klog.Infof("Pushing MCP resources to subscribers: %v", mcpResources)
 			if err := adsServerImpl.push(mcpResources); err != nil {
-				log.Print("Error pushing to subscribers: ", err)
+				klog.Errorf("Error pushing to subscribers: %v", err)
 			}
 		}
 	}
