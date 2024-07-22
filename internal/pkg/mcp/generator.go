@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"fmt"
+
 	"github.com/jewertow/federation/internal/pkg/config"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -20,7 +21,7 @@ func newResourceGenerator(cfg config.Federation, serviceInformer cache.SharedInd
 	return &resourceGenerator{cfg, serviceInformer}
 }
 
-func (g *resourceGenerator) generateGatewayForExportedServices() ([]*anypb.Any, error) {
+func (g *resourceGenerator) generateGatewayForExportedServices() (McpResources, error) {
 	var hosts []string
 	for _, obj := range g.serviceInformer.GetStore().List() {
 		svc := obj.(*corev1.Service)
@@ -53,7 +54,7 @@ func (g *resourceGenerator) generateGatewayForExportedServices() ([]*anypb.Any, 
 
 	mcpResBody := &anypb.Any{}
 	if err := anypb.MarshalFrom(mcpResBody, gwSpec, proto.MarshalOptions{}); err != nil {
-		return nil, fmt.Errorf("failed to serialize Gateway to protobuf message: %w", err)
+		return McpResources{}, fmt.Errorf("failed to serialize Gateway to protobuf message: %w", err)
 	}
 	mcpResTyped := &mcpv1alpha1.Resource{
 		Metadata: &mcpv1alpha1.Metadata{
@@ -63,7 +64,10 @@ func (g *resourceGenerator) generateGatewayForExportedServices() ([]*anypb.Any, 
 	}
 	mcpRes := &anypb.Any{}
 	if err := anypb.MarshalFrom(mcpRes, mcpResTyped, proto.MarshalOptions{}); err != nil {
-		return nil, fmt.Errorf("failed to serialize MCP resource to protobuf message: %w", err)
+		return McpResources{}, fmt.Errorf("failed to serialize MCP resource to protobuf message: %w", err)
 	}
-	return []*anypb.Any{mcpRes}, nil
+	return McpResources{
+		TypeUrl:   "networking.istio.io/v1alpha3/Gateway",
+		Resources: []*anypb.Any{mcpRes},
+	}, nil
 }
