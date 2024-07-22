@@ -17,16 +17,14 @@ import (
 type ExportedServiceSetHandler struct {
 	cfg             config.Federation
 	serviceInformer cache.SharedIndexInformer
-	pushMCP         chan<- McpResources
-	generator       *resourceGenerator
+	pushMCP         chan<- McpEvent
 }
 
-func NewExportedServiceSetHandler(cfg config.Federation, serviceInformer cache.SharedIndexInformer, pushMCP chan<- McpResources) *ExportedServiceSetHandler {
+func NewExportedServiceSetHandler(cfg config.Federation, serviceInformer cache.SharedIndexInformer, pushMCP chan<- McpEvent) *ExportedServiceSetHandler {
 	return &ExportedServiceSetHandler{
 		cfg:             cfg,
 		serviceInformer: serviceInformer,
 		pushMCP:         pushMCP,
-		generator:       newResourceGenerator(cfg, serviceInformer),
 	}
 }
 
@@ -62,11 +60,7 @@ func (w *ExportedServiceSetHandler) pushMCPUpdateIfMatchesRules(services []*core
 			for _, service := range services {
 				if matchesLabelSelector(service, selectors.MatchLabels) {
 					klog.Infof("Found a service matching selector: %s/%s\n", service.Namespace, service.Name)
-					if gateway, err := w.generator.generateGatewayForExportedServices(); err != nil {
-						klog.Errorf("Error generating gateway for exported services: %v", err)
-					} else {
-						w.pushMCP <- gateway
-					}
+					w.pushMCP <- McpEvent{TypeUrl: "networking.istio.io/v1alpha3/Gateway"}
 					return
 				}
 			}

@@ -29,6 +29,7 @@ type (
 // adsServer implements Envoy's AggregatedDiscoveryService service for sending MCP resources to Istiod.
 // ads is Aggregated Discovery Service
 type adsServer struct {
+	generators       map[string]mcp.ResourceGenerator
 	subscribers      sync.Map
 	nextSubscriberID atomic.Uint64
 }
@@ -54,7 +55,7 @@ func (adss *adsServer) StreamAggregatedResources(downstream DiscoveryStream) err
 	}
 
 	adss.subscribers.Store(sub.id, sub)
-	go recvFromStream(int64(sub.id), downstream)
+	go adss.recvFromStream(int64(sub.id), downstream)
 
 	<-ctx.Done()
 	return nil
@@ -71,7 +72,7 @@ var (
 )
 
 // recvFromStream receives discovery requests from the subscriber.
-func recvFromStream(id int64, downstream DiscoveryStream) {
+func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
 	klog.Infof("Received from stream %d", id)
 recvLoop:
 	for {
@@ -82,12 +83,28 @@ recvLoop:
 		}
 		klog.Infof("Got discovery request from subscriber %s: %v", fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
 		if discoveryRequest.GetVersionInfo() == "" {
-			klog.Infof("Sending initial empty config snapshot for type %s", discoveryRequest.GetTypeUrl())
-			if err := sendToStream(downstream, discoveryRequest.GetTypeUrl(), make([]*anypb.Any, 0), strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
+			resources, err := adss.generateResources(discoveryRequest.GetTypeUrl())
+			if len(resources) == 0 || err != nil {
+				klog.Infof("Sending initial empty config snapshot for type %s", discoveryRequest.GetTypeUrl())
+			}
+			if err := sendToStream(downstream, discoveryRequest.GetTypeUrl(), resources, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
 				klog.Errorf("failed to send initial config snapshot for type %s: %v", discoveryRequest.GetTypeUrl(), err)
 			}
 		}
 	}
+}
+
+func (adss *adsServer) generateResources(typeUrl string) ([]*anypb.Any, error) {
+	if generator, ok := adss.generators[typeUrl]; ok {
+		klog.Infof("Generating config snapshot for type %s", typeUrl)
+		if resources, err := generator.Generate(); err != nil {
+			klog.Errorf("Error generating resources of type %s: %v", typeUrl, err)
+			return []*anypb.Any{}, err
+		} else {
+			return resources, nil
+		}
+	}
+	return []*anypb.Any{}, nil
 }
 
 // sendToStream sends MCP resources to the subscriber.
@@ -106,14 +123,32 @@ func sendToStream(downstream DiscoveryStream, typeUrl string, mcpResources []*an
 	return nil
 }
 
-func (adss *adsServer) push(mcpRes mcp.McpResources) error {
+func (adss *adsServer) subscribersLen() int {
+	length := 0
+	adss.subscribers.Range(func(_, _ interface{}) bool {
+		length++
+		return true
+	})
+	return length
+}
+
+func (adss *adsServer) push(mcpEvent mcp.McpEvent) error {
+	if adss.subscribersLen() == 0 {
+		klog.Infof("Skip pushing MCP event: %v as there are no subscribers", mcpEvent)
+		return nil
+	}
+
+	klog.Infof("Pushing MCP event to subscribers: %v", mcpEvent)
+	resources, err := adss.generateResources(mcpEvent.TypeUrl)
+	if err != nil {
+		return err
+	}
 	adss.subscribers.Range(func(key, value any) bool {
 		klog.Infof("Sending to subscriber %s", fmt.Sprintf(subIDFmtStr, key.(uint64)))
-
 		if err := value.(*subscriber).stream.Send(&discovery.DiscoveryResponse{
-			TypeUrl:     mcpRes.TypeUrl,
+			TypeUrl:     mcpEvent.TypeUrl,
 			VersionInfo: strconv.FormatInt(time.Now().Unix(), 10), // TODO improve version computation
-			Resources:   mcpRes.Resources,
+			Resources:   resources,
 			ControlPlane: &envoycfgcorev3.ControlPlane{
 				Identifier: os.Getenv("POD_NAME"),
 			},
