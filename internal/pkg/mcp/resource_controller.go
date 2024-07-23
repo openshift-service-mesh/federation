@@ -3,6 +3,7 @@ package mcp
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,22 +36,23 @@ type Event struct {
 
 // Controller object
 type Controller struct {
-	clientset     kubernetes.Interface
-	queue         workqueue.RateLimitingInterface
-	informer      cache.SharedIndexInformer
-	resourceType  string
-	eventHandlers []Handler
+	clientset           kubernetes.Interface
+	queue               workqueue.RateLimitingInterface
+	informer            cache.SharedIndexInformer
+	handlerRegistration cache.ResourceEventHandlerRegistration
+	resourceType        string
+	eventHandlers       []Handler
 }
 
 func objName(obj interface{}) string {
 	return reflect.TypeOf(obj).Name()
 }
 
-func NewResourceController(client kubernetes.Interface, informer cache.SharedIndexInformer, resourceType interface{}) *Controller {
+func NewResourceController(client kubernetes.Interface, informer cache.SharedIndexInformer, resourceType interface{}, eventHandlers []Handler) (*Controller, error) {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	var newEvent Event
 	var err error
-	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	handlerRegistration, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			newEvent.key, err = cache.MetaNamespaceKeyFunc(obj)
 			newEvent.eventType = "create"
@@ -84,21 +86,22 @@ func NewResourceController(client kubernetes.Interface, informer cache.SharedInd
 		},
 	})
 
-	return &Controller{
-		clientset:    client,
-		informer:     informer,
-		queue:        queue,
-		resourceType: objName(resourceType),
+	if err != nil {
+		return &Controller{}, err
 	}
-}
 
-// Add new event handler
-func (c *Controller) AddEventHandler(handler Handler) {
-	c.eventHandlers = append(c.eventHandlers, handler)
+	return &Controller{
+		clientset:           client,
+		informer:            informer,
+		handlerRegistration: handlerRegistration,
+		queue:               queue,
+		resourceType:        objName(resourceType),
+		eventHandlers:       eventHandlers,
+	}, nil
 }
 
 // Run starts the controller
-func (c *Controller) Run(stopCh <-chan struct{}) {
+func (c *Controller) Run(stopCh <-chan struct{}, informersInitGroup *sync.WaitGroup) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
@@ -113,12 +116,19 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 
 	klog.Infof("%s controller synced and ready", c.resourceType)
 
+	informersInitGroup.Done()
+
+	for _, handler := range c.eventHandlers {
+		handler.Init()
+	}
+
 	wait.Until(c.runWorker, time.Second, stopCh)
 }
 
 // HasSynced is required for the cache.Controller interface.
 func (c *Controller) HasSynced() bool {
-	return c.informer.HasSynced()
+	return c.informer.HasSynced() && // store has been informed by at least one full LIST
+		c.handlerRegistration.HasSynced() // and all pre-sync events have been delivered
 }
 
 // LastSyncResourceVersion is required for the cache.Controller interface.

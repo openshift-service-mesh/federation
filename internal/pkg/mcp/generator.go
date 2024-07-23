@@ -9,19 +9,34 @@ import (
 	mcpv1alpha1 "istio.io/api/mcp/v1alpha1"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
 
-type resourceGenerator struct {
+type ResourceGenerator interface {
+	GetTypeUrl() string
+	Generate() ([]*anypb.Any, error)
+}
+
+type gatewayResourceGenerator struct {
+	typeUrl         string
 	cfg             config.Federation
 	serviceInformer cache.SharedIndexInformer
 }
 
-func newResourceGenerator(cfg config.Federation, serviceInformer cache.SharedIndexInformer) *resourceGenerator {
-	return &resourceGenerator{cfg, serviceInformer}
+func NewGatewayResourceGenerator(cfg config.Federation, informerFactory informers.SharedInformerFactory) *gatewayResourceGenerator {
+	return &gatewayResourceGenerator{
+		"networking.istio.io/v1alpha3/Gateway",
+		cfg,
+		informerFactory.Core().V1().Services().Informer(),
+	}
 }
 
-func (g *resourceGenerator) generateGatewayForExportedServices() (McpResources, error) {
+func (g *gatewayResourceGenerator) GetTypeUrl() string {
+	return g.typeUrl
+}
+
+func (g *gatewayResourceGenerator) Generate() ([]*anypb.Any, error) {
 	var hosts []string
 	for _, obj := range g.serviceInformer.GetStore().List() {
 		svc := obj.(*corev1.Service)
@@ -54,20 +69,17 @@ func (g *resourceGenerator) generateGatewayForExportedServices() (McpResources, 
 
 	mcpResBody := &anypb.Any{}
 	if err := anypb.MarshalFrom(mcpResBody, gwSpec, proto.MarshalOptions{}); err != nil {
-		return McpResources{}, fmt.Errorf("failed to serialize Gateway to protobuf message: %w", err)
+		return []*anypb.Any{}, fmt.Errorf("failed to serialize Gateway to protobuf message: %w", err)
 	}
 	mcpResTyped := &mcpv1alpha1.Resource{
 		Metadata: &mcpv1alpha1.Metadata{
-			Name: fmt.Sprintf("istio-system/mcp-federation-ingress-gateway"),
+			Name: "istio-system/mcp-federation-ingress-gateway",
 		},
 		Body: mcpResBody,
 	}
 	mcpRes := &anypb.Any{}
 	if err := anypb.MarshalFrom(mcpRes, mcpResTyped, proto.MarshalOptions{}); err != nil {
-		return McpResources{}, fmt.Errorf("failed to serialize MCP resource to protobuf message: %w", err)
+		return []*anypb.Any{}, fmt.Errorf("failed to serialize MCP resource to protobuf message: %w", err)
 	}
-	return McpResources{
-		TypeUrl:   "networking.istio.io/v1alpha3/Gateway",
-		Resources: []*anypb.Any{mcpRes},
-	}, nil
+	return []*anypb.Any{mcpRes}, nil
 }

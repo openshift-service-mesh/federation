@@ -10,11 +10,10 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/mcp"
-	server "github.com/jewertow/federation/internal/pkg/xds"
+	"github.com/jewertow/federation/internal/pkg/xds"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -67,6 +66,23 @@ func parse() (*config.Federation, error) {
 	}, nil
 }
 
+// Start all k8s controllers and wait for informers to be synchronized
+func startControllers(ctx context.Context, client kubernetes.Interface, cfg *config.Federation,
+	informerFactory informers.SharedInformerFactory, pushMCP chan<- mcp.McpEvent) {
+	var informersInitGroup sync.WaitGroup
+	informersInitGroup.Add(1)
+	serviceInformer := informerFactory.Core().V1().Services().Informer()
+	serviceController, err := mcp.NewResourceController(client, serviceInformer, corev1.Service{},
+		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, pushMCP)})
+	if err != nil {
+		log.Fatal("Error while creating service informer: ", err)
+	}
+	go serviceController.Run(ctx.Done(), &informersInitGroup)
+
+	informersInitGroup.Wait()
+	klog.Infof("All controllers have been synchronized")
+}
+
 func main() {
 	flag.Parse()
 	cfg, err := parse()
@@ -87,29 +103,17 @@ func main() {
 		klog.Fatalf("failed to create Kubernetes clientset: %s", err.Error())
 	}
 
-	pushMCP := make(chan mcp.McpResources)
-	stopCh := make(chan struct{})
-	defer close(stopCh)
+	pushMCP := make(chan mcp.McpEvent)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	serviceInformer := informerFactory.Core().V1().Services().Informer()
-	serviceController := mcp.NewResourceController(clientset, serviceInformer, corev1.Service{})
-	serviceController.AddEventHandler(mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, pushMCP))
+	startControllers(ctx, clientset, cfg, informerFactory, pushMCP)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := server.Run(ctx, pushMCP); err != nil {
-			log.Fatal("Error starting server: ", err)
-		}
-	}()
+	server := xds.NewServer(pushMCP, []mcp.ResourceGenerator{
+		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
+	})
+	if err := server.Run(ctx); err != nil {
+		log.Fatal("Error running XDS server: ", err)
+	}
 
-	// TODO: informers should be somehow notified by the server that it already started and receives connection
-	time.Sleep(5 * time.Second)
-
-	go serviceController.Run(stopCh)
-
-	wg.Wait()
 	os.Exit(0)
 }

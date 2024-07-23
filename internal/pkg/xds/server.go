@@ -15,13 +15,32 @@ import (
 // defaultServerPort is the default port for the gRPC server.
 const defaultServerPort string = "15010"
 
-// Run starts the gRPC server and the controllers.
-func Run(ctx context.Context, pushMCP <-chan mcp.McpResources) error {
-	var routinesGroup errgroup.Group
-	grpcServer := grpc.NewServer()
-	adsServerImpl := &adsServer{}
+type Server struct {
+	grpc    *grpc.Server
+	ads     *adsServer
+	pushMCP <-chan mcp.McpEvent
+}
 
-	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, adsServerImpl)
+func NewServer(pushMCP <-chan mcp.McpEvent, generators []mcp.ResourceGenerator) *Server {
+	grpcServer := grpc.NewServer()
+	generatorsMap := make(map[string]mcp.ResourceGenerator)
+	for _, g := range generators {
+		generatorsMap[g.GetTypeUrl()] = g
+	}
+	adsServer := &adsServer{generators: generatorsMap}
+
+	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, adsServer)
+
+	return &Server{
+		grpc:    grpcServer,
+		ads:     adsServer,
+		pushMCP: pushMCP,
+	}
+}
+
+// Run starts the gRPC server and the controllers.
+func (s *Server) Run(ctx context.Context) error {
+	var routinesGroup errgroup.Group
 
 	listener, err := net.Listen("tcp", fmt.Sprint(":", defaultServerPort))
 	if err != nil {
@@ -33,13 +52,13 @@ func Run(ctx context.Context, pushMCP <-chan mcp.McpResources) error {
 	routinesGroup.Go(func() error {
 		defer cancel()
 		klog.Info("Running MCP RPC server")
-		return grpcServer.Serve(listener)
+		return s.grpc.Serve(listener)
 	})
 
 	routinesGroup.Go(func() error {
 		defer klog.Info("MCP gRPC server was shut down")
 		<-ctx.Done()
-		grpcServer.GracefulStop()
+		s.grpc.GracefulStop()
 		return nil
 	})
 
@@ -47,12 +66,11 @@ loop:
 	for {
 		select {
 		case <-ctx.Done():
-			adsServerImpl.closeSubscribers()
+			s.ads.closeSubscribers()
 			break loop
 
-		case mcpResources := <-pushMCP:
-			klog.Infof("Pushing MCP resources to subscribers: %v", mcpResources)
-			if err := adsServerImpl.push(mcpResources); err != nil {
+		case mcpEvent := <-s.pushMCP:
+			if err := s.ads.push(mcpEvent); err != nil {
 				klog.Errorf("Error pushing to subscribers: %v", err)
 			}
 		}
