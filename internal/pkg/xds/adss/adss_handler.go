@@ -1,4 +1,4 @@
-package xds
+package adss
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 
 	envoycfgcorev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	"github.com/jewertow/federation/internal/pkg/mcp"
+	"github.com/jewertow/federation/internal/pkg/xds"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -29,7 +29,7 @@ type (
 // adsServer implements Envoy's AggregatedDiscoveryService service for sending MCP resources to Istiod.
 // ads is Aggregated Discovery Service
 type adsServer struct {
-	generators       map[string]mcp.ResourceGenerator
+	generators       map[string]xds.ResourceGenerator
 	subscribers      sync.Map
 	nextSubscriberID atomic.Uint64
 }
@@ -132,21 +132,21 @@ func (adss *adsServer) subscribersLen() int {
 	return length
 }
 
-func (adss *adsServer) push(mcpEvent mcp.McpEvent) error {
+func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 	if adss.subscribersLen() == 0 {
-		klog.Infof("Skip pushing MCP event: %v as there are no subscribers", mcpEvent)
+		klog.Infof("Skip pushing MCP event: %v as there are no subscribers", pushRequest)
 		return nil
 	}
 
-	klog.Infof("Pushing MCP event to subscribers: %v", mcpEvent)
-	resources, err := adss.generateResources(mcpEvent.TypeUrl)
+	klog.Infof("Pushing MCP event to subscribers: %v", pushRequest)
+	resources, err := adss.generateResources(pushRequest.TypeUrl)
 	if err != nil {
 		return err
 	}
 	adss.subscribers.Range(func(key, value any) bool {
 		klog.Infof("Sending to subscriber %s", fmt.Sprintf(subIDFmtStr, key.(uint64)))
 		if err := value.(*subscriber).stream.Send(&discovery.DiscoveryResponse{
-			TypeUrl:     mcpEvent.TypeUrl,
+			TypeUrl:     pushRequest.TypeUrl,
 			VersionInfo: strconv.FormatInt(time.Now().Unix(), 10), // TODO improve version computation
 			Resources:   resources,
 			ControlPlane: &envoycfgcorev3.ControlPlane{

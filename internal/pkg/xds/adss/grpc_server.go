@@ -1,4 +1,4 @@
-package xds
+package adss
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"net"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	"github.com/jewertow/federation/internal/pkg/mcp"
+	"github.com/jewertow/federation/internal/pkg/xds"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
@@ -16,14 +16,14 @@ import (
 const defaultServerPort string = "15010"
 
 type Server struct {
-	grpc    *grpc.Server
-	ads     *adsServer
-	pushMCP <-chan mcp.McpEvent
+	grpc         *grpc.Server
+	ads          *adsServer
+	pushRequests <-chan xds.PushRequest
 }
 
-func NewServer(pushMCP <-chan mcp.McpEvent, generators []mcp.ResourceGenerator) *Server {
+func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGenerator) *Server {
 	grpcServer := grpc.NewServer()
-	generatorsMap := make(map[string]mcp.ResourceGenerator)
+	generatorsMap := make(map[string]xds.ResourceGenerator)
 	for _, g := range generators {
 		generatorsMap[g.GetTypeUrl()] = g
 	}
@@ -32,9 +32,9 @@ func NewServer(pushMCP <-chan mcp.McpEvent, generators []mcp.ResourceGenerator) 
 	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, adsServer)
 
 	return &Server{
-		grpc:    grpcServer,
-		ads:     adsServer,
-		pushMCP: pushMCP,
+		grpc:         grpcServer,
+		ads:          adsServer,
+		pushRequests: pushRequests,
 	}
 }
 
@@ -69,7 +69,7 @@ loop:
 			s.ads.closeSubscribers()
 			break loop
 
-		case mcpEvent := <-s.pushMCP:
+		case mcpEvent := <-s.pushRequests:
 			if err := s.ads.push(mcpEvent); err != nil {
 				klog.Errorf("Error pushing to subscribers: %v", err)
 			}

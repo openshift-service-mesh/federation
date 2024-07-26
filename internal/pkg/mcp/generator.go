@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/xds"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	mcpv1alpha1 "istio.io/api/mcp/v1alpha1"
@@ -13,10 +14,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-type ResourceGenerator interface {
-	GetTypeUrl() string
-	Generate() ([]*anypb.Any, error)
-}
+var _ xds.ResourceGenerator = (*gatewayResourceGenerator)(nil)
 
 type gatewayResourceGenerator struct {
 	typeUrl         string

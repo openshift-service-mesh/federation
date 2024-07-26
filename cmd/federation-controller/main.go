@@ -14,6 +14,7 @@ import (
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/mcp"
 	"github.com/jewertow/federation/internal/pkg/xds"
+	"github.com/jewertow/federation/internal/pkg/xds/adss"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -68,12 +69,12 @@ func parse() (*config.Federation, error) {
 
 // Start all k8s controllers and wait for informers to be synchronized
 func startControllers(ctx context.Context, client kubernetes.Interface, cfg *config.Federation,
-	informerFactory informers.SharedInformerFactory, pushMCP chan<- mcp.McpEvent) {
+	informerFactory informers.SharedInformerFactory, pushRequests chan<- xds.PushRequest) {
 	var informersInitGroup sync.WaitGroup
 	informersInitGroup.Add(1)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
 	serviceController, err := mcp.NewResourceController(client, serviceInformer, corev1.Service{},
-		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, pushMCP)})
+		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, pushRequests)})
 	if err != nil {
 		log.Fatal("Error while creating service informer: ", err)
 	}
@@ -103,12 +104,12 @@ func main() {
 		klog.Fatalf("failed to create Kubernetes clientset: %s", err.Error())
 	}
 
-	pushMCP := make(chan mcp.McpEvent)
+	pushRequests := make(chan xds.PushRequest)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	startControllers(ctx, clientset, cfg, informerFactory, pushMCP)
+	startControllers(ctx, clientset, cfg, informerFactory, pushRequests)
 
-	server := xds.NewServer(pushMCP, []mcp.ResourceGenerator{
+	server := adss.NewServer(pushRequests, []xds.ResourceGenerator{
 		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
 	})
 	if err := server.Run(ctx); err != nil {

@@ -5,26 +5,26 @@ import (
 	"strings"
 
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/xds"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/klog/v2"
-
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 )
 
 type ExportedServiceSetHandler struct {
 	cfg             config.Federation
 	serviceInformer cache.SharedIndexInformer
-	pushMCP         chan<- McpEvent
+	pushRequests    chan<- xds.PushRequest
 }
 
-func NewExportedServiceSetHandler(cfg config.Federation, serviceInformer cache.SharedIndexInformer, pushMCP chan<- McpEvent) *ExportedServiceSetHandler {
+func NewExportedServiceSetHandler(cfg config.Federation, serviceInformer cache.SharedIndexInformer, pushRequests chan<- xds.PushRequest) *ExportedServiceSetHandler {
 	return &ExportedServiceSetHandler{
 		cfg:             cfg,
 		serviceInformer: serviceInformer,
-		pushMCP:         pushMCP,
+		pushRequests:    pushRequests,
 	}
 }
 
@@ -60,7 +60,7 @@ func (w *ExportedServiceSetHandler) pushMCPUpdateIfMatchesRules(services []*core
 			for _, service := range services {
 				if matchesLabelSelector(service, selectors.MatchLabels) {
 					klog.Infof("Found a service matching selector: %s/%s\n", service.Namespace, service.Name)
-					w.pushMCP <- McpEvent{TypeUrl: "networking.istio.io/v1alpha3/Gateway"}
+					w.pushRequests <- xds.PushRequest{TypeUrl: "networking.istio.io/v1alpha3/Gateway"}
 					return
 				}
 			}
