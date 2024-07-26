@@ -12,16 +12,14 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// defaultServerPort is the default port for the gRPC server.
-const defaultServerPort string = "15010"
-
 type Server struct {
 	grpc         *grpc.Server
 	ads          *adsServer
 	pushRequests <-chan xds.PushRequest
+	port         int32
 }
 
-func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGenerator) *Server {
+func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGenerator, port int32) *Server {
 	grpcServer := grpc.NewServer()
 	generatorsMap := make(map[string]xds.ResourceGenerator)
 	for _, g := range generators {
@@ -35,6 +33,7 @@ func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGen
 		grpc:         grpcServer,
 		ads:          adsServer,
 		pushRequests: pushRequests,
+		port:         port,
 	}
 }
 
@@ -42,7 +41,7 @@ func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGen
 func (s *Server) Run(ctx context.Context) error {
 	var routinesGroup errgroup.Group
 
-	listener, err := net.Listen("tcp", fmt.Sprint(":", defaultServerPort))
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
 		return fmt.Errorf("creating TCP listener: %w", err)
 	}
@@ -69,8 +68,8 @@ loop:
 			s.ads.closeSubscribers()
 			break loop
 
-		case mcpEvent := <-s.pushRequests:
-			if err := s.ads.push(mcpEvent); err != nil {
+		case pushRequest := <-s.pushRequests:
+			if err := s.ads.push(pushRequest); err != nil {
 				klog.Errorf("Error pushing to subscribers: %v", err)
 			}
 		}

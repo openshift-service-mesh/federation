@@ -109,10 +109,10 @@ func main() {
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 	startControllers(ctx, clientset, cfg, informerFactory, pushRequests)
 
-	server := adss.NewServer(pushRequests, []xds.ResourceGenerator{
+	mcpServer := adss.NewServer(pushRequests, []xds.ResourceGenerator{
 		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
-	})
-	if err := server.Run(ctx); err != nil {
+	}, 15010)
+	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatal("Error running XDS server: ", err)
 	}
 
