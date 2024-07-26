@@ -56,6 +56,7 @@ func (w *ExportedServiceSetHandler) pushMCPUpdateIfMatchesRules(services []*core
 		if rules.Type != "LabelSelector" {
 			continue
 		}
+		// TODO: use function from common package
 		for _, selectors := range rules.LabelSelectors {
 			for _, service := range services {
 				if matchesLabelSelector(service, selectors.MatchLabels) {

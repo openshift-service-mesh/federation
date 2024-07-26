@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package v1alpha1;
+
+option go_package = "federation/v1alpha1";
+
+// ExportedService represents a service with a name and namespace.
+message ExportedService {
+  string name = 1;
+  string namespace = 2;
+}

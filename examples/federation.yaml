@@ -31,10 +31,16 @@ metadata:
   name: federation-controller
 spec:
   ports:
-  - name: grpc
+  - name: grpc-mcp
     port: 15010
-    targetPort: grpc
+    targetPort: grpc-mcp
     protocol: TCP
+    appProtocol: grpc
+  - name: grpc-fds
+    port: 15020
+    targetPort: grpc-fds
+    protocol: TCP
+    appProtocol: grpc
   selector:
     app.kubernetes.io/name: federation-controller
 ---
@@ -54,7 +60,7 @@ spec:
       serviceAccount: federation-controller
       containers:
       - name: server
-        image: quay.io/jewertow/federation-controller:latest
+        image: quay.io/jewertow/federation-controller:federation-server
         args:
         - --meshPeers
         - '{"spec":{"remote":{"addresses":["lb-1234567890.us-east-1.elb.amazonaws.com","192.168.10.56"],"ports":{"dataPlane":15443,"discoery":15020}}}}'
@@ -68,5 +74,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         ports:
-        - name: grpc
+        - name: grpc-mcp
           containerPort: 15010
+        - name: grpc-fds
+          containerPort: 15020

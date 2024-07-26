@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/jewertow/federation/internal/pkg/federation"
 	"log"
 	"os"
 	"os/signal"
@@ -104,12 +105,22 @@ func main() {
 		klog.Fatalf("failed to create Kubernetes clientset: %s", err.Error())
 	}
 
-	pushRequests := make(chan xds.PushRequest)
+	exportPushRequests := make(chan xds.PushRequest)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	startControllers(ctx, clientset, cfg, informerFactory, pushRequests)
+	startControllers(ctx, clientset, cfg, informerFactory, exportPushRequests)
 
-	mcpServer := adss.NewServer(pushRequests, []xds.ResourceGenerator{
+	federationServer := adss.NewServer(exportPushRequests, []xds.ResourceGenerator{
+		federation.NewGatewayResourceGenerator(*cfg, informerFactory),
+	}, 15020)
+	go func() {
+		// TODO: graceful shutdown
+		if err := federationServer.Run(ctx); err != nil {
+			log.Fatal("Error starting federation server: ", err)
+		}
+	}()
+
+	mcpServer := adss.NewServer(exportPushRequests, []xds.ResourceGenerator{
 		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
 	}, 15010)
 	if err := mcpServer.Run(ctx); err != nil {
