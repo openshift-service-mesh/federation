@@ -21,7 +21,7 @@ type exportedServicesGenerator struct {
 	serviceInformer cache.SharedIndexInformer
 }
 
-func NewGatewayResourceGenerator(cfg config.Federation, informerFactory informers.SharedInformerFactory) *exportedServicesGenerator {
+func NewExportedServicesGenerator(cfg config.Federation, informerFactory informers.SharedInformerFactory) *exportedServicesGenerator {
 	return &exportedServicesGenerator{
 		typeUrl:         "federation.istio-ecosystem.io/v1alpha1/ExportedService",
 		cfg:             cfg,

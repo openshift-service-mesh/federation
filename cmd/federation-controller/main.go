@@ -113,7 +113,7 @@ func main() {
 	startControllers(ctx, clientset, cfg, informerFactory, exportPushRequests)
 
 	federationServer := adss.NewServer(exportPushRequests, []xds.ResourceGenerator{
-		federation.NewGatewayResourceGenerator(*cfg, informerFactory),
+		federation.NewExportedServicesGenerator(*cfg, informerFactory),
 	}, 15020)
 	go func() {
 		// TODO: graceful shutdown

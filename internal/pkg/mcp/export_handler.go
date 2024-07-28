@@ -62,6 +62,7 @@ func (w *ExportedServiceSetHandler) pushMCPUpdateIfMatchesRules(services []*core
 				if matchesLabelSelector(service, selectors.MatchLabels) {
 					klog.Infof("Found a service matching selector: %s/%s\n", service.Namespace, service.Name)
 					w.pushRequests <- xds.PushRequest{TypeUrl: "networking.istio.io/v1alpha3/Gateway"}
+					w.pushRequests <- xds.PushRequest{TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService"}
 					return
 				}
 			}
