@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/jewertow/federation/internal/pkg/federation"
+	"github.com/jewertow/federation/internal/pkg/xds/adsc"
 	"log"
 	"os"
 	"os/signal"
@@ -119,6 +121,23 @@ func main() {
 			log.Fatal("Error starting federation server: ", err)
 		}
 	}()
+	if len(cfg.MeshPeers.Spec.Remote.Addresses) > 0 {
+		federationClient, err := adsc.New(&adsc.ADSCConfig{
+			DiscoveryAddr: fmt.Sprintf("%s:15020", cfg.MeshPeers.Spec.Remote.Addresses[0]),
+			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
+				TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService",
+			}},
+		})
+		go func() {
+			// TODO: graceful shutdown
+			if err := federationClient.Run(); err != nil {
+				klog.Fatal("Error starting federation server: ", err)
+			}
+		}()
+		if err != nil {
+			klog.Fatal("Error creating adss client: ", err)
+		}
+	}
 
 	mcpServer := adss.NewServer(exportPushRequests, []xds.ResourceGenerator{
 		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
