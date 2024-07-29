@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
+	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adsc"
 	"google.golang.org/protobuf/proto"
@@ -17,12 +18,14 @@ import (
 var _ adsc.Handler = (*importedServiceHandler)(nil)
 
 type importedServiceHandler struct {
+	cfg               *config.Federation
 	serviceController *Controller
 	pushRequests      chan<- xds.PushRequest
 }
 
-func NewImportedServiceHandler(serviceController *Controller, pushRequests chan<- xds.PushRequest) *importedServiceHandler {
+func NewImportedServiceHandler(cfg *config.Federation, serviceController *Controller, pushRequests chan<- xds.PushRequest) *importedServiceHandler {
 	return &importedServiceHandler{
+		cfg:               cfg,
 		serviceController: serviceController,
 		pushRequests:      pushRequests,
 	}
@@ -39,6 +42,10 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 		}
 		fmt.Println("Imported service name:", exportedService.Name)
 		fmt.Println("Imported service namespace:", exportedService.Namespace)
+		if exportedService.Name == "" || exportedService.Namespace == "" {
+			fmt.Println("Ignoring resource with empty name or namespace: ", res)
+			continue
+		}
 		importedServices = append(importedServices, exportedService)
 	}
 
@@ -57,7 +64,16 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 						Protocol: "HTTP",
 					}},
 					// TODO: build endpoints from remote ingress gateway address
-					//Endpoints:  workloadEntries,
+					Endpoints: []*istionetv1alpha3.WorkloadEntry{{
+						Address:  h.cfg.MeshPeers.Spec.Remote.Addresses[0],
+						Ports:    map[string]uint32{"http": 15443},
+						Network:  "west-network",
+						Locality: "west",
+						Labels: map[string]string{
+							"app":                       "httpbin",
+							"security.istio.io/tlsMode": "istio",
+						},
+					}},
 					Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
 					Resolution: istionetv1alpha3.ServiceEntry_STATIC,
 				}
@@ -90,7 +106,7 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 	}
 	h.pushRequests <- xds.PushRequest{
 		TypeUrl: "networking.istio.io/v1alpha3/ServiceEntry",
-		Body:    resources,
+		Body:    mcpResources,
 	}
 	return nil
 }

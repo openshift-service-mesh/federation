@@ -73,13 +73,13 @@ func parse() (*config.Federation, error) {
 // Start all k8s controllers and wait for informers to be synchronized
 func startControllers(
 	ctx context.Context, client kubernetes.Interface, cfg *config.Federation,
-	informerFactory informers.SharedInformerFactory, pushRequests chan<- xds.PushRequest,
+	informerFactory informers.SharedInformerFactory, federationPushRequests, mcpPushRequests chan<- xds.PushRequest,
 ) *mcp.Controller {
 	var informersInitGroup sync.WaitGroup
 	informersInitGroup.Add(1)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
 	serviceController, err := mcp.NewResourceController(client, serviceInformer, corev1.Service{},
-		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, pushRequests)})
+		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, federationPushRequests, mcpPushRequests)})
 	if err != nil {
 		log.Fatal("Error while creating service informer: ", err)
 	}
@@ -110,14 +110,15 @@ func main() {
 		klog.Fatalf("failed to create Kubernetes clientset: %s", err.Error())
 	}
 
-	exportPushRequests := make(chan xds.PushRequest)
+	federationPushRequests := make(chan xds.PushRequest)
+	mcpPushRequests := make(chan xds.PushRequest)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	serviceController := startControllers(ctx, clientset, cfg, informerFactory, exportPushRequests)
+	serviceController := startControllers(ctx, clientset, cfg, informerFactory, federationPushRequests, mcpPushRequests)
 
-	federationServer := adss.NewServer(exportPushRequests, []xds.ResourceGenerator{
+	federationServer := adss.NewServer(federationPushRequests, []xds.ResourceGenerator{
 		federation.NewExportedServicesGenerator(*cfg, informerFactory),
-	}, 15020)
+	}, 15020, "federation")
 	go func() {
 		// TODO: graceful shutdown
 		if err := federationServer.Run(ctx); err != nil {
@@ -131,7 +132,7 @@ func main() {
 				TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService",
 			}},
 			Handlers: map[string]adsc.Handler{
-				"federation.istio-ecosystem.io/v1alpha1/ExportedService": mcp.NewImportedServiceHandler(serviceController, exportPushRequests),
+				"federation.istio-ecosystem.io/v1alpha1/ExportedService": mcp.NewImportedServiceHandler(cfg, serviceController, mcpPushRequests),
 			},
 		})
 		go func() {
@@ -145,9 +146,9 @@ func main() {
 		}
 	}
 
-	mcpServer := adss.NewServer(exportPushRequests, []xds.ResourceGenerator{
+	mcpServer := adss.NewServer(mcpPushRequests, []xds.ResourceGenerator{
 		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
-	}, 15010)
+	}, 15010, "mcp")
 	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatal("Error running XDS server: ", err)
 	}

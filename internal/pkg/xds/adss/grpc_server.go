@@ -17,15 +17,16 @@ type Server struct {
 	ads          *adsServer
 	pushRequests <-chan xds.PushRequest
 	port         int32
+	serverID     string
 }
 
-func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGenerator, port int32) *Server {
+func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGenerator, port int32, serverID string) *Server {
 	grpcServer := grpc.NewServer()
 	generatorsMap := make(map[string]xds.ResourceGenerator)
 	for _, g := range generators {
 		generatorsMap[g.GetTypeUrl()] = g
 	}
-	adsServer := &adsServer{generators: generatorsMap}
+	adsServer := &adsServer{generators: generatorsMap, serverID: serverID}
 
 	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, adsServer)
 
@@ -34,6 +35,7 @@ func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGen
 		ads:          adsServer,
 		pushRequests: pushRequests,
 		port:         port,
+		serverID:     serverID,
 	}
 }
 
@@ -43,19 +45,19 @@ func (s *Server) Run(ctx context.Context) error {
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
-		return fmt.Errorf("creating TCP listener: %w", err)
+		return fmt.Errorf("[%s] creating TCP listener: %w", s.serverID, err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 
 	routinesGroup.Go(func() error {
 		defer cancel()
-		klog.Info("Running MCP RPC server")
+		klog.Infof("[%s] Running gRPC server", s.serverID)
 		return s.grpc.Serve(listener)
 	})
 
 	routinesGroup.Go(func() error {
-		defer klog.Info("MCP gRPC server was shut down")
+		defer klog.Info("[%s] gRPC server was shut down", s.serverID)
 		<-ctx.Done()
 		s.grpc.GracefulStop()
 		return nil
@@ -69,9 +71,9 @@ loop:
 			break loop
 
 		case pushRequest := <-s.pushRequests:
-			klog.Infof("Received push request: %v", pushRequest)
+			klog.Infof("[%s] Received push request: %v", s.serverID, pushRequest)
 			if err := s.ads.push(pushRequest); err != nil {
-				klog.Errorf("Error pushing to subscribers: %v", err)
+				klog.Errorf("[%s] failed to push to subscribers: %v", s.serverID, err)
 			}
 		}
 	}

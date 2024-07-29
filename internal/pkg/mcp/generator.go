@@ -46,6 +46,9 @@ func (g *gatewayResourceGenerator) Generate() ([]*anypb.Any, error) {
 			}
 		}
 	}
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("no hosts found for gateway")
+	}
 	gwSpec := &istionetv1alpha3.Gateway{
 		Selector: map[string]string{
 			"istio": "eastwestgateway",
