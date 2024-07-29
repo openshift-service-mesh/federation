@@ -20,6 +20,7 @@ const (
 type ADSCConfig struct {
 	DiscoveryAddr            string
 	InitialDiscoveryRequests []*discovery.DiscoveryRequest
+	Handlers                 map[string]Handler
 }
 
 type ADSC struct {
@@ -89,5 +90,13 @@ func (a *ADSC) handleRecv() {
 		}
 		fmt.Println("received response of type ", msg.TypeUrl)
 		fmt.Println("received response body ", msg.Resources)
+		if handler, found := a.cfg.Handlers[msg.TypeUrl]; found {
+			fmt.Println("Handler found for type ", msg.TypeUrl)
+			if err := handler.Handle(msg.Resources); err != nil {
+				fmt.Println("error handling resource ", msg.TypeUrl, err)
+			}
+		} else {
+			fmt.Println("no handler found for type", msg.TypeUrl)
+		}
 	}
 }

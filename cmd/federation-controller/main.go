@@ -71,8 +71,10 @@ func parse() (*config.Federation, error) {
 }
 
 // Start all k8s controllers and wait for informers to be synchronized
-func startControllers(ctx context.Context, client kubernetes.Interface, cfg *config.Federation,
-	informerFactory informers.SharedInformerFactory, pushRequests chan<- xds.PushRequest) {
+func startControllers(
+	ctx context.Context, client kubernetes.Interface, cfg *config.Federation,
+	informerFactory informers.SharedInformerFactory, pushRequests chan<- xds.PushRequest,
+) *mcp.Controller {
 	var informersInitGroup sync.WaitGroup
 	informersInitGroup.Add(1)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
@@ -85,6 +87,7 @@ func startControllers(ctx context.Context, client kubernetes.Interface, cfg *con
 
 	informersInitGroup.Wait()
 	klog.Infof("All controllers have been synchronized")
+	return serviceController
 }
 
 func main() {
@@ -110,7 +113,7 @@ func main() {
 	exportPushRequests := make(chan xds.PushRequest)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	startControllers(ctx, clientset, cfg, informerFactory, exportPushRequests)
+	serviceController := startControllers(ctx, clientset, cfg, informerFactory, exportPushRequests)
 
 	federationServer := adss.NewServer(exportPushRequests, []xds.ResourceGenerator{
 		federation.NewExportedServicesGenerator(*cfg, informerFactory),
@@ -127,6 +130,9 @@ func main() {
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService",
 			}},
+			Handlers: map[string]adsc.Handler{
+				"federation.istio-ecosystem.io/v1alpha1/ExportedService": mcp.NewImportedServiceHandler(serviceController, exportPushRequests),
+			},
 		})
 		go func() {
 			// TODO: graceful shutdown

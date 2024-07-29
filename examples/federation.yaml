@@ -60,7 +60,7 @@ spec:
       serviceAccount: federation-controller
       containers:
       - name: server
-        image: quay.io/jewertow/federation-controller:federation-client-1
+        image: quay.io/jewertow/federation-controller:federation-client-5
         args:
         - --meshPeers
         - '{"spec":{"remote":{"addresses":[],"ports":{"dataPlane":15443,"discovery":15020}}}}'

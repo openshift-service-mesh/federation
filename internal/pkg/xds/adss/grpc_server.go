@@ -69,6 +69,7 @@ loop:
 			break loop
 
 		case pushRequest := <-s.pushRequests:
+			klog.Infof("Received push request: %v", pushRequest)
 			if err := s.ads.push(pushRequest); err != nil {
 				klog.Errorf("Error pushing to subscribers: %v", err)
 			}

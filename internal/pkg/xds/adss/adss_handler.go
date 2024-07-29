@@ -138,11 +138,17 @@ func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 		return nil
 	}
 
-	klog.Infof("Pushing MCP event to subscribers: %v", pushRequest)
-	resources, err := adss.generateResources(pushRequest.TypeUrl)
-	if err != nil {
-		return err
+	var resources []*anypb.Any
+	if pushRequest.Body != nil {
+		resources = pushRequest.Body
+	} else {
+		var err error
+		resources, err = adss.generateResources(pushRequest.TypeUrl)
+		if err != nil {
+			return err
+		}
 	}
+	klog.Infof("Pushing discovery response to subscribers: [type=%s,body=%v]", pushRequest.TypeUrl, resources)
 	adss.subscribers.Range(func(key, value any) bool {
 		klog.Infof("Sending to subscriber %s", fmt.Sprintf(subIDFmtStr, key.(uint64)))
 		if err := value.(*subscriber).stream.Send(&discovery.DiscoveryResponse{
