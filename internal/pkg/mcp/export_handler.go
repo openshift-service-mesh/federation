@@ -11,23 +11,23 @@ import (
 )
 
 type ExportedServiceSetHandler struct {
-	cfg                    config.Federation
-	serviceInformer        cache.SharedIndexInformer
-	federationPushRequests chan<- xds.PushRequest
-	mcpPushRequests        chan<- xds.PushRequest
+	cfg             config.Federation
+	serviceInformer cache.SharedIndexInformer
+	fdsPushRequests chan<- xds.PushRequest
+	mcpPushRequests chan<- xds.PushRequest
 }
 
 func NewExportedServiceSetHandler(
 	cfg config.Federation,
 	serviceInformer cache.SharedIndexInformer,
-	federationPushRequests,
+	fdsPushRequests,
 	mcpPushRequests chan<- xds.PushRequest,
 ) *ExportedServiceSetHandler {
 	return &ExportedServiceSetHandler{
-		cfg:                    cfg,
-		serviceInformer:        serviceInformer,
-		federationPushRequests: federationPushRequests,
-		mcpPushRequests:        mcpPushRequests,
+		cfg:             cfg,
+		serviceInformer: serviceInformer,
+		fdsPushRequests: fdsPushRequests,
+		mcpPushRequests: mcpPushRequests,
 	}
 }
 
@@ -59,7 +59,7 @@ func (w *ExportedServiceSetHandler) pushMCPUpdateIfMatchesRules(services []*core
 		if common.MatchExportRules(svc, w.cfg.ExportedServiceSet.GetLabelSelectors()) {
 			klog.Infof("Found a service matching selector: %s/%s\n", svc.Namespace, svc.Name)
 			w.mcpPushRequests <- xds.PushRequest{TypeUrl: "networking.istio.io/v1alpha3/Gateway"}
-			w.federationPushRequests <- xds.PushRequest{TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService"}
+			w.fdsPushRequests <- xds.PushRequest{TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService"}
 			return
 		}
 	}

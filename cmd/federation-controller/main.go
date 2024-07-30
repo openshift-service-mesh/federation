@@ -75,13 +75,13 @@ func parse() (*config.Federation, error) {
 // Start all k8s controllers and wait for informers to be synchronized
 func startControllers(
 	ctx context.Context, client kubernetes.Interface, cfg *config.Federation,
-	informerFactory informers.SharedInformerFactory, federationPushRequests, mcpPushRequests chan<- xds.PushRequest,
+	informerFactory informers.SharedInformerFactory, fdsPushRequests, mcpPushRequests chan<- xds.PushRequest,
 ) *mcp.Controller {
 	var informersInitGroup sync.WaitGroup
 	informersInitGroup.Add(1)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
 	serviceController, err := mcp.NewResourceController(client, serviceInformer, corev1.Service{},
-		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, federationPushRequests, mcpPushRequests)})
+		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, fdsPushRequests, mcpPushRequests)})
 	if err != nil {
 		log.Fatal("Error while creating service informer: ", err)
 	}
@@ -113,15 +113,15 @@ func main() {
 		klog.Fatalf("failed to create Kubernetes clientset: %s", err.Error())
 	}
 
-	federationPushRequests := make(chan xds.PushRequest)
+	fdsPushRequests := make(chan xds.PushRequest)
 	mcpPushRequests := make(chan xds.PushRequest)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	serviceController := startControllers(ctx, clientset, cfg, informerFactory, federationPushRequests, mcpPushRequests)
+	serviceController := startControllers(ctx, clientset, cfg, informerFactory, fdsPushRequests, mcpPushRequests)
 
 	federationServer := adss.NewServer(
 		&adss.ServerOpts{Port: 15020, ServerID: "federation"},
-		federationPushRequests,
+		fdsPushRequests,
 		federation.NewExportedServicesGenerator(*cfg, informerFactory),
 	)
 	go func() {
