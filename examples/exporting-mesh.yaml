@@ -33,6 +33,9 @@ spec:
           value: west-network
         service:
           ports:
+          - name: grpc-fds
+            port: 15020
+            targetPort: 15020
           - name: status-port
             port: 15021
             targetPort: 15021

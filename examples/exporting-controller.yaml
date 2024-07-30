@@ -35,7 +35,10 @@ spec:
     port: 15010
     targetPort: grpc-mcp
     protocol: TCP
-    appProtocol: grpc
+  - name: grpc-fds
+    port: 15020
+    targetPort: grpc-fds
+    protocol: TCP
   selector:
     app.kubernetes.io/name: federation-controller
 ---
@@ -70,10 +73,10 @@ spec:
       serviceAccount: federation-controller
       containers:
       - name: server
-        image: quay.io/jewertow/federation-controller:fds-6
+        image: quay.io/jewertow/federation-controller:fds-7
         args:
         - --meshPeers
-        - '{"spec":{"remote":{"addresses":[],"ports":{"dataPlane":15443,"discovery":15020}}}}'
+        - '{}'
         - --exportedServiceSet
         - '{"rules":[{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}]}'
         - --importedServiceSet

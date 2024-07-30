@@ -100,15 +100,20 @@ kwest create secret generic cacerts -n istio-system \
 kwest apply -f examples/exporting-controller.yaml -n istio-system
 ```
 ```shell
-WEST_FEDERATION_IP=$(kwest get svc federation-controller-lb -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+DISCOVERY_IP=$(kwest get svc federation-controller-lb -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 cat examples/importing-controller.yaml | sed "s/{{.federationControllerIP}}/$WEST_FEDERATION_IP/" | keast apply -n istio-system -f -
 ```
 
-### Install Istio 1.22.1+
-
+### Deploy Istio
 ```shell
 istioctl --kubeconfig=west.kubeconfig install -f examples/exporting-mesh.yaml -y
 istioctl --kubeconfig=east.kubeconfig install -f examples/importing-mesh.yaml -y
+```
+
+### Configure east-west gateway address:
+```shell
+DATAPLANE_IP=$(kwest get svc istio-eastwestgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+cat examples/importing-controller.yaml | sed -e "s/{{.federationControllerIP}}/$WEST_FEDERATION_IP/" -e "s/127.0.0.1/$DATAPLANE_IP/" | keast apply -n istio-system -f -
 ```
 
 ### Import and export services
@@ -126,211 +131,14 @@ kwest apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/sample
 kwest label service httpbin -n httpbin export-service=true
 ```
 
-#### Without egress gateway
-
-2. Import httpbin from west cluster to east cluster:
-```shell
-REMOTE_INGRESS_IP=$(kwest get svc -l istio=eastwestgateway -n istio-system -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
-helm template -s templates/import-remote.yaml . \
-  --set eastwestGatewayIP=$REMOTE_INGRESS_IP \
-  --set eastwestEgressEnabled=false \
-  | keast apply -f -
-```
-
-Check endpoints in sleep's istio-proxy:
+2. Check endpoints in sleep's istio-proxy and listeners in east-west gateway:
 ```shell
 istioctl --kubeconfig=east.kubeconfig pc endpoints deploy/sleep -n sleep | grep httpbin
+istioctl --kubeconfig=west.kubeconfig pc listeners deploy/istio-eastwestgateway -n istio-system
 ```
 
-3. Test a request from sleep to httpbin:
+3. Send a request from sleep to httpbin:
 ```shell
 SLEEP_POD_NAME=$(keast get pods -l app=sleep -n sleep -o jsonpath='{.items[0].metadata.name}')
 keast exec $SLEEP_POD_NAME -n sleep -c sleep -- curl -v httpbin.httpbin.svc.cluster.local:8000/headers
 ```
-
-4. Now deploy httpbin locally as well and test requests again. Traffic should be routed to both instances equally.
-```shell
-keast create namespace httpbin
-keast label namespace httpbin istio-injection=enabled
-keast apply -f https://raw.githubusercontent.com/istio/istio/release-1.20/samples/httpbin/httpbin.yaml -n httpbin
-helm template -s templates/import-remote.yaml . \
-  --set eastwestGatewayIP=$REMOTE_INGRESS_IP \
-  | keast delete -f -
-helm template -s templates/import-as-local.yaml . \
-  --set eastwestGatewayIP=$REMOTE_INGRESS_IP \
-  | keast apply -f -
-```
-
-#### With egress gateway
-
-1. Install Istio with egress gateway:
-```shell
-helm template -s templates/istio.yaml . \
-  --set localCluster=east \
-  --set remoteCluster=west \
-  --set eastwestEgressEnabled=true \
-  | istioctl --kubeconfig=east.kubeconfig install -y -f -
-```
-```shell
-helm template -s templates/istio.yaml . \
-  --set localCluster=west \
-  --set remoteCluster=east \
-  --set eastwestIngressEnabled=true \
-  | istioctl --kubeconfig=west.kubeconfig install -y -f -
-```
-
-2. Import httpbin from west cluster to east cluster:
-```shell
-REMOTE_INGRESS_IP=$(kwest get svc -l istio=eastwestgateway -n istio-system -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
-LOCAL_EGRESS_IP=$(keast get svc -l istio=eastwestgateway-egress -n istio-system -o jsonpath='{.items[0].spec.clusterIP}')
-helm template -s templates/import-remote.yaml . \
-  --set eastwestGatewayIP=$REMOTE_INGRESS_IP \
-  --set egressGatewayIP=$LOCAL_EGRESS_IP \
-  --set eastwestEgressEnabled=true \
-  | keast apply -f -
-```
-
-Check endpoints in sleep's istio-proxy:
-```shell
-istioctl --kubeconfig=east.kubeconfig pc endpoints deploy/sleep -n sleep | grep httpbin
-```
-
-3. Test a request from sleep to httpbin:
-```shell
-SLEEP_POD_NAME=$(keast get pods -l app=sleep -n sleep -o jsonpath='{.items[0].metadata.name}')
-keast exec $SLEEP_POD_NAME -n sleep -c sleep -- curl -v httpbin.httpbin.svc.cluster.local:8000/headers
-```
-
-4. Now deploy httpbin locally as well and test requests again. Traffic should be routed to both instances equally.
-```shell
-keast create namespace httpbin
-keast label namespace httpbin istio-injection=enabled
-keast apply -f https://raw.githubusercontent.com/istio/istio/release-1.20/samples/httpbin/httpbin.yaml -n httpbin
-helm template -s templates/import-remote.yaml . \
-  --set eastwestGatewayIP=$REMOTE_INGRESS_IP \
-  --set egressGatewayIP=$LOCAL_EGRESS_IP \
-  --set eastwestEgressEnabled=true \
-  | keast delete -f -
-helm template -s templates/import-as-local.yaml . \
-  --set eastwestGatewayIP=$REMOTE_INGRESS_IP \
-  --set egressGatewayIP=$LOCAL_EGRESS_IP \
-  --set eastwestEgressEnabled=true \
-  | keast apply -f -
-```
-
-#### Verify load balancing
-
-1. Scale local deployment of httpbin:
-```shell
-keast scale deployment httpbin -n httpbin --replicas 2
-```
-Run a few requests and look at logs of httpbin:
-```shell
-while true
-do
-  keast exec $SLEEP_POD_NAME -n sleep -c sleep -- curl -v httpbin.httpbin.svc.cluster.local:8000/headers
-  sleep 2
-done
-```
-Sidecar of sleep app should have 3 endpoints and requests should be routed equally to all instances.
-
-2. Scale remote deployment of httpbin:
-```shell
-kwest scale deployment httpbin -n httpbin --replicas 3
-```
-Run requests and look at logs again.
-
-You should see that the new instances of httpbin in the west cluster do not receive traffic.
-
-3. Scale sleep deployment:
-```shell
-keast scale deployment sleep -n sleep --replicas 10
-```
-```shell
-cat <<EOF >> test-lb-for-different-clients.sh
-#!/bin/bash
-pod_names=$(KUBECONFIG=east.kubeconfig kubectl get pods -l app=sleep -n sleep -o jsonpath='{.items[*].metadata.name}')
-for pod in $pod_names; do
-  KUBECONFIG=east.kubeconfig kubectl exec $pod -n sleep -c sleep -- curl -v httpbin.httpbin.svc.cluster.local:8000/headers
-done
-EOF
-bash test-lb-for-different-clients.sh
-```
-Now requests should be routed to different instances.
-
-It's a known issue and as a workaround clients can always establish new TCP connection
-or configure maxRequestsPerConnection to enforce establishing more connections.
-* https://github.com/envoyproxy/envoy/issues/15071
-* https://discuss.istio.io/t/need-help-understanding-load-balancing-between-clusters/9552
-
-TODO: add examples with DestinationRule applied to east-west gateway with `maxRequestsPerConnection`.
-
-#### Authorization
-
-1. Deploy sleep in west cluster:
-```shell
-kwest create namespace sleep
-kwest label namespace sleep istio-injection=enabled
-kwest apply -f https://raw.githubusercontent.com/istio/istio/release-1.20/samples/sleep/sleep.yaml -n sleep
-```
-
-2. Send a test request from sleep to httpbin locally:
-```shell
-SLEEP_POD_NAME=$(kwest get pods -l app=sleep -n sleep -o jsonpath='{.items[0].metadata.name}')
-kwest exec $SLEEP_POD_NAME -n sleep -c sleep -- curl -v httpbin.httpbin.svc.cluster.local:8000/headers
-```
-
-3. Deny access from sleep to west httpbin:
-```shell
-kwest apply -n istio-system -f - <<EOF
-apiVersion: security.istio.io/v1beta1
-kind: AuthorizationPolicy
-metadata:
-  name: deny-east-sleep
-spec:
-  selector:
-    matchLabels:
-      app: httpbin
-  action: DENY
-  rules:
-  - from:
-    - source:
-        principals: ["east.local/ns/sleep/sa/sleep"]
-EOF
-```
-
-3. Send a test request from the east cluster and then from the west cluster:
-```shell
-SLEEP_POD_NAME=$(kwest get pods -l app=sleep -n sleep -o jsonpath='{.items[0].metadata.name}')
-kwest exec $SLEEP_POD_NAME -n sleep -c sleep -- curl -v httpbin.httpbin.svc.cluster.local:8000/headers
-```
-```shell
-SLEEP_POD_NAME=$(keast get pods -l app=sleep -n sleep -o jsonpath='{.items[0].metadata.name}')
-keast exec $SLEEP_POD_NAME -n sleep -c sleep -- curl -v httpbin.httpbin.svc.cluster.local:8000/headers
-```
-Both requests should fail with 403 when requests are routed to the west cluster.
-```
-* IPv6: (none)
-* IPv4: 10.96.100.107
-*   Trying 10.96.100.107:8000...
-* Connected to httpbin.httpbin.svc.cluster.local (10.96.100.107) port 8000
-> GET /headers HTTP/1.1
-> Host: httpbin.httpbin.svc.cluster.local:8000
-> User-Agent: curl/8.7.1
-> Accept: */*
->
-* Request completely sent off
-< HTTP/1.1 403 Forbidden
-< content-length: 19
-< content-type: text/plain
-< date: Wed, 24 Apr 2024 21:33:44 GMT
-< server: envoy
-< x-envoy-upstream-service-time: 1
-<
-{ [19 bytes data]
-100    19  100    19    0     0   3882      0 --:--:-- --:--:-- --:--:--  4750
-* Connection #0 to host httpbin.httpbin.svc.cluster.local left intact
-RBAC: access denied%
-```
-
-### Notes / TODOs

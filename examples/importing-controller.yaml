@@ -55,10 +55,10 @@ spec:
       serviceAccount: federation-controller
       containers:
       - name: server
-        image: quay.io/jewertow/federation-controller:fds-6
+        image: quay.io/jewertow/federation-controller:fds-8
         args:
         - --meshPeers
-        - '{"spec":{"remote":{"addresses":["{{.federationControllerIP}}"],"ports":{"dataPlane":15443,"discovery":15020}}}}'
+        - '{"remote":{"dataPlane":{"addresses":["127.0.0.1"],"port":15443},"discovery":{"addresses":["{{.federationControllerIP}}"],"port":15020}}}'
         - --exportedServiceSet
         - '{"rules":[{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}]}'
         - --importedServiceSet

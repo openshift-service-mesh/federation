@@ -55,12 +55,12 @@ func (g *gatewayResourceGenerator) Generate() ([]*anypb.Any, error) {
 		},
 		Servers: []*istionetv1alpha3.Server{
 			{
+				Hosts: hosts,
 				Port: &istionetv1alpha3.Port{
 					Number:   15443,
 					Name:     "tls",
 					Protocol: "TLS",
 				},
-				Hosts: hosts,
 				Tls: &istionetv1alpha3.ServerTLSSettings{
 					Mode: istionetv1alpha3.ServerTLSSettings_AUTO_PASSTHROUGH,
 				},

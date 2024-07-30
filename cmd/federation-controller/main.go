@@ -94,6 +94,7 @@ func main() {
 	flag.Parse()
 	cfg, err := parse()
 	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 	fmt.Println("Configuration: ", cfg)
@@ -125,9 +126,9 @@ func main() {
 			log.Fatal("Error starting federation server: ", err)
 		}
 	}()
-	if len(cfg.MeshPeers.Spec.Remote.Addresses) > 0 {
+	if len(cfg.MeshPeers.Remote.Discovery.Addresses) > 0 {
 		federationClient, err := adsc.New(&adsc.ADSCConfig{
-			DiscoveryAddr: fmt.Sprintf("%s:15020", cfg.MeshPeers.Spec.Remote.Addresses[0]),
+			DiscoveryAddr: fmt.Sprintf("%s:15020", cfg.MeshPeers.Remote.Discovery.Addresses[0]),
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService",
 			}},

@@ -65,8 +65,10 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 					}},
 					// TODO: build endpoints from remote ingress gateway address
 					Endpoints: []*istionetv1alpha3.WorkloadEntry{{
-						Address:  h.cfg.MeshPeers.Spec.Remote.Addresses[0],
-						Ports:    map[string]uint32{"http": 15443},
+						Address: h.cfg.MeshPeers.Remote.DataPlane.Addresses[0],
+						Ports: map[string]uint32{
+							"http": h.cfg.MeshPeers.Remote.DataPlane.Port,
+						},
 						Network:  "west-network",
 						Locality: "west",
 						Labels: map[string]string{
