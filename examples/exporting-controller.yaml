@@ -73,7 +73,7 @@ spec:
       serviceAccount: federation-controller
       containers:
       - name: server
-        image: quay.io/jewertow/federation-controller:fds-7
+        image: quay.io/jewertow/federation-controller:fds-9
         args:
         - --meshPeers
         - '{}'

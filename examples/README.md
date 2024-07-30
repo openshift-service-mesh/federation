@@ -113,7 +113,7 @@ istioctl --kubeconfig=east.kubeconfig install -f examples/importing-mesh.yaml -y
 ### Configure east-west gateway address:
 ```shell
 DATAPLANE_IP=$(kwest get svc istio-eastwestgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-cat examples/importing-controller.yaml | sed -e "s/{{.federationControllerIP}}/$WEST_FEDERATION_IP/" -e "s/127.0.0.1/$DATAPLANE_IP/" | keast apply -n istio-system -f -
+cat examples/importing-controller.yaml | sed -e "s/{{.federationControllerIP}}/$DISCOVERY_IP/" -e "s/127.0.0.1/$DATAPLANE_IP/" | keast apply -n istio-system -f -
 ```
 
 ### Import and export services
