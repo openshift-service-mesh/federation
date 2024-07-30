@@ -59,8 +59,10 @@ func parse() (*config.Federation, error) {
 	if err := unmarshalJSON(*exportedServiceSet, &exported); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal exported services: %w", err)
 	}
-	if err := unmarshalJSON(*importedServiceSet, &imported); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal imported services: %w", err)
+	if *importedServiceSet != "" {
+		if err := unmarshalJSON(*importedServiceSet, &imported); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal imported services: %w", err)
+		}
 	}
 
 	return &config.Federation{

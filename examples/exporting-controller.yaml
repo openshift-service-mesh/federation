@@ -79,8 +79,6 @@ spec:
         - '{}'
         - --exportedServiceSet
         - '{"rules":[{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}]}'
-        - --importedServiceSet
-        - '{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}'
         env:
         - name: POD_NAME
           valueFrom:
