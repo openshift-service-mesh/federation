@@ -101,7 +101,7 @@ kwest apply -f examples/exporting-controller.yaml -n istio-system
 ```
 ```shell
 DISCOVERY_IP=$(kwest get svc federation-controller-lb -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-cat examples/importing-controller.yaml | sed "s/{{.federationControllerIP}}/$WEST_FEDERATION_IP/" | keast apply -n istio-system -f -
+cat examples/importing-controller.yaml | sed "s/{{.federationControllerIP}}/$DISCOVERY_IP/" | keast apply -n istio-system -f -
 ```
 
 ### Deploy Istio
