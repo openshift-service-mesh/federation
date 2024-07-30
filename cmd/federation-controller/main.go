@@ -119,9 +119,11 @@ func main() {
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 	serviceController := startControllers(ctx, clientset, cfg, informerFactory, federationPushRequests, mcpPushRequests)
 
-	federationServer := adss.NewServer(federationPushRequests, []xds.ResourceGenerator{
+	federationServer := adss.NewServer(
+		&adss.ServerOpts{Port: 15020, ServerID: "federation"},
+		federationPushRequests,
 		federation.NewExportedServicesGenerator(*cfg, informerFactory),
-	}, 15020, "federation")
+	)
 	go func() {
 		// TODO: graceful shutdown
 		if err := federationServer.Run(ctx); err != nil {
@@ -134,7 +136,7 @@ func main() {
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService",
 			}},
-			Handlers: map[string]adsc.Handler{
+			Handlers: map[string]adsc.ResponseHandler{
 				"federation.istio-ecosystem.io/v1alpha1/ExportedService": mcp.NewImportedServiceHandler(cfg, serviceController, mcpPushRequests),
 			},
 		})
@@ -149,9 +151,11 @@ func main() {
 		}
 	}
 
-	mcpServer := adss.NewServer(mcpPushRequests, []xds.ResourceGenerator{
+	mcpServer := adss.NewServer(
+		&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
+		mcpPushRequests,
 		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
-	}, 15010, "mcp")
+	)
 	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatal("Error running XDS server: ", err)
 	}

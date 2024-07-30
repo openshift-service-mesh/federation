@@ -16,17 +16,22 @@ type Server struct {
 	grpc         *grpc.Server
 	ads          *adsServer
 	pushRequests <-chan xds.PushRequest
-	port         int32
-	serverID     string
+	opts         *ServerOpts
 }
 
-func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGenerator, port int32, serverID string) *Server {
+type ServerOpts struct {
+	Port     int32
+	ServerID string
+}
+
+func NewServer(opts *ServerOpts, pushRequests <-chan xds.PushRequest, handlers ...RequestHandler) *Server {
+	// TODO: handle nil opts
 	grpcServer := grpc.NewServer()
-	generatorsMap := make(map[string]xds.ResourceGenerator)
-	for _, g := range generators {
-		generatorsMap[g.GetTypeUrl()] = g
+	handlerMap := make(map[string]RequestHandler)
+	for _, g := range handlers {
+		handlerMap[g.GetTypeUrl()] = g
 	}
-	adsServer := &adsServer{generators: generatorsMap, serverID: serverID}
+	adsServer := &adsServer{handlers: handlerMap, serverID: opts.ServerID}
 
 	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, adsServer)
 
@@ -34,8 +39,7 @@ func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGen
 		grpc:         grpcServer,
 		ads:          adsServer,
 		pushRequests: pushRequests,
-		port:         port,
-		serverID:     serverID,
+		opts:         opts,
 	}
 }
 
@@ -43,21 +47,21 @@ func NewServer(pushRequests <-chan xds.PushRequest, generators []xds.ResourceGen
 func (s *Server) Run(ctx context.Context) error {
 	var routinesGroup errgroup.Group
 
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.opts.Port))
 	if err != nil {
-		return fmt.Errorf("[%s] creating TCP listener: %w", s.serverID, err)
+		return fmt.Errorf("[%s] creating TCP listener: %w", s.opts.ServerID, err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 
 	routinesGroup.Go(func() error {
 		defer cancel()
-		klog.Infof("[%s] Running gRPC server", s.serverID)
+		klog.Infof("[%s] Running gRPC server", s.opts.ServerID)
 		return s.grpc.Serve(listener)
 	})
 
 	routinesGroup.Go(func() error {
-		defer klog.Info("[%s] gRPC server was shut down", s.serverID)
+		defer klog.Info("[%s] gRPC server was shut down", s.opts.ServerID)
 		<-ctx.Done()
 		s.grpc.GracefulStop()
 		return nil
@@ -71,9 +75,9 @@ loop:
 			break loop
 
 		case pushRequest := <-s.pushRequests:
-			klog.Infof("[%s] Received push request: %v", s.serverID, pushRequest)
+			klog.Infof("[%s] Received push request: %v", s.opts.ServerID, pushRequest)
 			if err := s.ads.push(pushRequest); err != nil {
-				klog.Errorf("[%s] failed to push to subscribers: %v", s.serverID, err)
+				klog.Errorf("[%s] failed to push to subscribers: %v", s.opts.ServerID, err)
 			}
 		}
 	}

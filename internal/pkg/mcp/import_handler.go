@@ -15,7 +15,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ adsc.Handler = (*importedServiceHandler)(nil)
+var _ adsc.ResponseHandler = (*importedServiceHandler)(nil)
 
 type importedServiceHandler struct {
 	cfg               *config.Federation

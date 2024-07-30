@@ -2,9 +2,9 @@ package mcp
 
 import (
 	"fmt"
+	"github.com/jewertow/federation/internal/pkg/xds/adss"
 
 	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/xds"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	mcpv1alpha1 "istio.io/api/mcp/v1alpha1"
@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-var _ xds.ResourceGenerator = (*gatewayResourceGenerator)(nil)
+var _ adss.RequestHandler = (*gatewayResourceGenerator)(nil)
 
 type gatewayResourceGenerator struct {
 	typeUrl         string
@@ -34,7 +34,7 @@ func (g *gatewayResourceGenerator) GetTypeUrl() string {
 	return g.typeUrl
 }
 
-func (g *gatewayResourceGenerator) Generate() ([]*anypb.Any, error) {
+func (g *gatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
 	var hosts []string
 	for _, obj := range g.serviceInformer.GetStore().List() {
 		svc := obj.(*corev1.Service)

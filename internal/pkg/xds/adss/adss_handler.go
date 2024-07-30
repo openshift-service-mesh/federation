@@ -29,7 +29,7 @@ type (
 // adsServer implements Envoy's AggregatedDiscoveryService service for sending MCP resources to Istiod.
 // ads is Aggregated Discovery Service
 type adsServer struct {
-	generators       map[string]xds.ResourceGenerator
+	handlers         map[string]RequestHandler
 	subscribers      sync.Map
 	nextSubscriberID atomic.Uint64
 	serverID         string
@@ -75,12 +75,11 @@ var (
 // recvFromStream receives discovery requests from the subscriber.
 func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
 	klog.Infof("[%s] Received from stream %d", adss.serverID, id)
-recvLoop:
 	for {
 		discoveryRequest, err := downstream.Recv()
 		if err != nil {
 			klog.Errorf("[%s] error while recv discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), err)
-			break recvLoop
+			break
 		}
 		klog.Infof("[%s] Got discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
 		if discoveryRequest.GetVersionInfo() == "" {
@@ -96,9 +95,9 @@ recvLoop:
 }
 
 func (adss *adsServer) generateResources(typeUrl string) ([]*anypb.Any, error) {
-	if generator, found := adss.generators[typeUrl]; found {
+	if handler, found := adss.handlers[typeUrl]; found {
 		klog.Infof("[%s] Generating config snapshot for type %s", adss.serverID, typeUrl)
-		if resources, err := generator.Generate(); err != nil {
+		if resources, err := handler.GenerateResponse(); err != nil {
 			klog.Errorf("[%s] error generating resources of type %s: %v", adss.serverID, typeUrl, err)
 			return []*anypb.Any{}, err
 		} else {
@@ -135,20 +134,19 @@ func (adss *adsServer) subscribersLen() int {
 
 func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 	if adss.subscribersLen() == 0 {
-		klog.Infof("[%s] Skipping pushing MCP event: %v as there are no subscribers", adss.serverID, pushRequest)
+		klog.Infof("[%s] Skip pushing XDS resources for request [type=%s,body=%v] as there are no subscribers", adss.serverID, pushRequest.TypeUrl, pushRequest.Body)
 		return nil
 	}
 
-	var resources []*anypb.Any
-	if pushRequest.Body != nil {
-		resources = pushRequest.Body
-	} else {
+	resources := pushRequest.Body
+	if resources == nil {
 		var err error
 		resources, err = adss.generateResources(pushRequest.TypeUrl)
 		if err != nil {
 			return err
 		}
 	}
+
 	klog.Infof("[%s] Pushing discovery response to subscribers: [type=%s,body=%v]", adss.serverID, pushRequest.TypeUrl, resources)
 	adss.subscribers.Range(func(key, value any) bool {
 		klog.Infof("[%s] Sending to subscriber %s", adss.serverID, fmt.Sprintf(subIDFmtStr, key.(uint64)))
