@@ -15,6 +15,7 @@ func MatchExportRules(svc *corev1.Service, exportedLabelSelectors []config.Label
 		if matchesLabelSelector(svc, selectors.MatchLabels) {
 			return true
 		}
+		// TODO: Handle matchExpressions
 	}
 	return false
 }
