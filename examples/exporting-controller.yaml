@@ -10,7 +10,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["services"]
-    verbs: ["watch", "list"]
+    verbs: ["get", "watch", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -31,12 +31,31 @@ metadata:
   name: federation-controller
 spec:
   ports:
-  - name: grpc
+  - name: grpc-mcp
     port: 15010
-    targetPort: grpc
+    targetPort: grpc-mcp
+    protocol: TCP
+  - name: grpc-fds
+    port: 15020
+    targetPort: grpc-fds
     protocol: TCP
   selector:
     app.kubernetes.io/name: federation-controller
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: federation-controller-lb
+spec:
+  ports:
+  - name: grpc-fds
+    port: 15020
+    targetPort: grpc-fds
+    protocol: TCP
+    appProtocol: grpc
+  selector:
+    app.kubernetes.io/name: federation-controller
+  type: LoadBalancer
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -54,19 +73,19 @@ spec:
       serviceAccount: federation-controller
       containers:
       - name: server
-        image: quay.io/jewertow/federation-controller:latest
+        image: quay.io/jewertow/federation-controller:fds-9
         args:
         - --meshPeers
-        - '{"spec":{"remote":{"addresses":["lb-1234567890.us-east-1.elb.amazonaws.com","192.168.10.56"],"ports":{"dataPlane":15443,"discoery":15020}}}}'
+        - '{}'
         - --exportedServiceSet
         - '{"rules":[{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}]}'
-        - --importedServiceSet
-        - '{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}'
         env:
         - name: POD_NAME
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
         ports:
-        - name: grpc
+        - name: grpc-mcp
           containerPort: 15010
+        - name: grpc-fds
+          containerPort: 15020

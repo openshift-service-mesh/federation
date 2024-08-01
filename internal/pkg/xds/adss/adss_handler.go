@@ -1,4 +1,4 @@
-package xds
+package adss
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 
 	envoycfgcorev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	"github.com/jewertow/federation/internal/pkg/mcp"
+	"github.com/jewertow/federation/internal/pkg/xds"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -29,9 +29,10 @@ type (
 // adsServer implements Envoy's AggregatedDiscoveryService service for sending MCP resources to Istiod.
 // ads is Aggregated Discovery Service
 type adsServer struct {
-	generators       map[string]mcp.ResourceGenerator
+	handlers         map[string]RequestHandler
 	subscribers      sync.Map
 	nextSubscriberID atomic.Uint64
+	serverID         string
 }
 
 // subscriber represents a client that is subscribed to MCP resources.
@@ -45,7 +46,7 @@ var _ discovery.AggregatedDiscoveryServiceServer = (*adsServer)(nil)
 
 // NewADSServer creates a new instance of the AggregatedDiscoveryServiceServer.
 func (adss *adsServer) StreamAggregatedResources(downstream DiscoveryStream) error {
-	klog.Infof("New subscriber connected")
+	klog.Infof("[%s] New subscriber connected", adss.serverID)
 	ctx, closeStream := context.WithCancel(downstream.Context())
 
 	sub := &subscriber{
@@ -73,32 +74,31 @@ var (
 
 // recvFromStream receives discovery requests from the subscriber.
 func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
-	klog.Infof("Received from stream %d", id)
-recvLoop:
+	klog.Infof("[%s] Received from stream %d", adss.serverID, id)
 	for {
 		discoveryRequest, err := downstream.Recv()
 		if err != nil {
-			klog.Errorf("Error while recv discovery request from subscriber %s: %v", fmt.Sprintf(subIDFmtStr, id), err)
-			break recvLoop
+			klog.Errorf("[%s] error while recv discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), err)
+			break
 		}
-		klog.Infof("Got discovery request from subscriber %s: %v", fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
+		klog.Infof("[%s] Got discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
 		if discoveryRequest.GetVersionInfo() == "" {
 			resources, err := adss.generateResources(discoveryRequest.GetTypeUrl())
 			if len(resources) == 0 || err != nil {
-				klog.Infof("Sending initial empty config snapshot for type %s", discoveryRequest.GetTypeUrl())
+				klog.Infof("[%s] Sending initial empty config snapshot for type %s", adss.serverID, discoveryRequest.GetTypeUrl())
 			}
 			if err := sendToStream(downstream, discoveryRequest.GetTypeUrl(), resources, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
-				klog.Errorf("failed to send initial config snapshot for type %s: %v", discoveryRequest.GetTypeUrl(), err)
+				klog.Errorf("[%s] failed to send initial config snapshot for type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
 			}
 		}
 	}
 }
 
 func (adss *adsServer) generateResources(typeUrl string) ([]*anypb.Any, error) {
-	if generator, ok := adss.generators[typeUrl]; ok {
-		klog.Infof("Generating config snapshot for type %s", typeUrl)
-		if resources, err := generator.Generate(); err != nil {
-			klog.Errorf("Error generating resources of type %s: %v", typeUrl, err)
+	if handler, found := adss.handlers[typeUrl]; found {
+		klog.Infof("[%s] Generating config snapshot for type %s", adss.serverID, typeUrl)
+		if resources, err := handler.GenerateResponse(); err != nil {
+			klog.Errorf("[%s] error generating resources of type %s: %v", adss.serverID, typeUrl, err)
 			return []*anypb.Any{}, err
 		} else {
 			return resources, nil
@@ -132,28 +132,33 @@ func (adss *adsServer) subscribersLen() int {
 	return length
 }
 
-func (adss *adsServer) push(mcpEvent mcp.McpEvent) error {
+func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 	if adss.subscribersLen() == 0 {
-		klog.Infof("Skip pushing MCP event: %v as there are no subscribers", mcpEvent)
+		klog.Infof("[%s] Skip pushing XDS resources for request [type=%s,resources=%v] as there are no subscribers", adss.serverID, pushRequest.TypeUrl, pushRequest.Resources)
 		return nil
 	}
 
-	klog.Infof("Pushing MCP event to subscribers: %v", mcpEvent)
-	resources, err := adss.generateResources(mcpEvent.TypeUrl)
-	if err != nil {
-		return err
+	resources := pushRequest.Resources
+	if resources == nil {
+		var err error
+		resources, err = adss.generateResources(pushRequest.TypeUrl)
+		if err != nil {
+			return err
+		}
 	}
+
+	klog.Infof("[%s] Pushing discovery response to subscribers: [type=%s,resources=%v]", adss.serverID, pushRequest.TypeUrl, resources)
 	adss.subscribers.Range(func(key, value any) bool {
-		klog.Infof("Sending to subscriber %s", fmt.Sprintf(subIDFmtStr, key.(uint64)))
+		klog.Infof("[%s] Sending to subscriber %s", adss.serverID, fmt.Sprintf(subIDFmtStr, key.(uint64)))
 		if err := value.(*subscriber).stream.Send(&discovery.DiscoveryResponse{
-			TypeUrl:     mcpEvent.TypeUrl,
+			TypeUrl:     pushRequest.TypeUrl,
 			VersionInfo: strconv.FormatInt(time.Now().Unix(), 10), // TODO improve version computation
 			Resources:   resources,
 			ControlPlane: &envoycfgcorev3.ControlPlane{
 				Identifier: os.Getenv("POD_NAME"),
 			},
 		}); err != nil {
-			klog.Errorf("Error sending MCP resources: %v", err)
+			klog.Errorf("[%s] error sending MCP resources: %v", adss.serverID, err)
 			value.(*subscriber).closeStream()
 			adss.subscribers.Delete(key)
 		}
@@ -165,7 +170,7 @@ func (adss *adsServer) push(mcpEvent mcp.McpEvent) error {
 // closeSubscribers closes all active subscriber streams.
 func (adss *adsServer) closeSubscribers() {
 	adss.subscribers.Range(func(key, value any) bool {
-		klog.Infof("Closing stream of subscriber %s", fmt.Sprintf(subIDFmtStr, key.(uint64)))
+		klog.Infof("[%s] Closing stream of subscriber %s", adss.serverID, fmt.Sprintf(subIDFmtStr, key.(uint64)))
 		value.(*subscriber).closeStream()
 		adss.subscribers.Delete(key)
 

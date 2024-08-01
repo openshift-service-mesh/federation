@@ -11,6 +11,7 @@ type LabelSelectors struct {
 	MatchExpressions []MatchExpressions `yaml:"matchExpressions,omitempty"`
 }
 
+// TODO: remove
 type Rules struct {
 	Type           string           `yaml:"type"`
 	LabelSelectors []LabelSelectors `yaml:"labelSelectors"`

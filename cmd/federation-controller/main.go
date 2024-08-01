@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	"github.com/jewertow/federation/internal/pkg/federation"
+	"github.com/jewertow/federation/internal/pkg/xds/adsc"
 	"log"
 	"os"
 	"os/signal"
@@ -14,6 +17,7 @@ import (
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/mcp"
 	"github.com/jewertow/federation/internal/pkg/xds"
+	"github.com/jewertow/federation/internal/pkg/xds/adss"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -55,8 +59,10 @@ func parse() (*config.Federation, error) {
 	if err := unmarshalJSON(*exportedServiceSet, &exported); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal exported services: %w", err)
 	}
-	if err := unmarshalJSON(*importedServiceSet, &imported); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal imported services: %w", err)
+	if *importedServiceSet != "" {
+		if err := unmarshalJSON(*importedServiceSet, &imported); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal imported services: %w", err)
+		}
 	}
 
 	return &config.Federation{
@@ -67,13 +73,15 @@ func parse() (*config.Federation, error) {
 }
 
 // Start all k8s controllers and wait for informers to be synchronized
-func startControllers(ctx context.Context, client kubernetes.Interface, cfg *config.Federation,
-	informerFactory informers.SharedInformerFactory, pushMCP chan<- mcp.McpEvent) {
+func startControllers(
+	ctx context.Context, client kubernetes.Interface, cfg *config.Federation,
+	informerFactory informers.SharedInformerFactory, fdsPushRequests, mcpPushRequests chan<- xds.PushRequest,
+) *mcp.Controller {
 	var informersInitGroup sync.WaitGroup
 	informersInitGroup.Add(1)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
 	serviceController, err := mcp.NewResourceController(client, serviceInformer, corev1.Service{},
-		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, pushMCP)})
+		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, fdsPushRequests, mcpPushRequests)})
 	if err != nil {
 		log.Fatal("Error while creating service informer: ", err)
 	}
@@ -81,12 +89,14 @@ func startControllers(ctx context.Context, client kubernetes.Interface, cfg *con
 
 	informersInitGroup.Wait()
 	klog.Infof("All controllers have been synchronized")
+	return serviceController
 }
 
 func main() {
 	flag.Parse()
 	cfg, err := parse()
 	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 	fmt.Println("Configuration: ", cfg)
@@ -103,15 +113,50 @@ func main() {
 		klog.Fatalf("failed to create Kubernetes clientset: %s", err.Error())
 	}
 
-	pushMCP := make(chan mcp.McpEvent)
+	fdsPushRequests := make(chan xds.PushRequest)
+	mcpPushRequests := make(chan xds.PushRequest)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	startControllers(ctx, clientset, cfg, informerFactory, pushMCP)
+	serviceController := startControllers(ctx, clientset, cfg, informerFactory, fdsPushRequests, mcpPushRequests)
 
-	server := xds.NewServer(pushMCP, []mcp.ResourceGenerator{
+	federationServer := adss.NewServer(
+		&adss.ServerOpts{Port: 15020, ServerID: "federation"},
+		fdsPushRequests,
+		federation.NewExportedServicesGenerator(*cfg, informerFactory),
+	)
+	go func() {
+		// TODO: graceful shutdown
+		if err := federationServer.Run(ctx); err != nil {
+			log.Fatal("Error starting federation server: ", err)
+		}
+	}()
+	if len(cfg.MeshPeers.Remote.Discovery.Addresses) > 0 {
+		federationClient, err := adsc.New(&adsc.ADSCConfig{
+			DiscoveryAddr: fmt.Sprintf("%s:15020", cfg.MeshPeers.Remote.Discovery.Addresses[0]),
+			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
+				TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService",
+			}},
+			Handlers: map[string]adsc.ResponseHandler{
+				"federation.istio-ecosystem.io/v1alpha1/ExportedService": mcp.NewImportedServiceHandler(cfg, serviceController, mcpPushRequests),
+			},
+		})
+		go func() {
+			// TODO: graceful shutdown
+			if err := federationClient.Run(); err != nil {
+				klog.Fatal("Error starting federation server: ", err)
+			}
+		}()
+		if err != nil {
+			klog.Fatal("Error creating adss client: ", err)
+		}
+	}
+
+	mcpServer := adss.NewServer(
+		&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
+		mcpPushRequests,
 		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
-	})
-	if err := server.Run(ctx); err != nil {
+	)
+	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatal("Error running XDS server: ", err)
 	}
 

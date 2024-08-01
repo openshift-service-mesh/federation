@@ -49,11 +49,18 @@ ADDRESSES PORT  MATCH                                                           
 ```
 
 ### Development
-1. Build:
+
+#### Tools
+1. Go 1.22
+2. protoc 3.19.0
+3. protoc-gen-go v1.30.0
+
+#### Build project
 ```shell
 make
 ```
-2. Run locally:
+
+#### Run locally:
 ```shell
 ./out/federation-controller \
   --meshPeers '{"spec":{"remote":{"addresses": ["lb-1234567890.us-east-1.elb.amazonaws.com","192.168.10.56"],"ports":{"dataPlane":15443,"discoery":15020}}}}'\
