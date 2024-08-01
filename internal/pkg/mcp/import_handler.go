@@ -94,8 +94,8 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 		return fmt.Errorf("failed to generate imported services: %w", err)
 	}
 	h.pushRequests <- xds.PushRequest{
-		TypeUrl: "networking.istio.io/v1alpha3/ServiceEntry",
-		Body:    serializedResources,
+		TypeUrl:   "networking.istio.io/v1alpha3/ServiceEntry",
+		Resources: serializedResources,
 	}
 	return nil
 }

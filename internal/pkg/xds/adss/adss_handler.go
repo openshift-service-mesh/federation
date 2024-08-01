@@ -134,11 +134,11 @@ func (adss *adsServer) subscribersLen() int {
 
 func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 	if adss.subscribersLen() == 0 {
-		klog.Infof("[%s] Skip pushing XDS resources for request [type=%s,body=%v] as there are no subscribers", adss.serverID, pushRequest.TypeUrl, pushRequest.Body)
+		klog.Infof("[%s] Skip pushing XDS resources for request [type=%s,resources=%v] as there are no subscribers", adss.serverID, pushRequest.TypeUrl, pushRequest.Resources)
 		return nil
 	}
 
-	resources := pushRequest.Body
+	resources := pushRequest.Resources
 	if resources == nil {
 		var err error
 		resources, err = adss.generateResources(pushRequest.TypeUrl)
@@ -147,7 +147,7 @@ func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 		}
 	}
 
-	klog.Infof("[%s] Pushing discovery response to subscribers: [type=%s,body=%v]", adss.serverID, pushRequest.TypeUrl, resources)
+	klog.Infof("[%s] Pushing discovery response to subscribers: [type=%s,resources=%v]", adss.serverID, pushRequest.TypeUrl, resources)
 	adss.subscribers.Range(func(key, value any) bool {
 		klog.Infof("[%s] Sending to subscriber %s", adss.serverID, fmt.Sprintf(subIDFmtStr, key.(uint64)))
 		if err := value.(*subscriber).stream.Send(&discovery.DiscoveryResponse{
