@@ -1,1 +1,8 @@
 out
+# demo output
+Makefile.selfsigned.mk
+common.mk
+east.kubeconfig
+east/
+west.kubeconfig
+west/
