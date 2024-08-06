@@ -75,7 +75,6 @@ loop:
 	for {
 		select {
 		case <-ctx.Done():
-			// TODO: move to the second routinesGroup.Go
 			s.ads.closeSubscribers()
 			break loop
 

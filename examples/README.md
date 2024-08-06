@@ -121,10 +121,10 @@ cat examples/importing-controller.yaml | sed -e "s/{{.federationControllerIP}}/$
 1. Enable mTLS, deploy `sleep` the east cluster and `httpbin` in the west cluster and export `httpbin`:
 ```shell
 keast apply -f examples/mtls.yaml -n istio-system
-kwest apply -f examples/mtls.yaml -n istio-system
 keast create namespace sleep
 keast label namespace sleep istio-injection=enabled
 keast apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/sleep/sleep.yaml -n sleep
+kwest apply -f examples/mtls.yaml -n istio-system
 kwest create namespace httpbin
 kwest label namespace httpbin istio-injection=enabled
 kwest apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/httpbin/httpbin.yaml -n httpbin
