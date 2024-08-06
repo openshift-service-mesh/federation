@@ -122,6 +122,7 @@ func main() {
 	federationServer := adss.NewServer(
 		&adss.ServerOpts{Port: 15020, ServerID: "federation"},
 		fdsPushRequests,
+		nil,
 		federation.NewExportedServicesGenerator(*cfg, informerFactory),
 	)
 	go func() {
@@ -130,6 +131,8 @@ func main() {
 			log.Fatal("Error starting federation server: ", err)
 		}
 	}()
+
+	var onNewSubscriber func()
 	if len(cfg.MeshPeers.Remote.Discovery.Addresses) > 0 {
 		federationClient, err := adsc.New(&adsc.ADSCConfig{
 			DiscoveryAddr: fmt.Sprintf("%s:15020", cfg.MeshPeers.Remote.Discovery.Addresses[0]),
@@ -140,20 +143,22 @@ func main() {
 				"federation.istio-ecosystem.io/v1alpha1/ExportedService": mcp.NewImportedServiceHandler(cfg, serviceController, mcpPushRequests),
 			},
 		})
-		go func() {
-			// TODO: graceful shutdown
-			if err := federationClient.Run(); err != nil {
-				klog.Fatal("Error starting federation server: ", err)
-			}
-		}()
 		if err != nil {
-			klog.Fatal("Error creating adss client: ", err)
+			klog.Fatal("failed to creates ADS client: ", err)
+		}
+		if federationClient != nil {
+			onNewSubscriber = func() {
+				if federationClient.Run(); err != nil {
+					klog.Error("Error starting ADS client: ", err)
+				}
+			}
 		}
 	}
 
 	mcpServer := adss.NewServer(
 		&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
 		mcpPushRequests,
+		onNewSubscriber,
 		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
 	)
 	if err := mcpServer.Run(ctx); err != nil {

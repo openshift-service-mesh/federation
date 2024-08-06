@@ -32,6 +32,7 @@ type adsServer struct {
 	handlers         map[string]RequestHandler
 	subscribers      sync.Map
 	nextSubscriberID atomic.Uint64
+	onNewSubscriber  func()
 	serverID         string
 }
 
@@ -56,6 +57,10 @@ func (adss *adsServer) StreamAggregatedResources(downstream DiscoveryStream) err
 	}
 
 	adss.subscribers.Store(sub.id, sub)
+
+	if adss.onNewSubscriber != nil {
+		go adss.onNewSubscriber()
+	}
 	go adss.recvFromStream(int64(sub.id), downstream)
 
 	<-ctx.Done()
@@ -84,9 +89,10 @@ func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
 		klog.Infof("[%s] Got discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
 		if discoveryRequest.GetVersionInfo() == "" {
 			resources, err := adss.generateResources(discoveryRequest.GetTypeUrl())
-			if len(resources) == 0 || err != nil {
-				klog.Infof("[%s] Sending initial empty config snapshot for type %s", adss.serverID, discoveryRequest.GetTypeUrl())
+			if err != nil {
+				klog.Errorf("[%s] failed to generate resources of type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
 			}
+			klog.Infof("[%s] Sending initial config snapshot for type %s", adss.serverID, discoveryRequest.GetTypeUrl())
 			if err := sendToStream(downstream, discoveryRequest.GetTypeUrl(), resources, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
 				klog.Errorf("[%s] failed to send initial config snapshot for type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
 			}
