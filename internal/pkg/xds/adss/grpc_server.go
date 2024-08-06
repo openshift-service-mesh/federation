@@ -24,20 +24,24 @@ type ServerOpts struct {
 	ServerID string
 }
 
-func NewServer(opts *ServerOpts, pushRequests <-chan xds.PushRequest, handlers ...RequestHandler) *Server {
+func NewServer(opts *ServerOpts, pushRequests <-chan xds.PushRequest, onNewSubscriber func(), handlers ...RequestHandler) *Server {
 	// TODO: handle nil opts
 	grpcServer := grpc.NewServer()
 	handlerMap := make(map[string]RequestHandler)
 	for _, g := range handlers {
 		handlerMap[g.GetTypeUrl()] = g
 	}
-	adsServer := &adsServer{handlers: handlerMap, serverID: opts.ServerID}
+	ads := &adsServer{
+		handlers:        handlerMap,
+		onNewSubscriber: onNewSubscriber,
+		serverID:        opts.ServerID,
+	}
 
-	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, adsServer)
+	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, ads)
 
 	return &Server{
 		grpc:         grpcServer,
-		ads:          adsServer,
+		ads:          ads,
 		pushRequests: pushRequests,
 		opts:         opts,
 	}
