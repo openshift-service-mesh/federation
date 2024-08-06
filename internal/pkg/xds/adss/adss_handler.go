@@ -61,7 +61,7 @@ func (adss *adsServer) StreamAggregatedResources(downstream DiscoveryStream) err
 	// TODO: this should be executed only on first subscription, because we need only 1 FDS subscription for n MCP subscriptions.
 	// However, new MCP subscription should trigger full FDS push, so then we need to send DiscoveryRequest with newer version.
 	if adss.onNewSubscriber != nil {
-		go adss.onNewSubscriber()
+		adss.onNewSubscriber()
 	}
 	go adss.recvFromStream(int64(sub.id), downstream)
 

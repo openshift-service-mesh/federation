@@ -120,7 +120,7 @@ func main() {
 	serviceController := startControllers(ctx, clientset, cfg, informerFactory, fdsPushRequests, mcpPushRequests)
 
 	federationServer := adss.NewServer(
-		&adss.ServerOpts{Port: 15020, ServerID: "federation"},
+		&adss.ServerOpts{Port: 15020, ServerID: "fds"},
 		fdsPushRequests,
 		nil,
 		federation.NewExportedServicesGenerator(*cfg, informerFactory),
@@ -148,9 +148,11 @@ func main() {
 		}
 		if federationClient != nil {
 			onNewSubscriber = func() {
-				if federationClient.Run(); err != nil {
-					klog.Error("Error starting ADS client: ", err)
-				}
+				go func() {
+					if err := federationClient.Run(); err != nil {
+						klog.Error("failed to start FDS client: ", err)
+					}
+				}()
 			}
 		}
 	}
