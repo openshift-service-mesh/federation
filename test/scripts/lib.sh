@@ -10,8 +10,8 @@ function install_metallb_retry {
 
 function install_metallb() {
   cluster=$1
-  kubectl --kubeconfig="$cluster.kubeconfig" apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml
-  kubectl --kubeconfig="$cluster.kubeconfig" wait -n metallb-system pod --timeout=120s -l app=metallb --for=condition=Ready
+  kubectl --kubeconfig="$ROOT/$cluster.kubeconfig" apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml
+  kubectl --kubeconfig="$ROOT/$cluster.kubeconfig" wait -n metallb-system pod --timeout=120s -l app=metallb --for=condition=Ready
 
   docker_kind_subnet="$(docker inspect kind | jq '.[0].IPAM.Config[0].Subnet' -r)"
   cidr=$(python3 "$ROOT/scripts/find_smaller_subnets.py" --network "$docker_kind_subnet" --region "$cluster")
@@ -35,7 +35,7 @@ metadata:
 spec:
   ipAddressPools:
   - default-pool
-' | kubectl apply --kubeconfig="$cluster.kubeconfig" -f -
+' | kubectl apply --kubeconfig="$ROOT/$cluster.kubeconfig" -f -
 }
 
 function retry {
