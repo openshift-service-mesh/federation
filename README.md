@@ -60,6 +60,14 @@ ADDRESSES PORT  MATCH                                                           
 make
 ```
 
+#### Run integration tests
+```shell
+./test/scripts/kind_provisioner.sh
+go test -tags=integ -run TestMeshFederation ./test/e2e \
+  --istio.test.kube.config=/home/jewertow/oss/federation/test/east.kubeconfig,/home/jewertow/oss/federation/test/west.kubeconfig\
+  --istio.test.onlyWorkloads=standard
+```
+
 #### Run locally:
 ```shell
 ./out/federation-controller \
