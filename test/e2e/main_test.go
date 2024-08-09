@@ -12,7 +12,9 @@ import (
 
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/cluster"
-	"istio.io/istio/pkg/test/framework/components/echo/common/deployment"
+	"istio.io/istio/pkg/test/framework/components/echo"
+	"istio.io/istio/pkg/test/framework/components/echo/deployment"
+	"istio.io/istio/pkg/test/framework/components/namespace"
 	"istio.io/istio/pkg/test/framework/resource"
 	"istio.io/istio/pkg/test/util/retry"
 	corev1 "k8s.io/api/core/v1"
@@ -21,25 +23,33 @@ import (
 )
 
 var (
-	apps         = deployment.SingleNamespaceView{}
 	clusterNames = []string{"east", "west"}
+
+	eastApps = &echoDeployment{}
+	westApps = &echoDeployment{}
 
 	_, file, _, _ = runtime.Caller(0)
 	rootDir       = filepath.Join(filepath.Dir(file), "../..")
 )
 
+const (
+	eastClusterName = "cluster-0"
+	westClusterName = "cluster-1"
+)
+
 func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
-		Setup(createIstioSystemNamespace).
+		Setup(createControlPlaneNamespace).
 		Setup(deployFederationControllers).
 		Setup(deployControlPlanes).
 		Setup(patchFederationControllers).
-		Setup(deployment.SetupSingleNamespace(&apps, deployment.Config{})).
+		Setup(deployEcho(eastApps, "a", "east", eastClusterName)).
+		Setup(deployEcho(westApps, "b", "west", westClusterName)).
 		Run()
 }
 
-func createIstioSystemNamespace(ctx resource.Context) error {
+func createControlPlaneNamespace(ctx resource.Context) error {
 	if len(ctx.Clusters()) > 2 {
 		return fmt.Errorf("too many clusters - expected 2, got %d", len(ctx.Clusters()))
 	}
@@ -164,4 +174,33 @@ func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no load balancer IP found for service %s/%s in cluster %s", name, ns, c.Name())
+}
+
+type echoDeployment struct {
+	namespace namespace.Instance
+	apps      echo.Instances
+}
+
+func deployEcho(d *echoDeployment, name, nsPrefix, targetCluster string) func(t resource.Context) error {
+	return func(ctx resource.Context) error {
+		ns, err := namespace.New(ctx, namespace.Config{
+			Prefix: nsPrefix,
+			Inject: true,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create namespace: %s", ns.Name())
+		}
+		d.namespace = ns
+
+		newApp, err := deployment.New(ctx).WithClusters(ctx.Clusters().GetByName(targetCluster)).WithConfig(echo.Config{
+			Service:   name,
+			Namespace: ns,
+		}).Build()
+		if err != nil {
+			return fmt.Errorf("failed to create echo: %v", err)
+		}
+
+		d.apps = d.apps.Append(newApp)
+		return nil
+	}
 }
