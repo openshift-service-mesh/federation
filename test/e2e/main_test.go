@@ -6,6 +6,10 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"runtime"
+	"testing"
+
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo/common/deployment"
@@ -14,21 +18,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 var (
-	// Below are various preconfigured echo deployments. Whenever possible, tests should utilize these
-	// to avoid excessive creation/tear down of deployments. In general, a test should only deploy echo if
-	// its doing something unique to that specific test.
-	apps = deployment.SingleNamespaceView{}
-
+	apps         = deployment.SingleNamespaceView{}
 	clusterNames = []string{"east", "west"}
+
+	_, file, _, _ = runtime.Caller(0)
+	rootDir       = filepath.Join(filepath.Dir(file), "../..")
 )
 
-// TestMain defines the entrypoint for pilot tests using a standard Istio installation.
-// If a test requires a custom install it should go into its own package, otherwise it should go
-// here to reuse a single install across tests.
 func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
@@ -74,10 +73,14 @@ func createIstioSystemNamespace(ctx resource.Context) error {
 	return nil
 }
 
+// deployControlPlanes deploys Istio using the manifest generated from IstioOperator resource.
+// We can't utilize standard Istio installation supported by the Istio framework,
+// because it does not allow to apply different Istio settings to different primary clusters
+// and always sets up direct access to the k8s api-server, while it's not desired in mesh federation.
 func deployControlPlanes(ctx resource.Context) error {
 	for idx, c := range ctx.Clusters() {
 		clusterName := clusterNames[idx]
-		if err := c.Config().ApplyYAMLFiles("", fmt.Sprintf("/home/jewertow/oss/federation/test/testdata/istio-%s-manifests.yaml", clusterName)); err != nil {
+		if err := c.Config().ApplyYAMLFiles("", fmt.Sprintf("%s/test/testdata/istio-%s-manifests.yaml", rootDir, clusterName)); err != nil {
 			return fmt.Errorf("failed to deploy istio control plane: %v", err)
 		}
 	}
