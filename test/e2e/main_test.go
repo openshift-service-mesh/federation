@@ -32,7 +32,9 @@ func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
 		Setup(createIstioSystemNamespace).
+		Setup(deployFederationControllers).
 		Setup(deployControlPlanes).
+		Setup(patchFederationControllers).
 		Setup(deployment.SetupSingleNamespace(&apps, deployment.Config{})).
 		Run()
 }
@@ -85,4 +87,81 @@ func deployControlPlanes(ctx resource.Context) error {
 		}
 	}
 	return nil
+}
+
+func deployFederationControllers(ctx resource.Context) error {
+	for _, c := range ctx.Clusters() {
+		if err := c.Config().ApplyYAMLFiles("istio-system", fmt.Sprintf("%s/test/testdata/federation-controller-manifests.yaml", rootDir)); err != nil {
+			return fmt.Errorf("failed to deploy federation controller: %v", err)
+		}
+	}
+	return nil
+}
+
+func patchFederationControllers(ctx resource.Context) error {
+	for _, localCluster := range ctx.Clusters() {
+		var dataPlaneIP string
+		var discoveryIP string
+		for _, remoteCluster := range ctx.Clusters() {
+			if localCluster.Name() == remoteCluster.Name() {
+				continue
+			}
+			var err error
+			dataPlaneIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
+			discoveryIP, err = findLoadBalancerIP(remoteCluster, "federation-controller-lb", "istio-system")
+			if err != nil {
+				return fmt.Errorf("could not get IPs from remote federation-controller: %v", err)
+			}
+		}
+		if err := localCluster.ApplyYAMLContents("istio-system", fmt.Sprintf(`
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: federation-controller
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: federation-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: federation-controller
+    spec:
+      serviceAccount: federation-controller
+      containers:
+      - name: server
+        image: quay.io/jewertow/federation-controller:latest
+        args:
+        - --meshPeers
+        - '{"remote":{"dataPlane":{"addresses":["%s"],"port":15443},"discovery":{"addresses":["%s"],"port":15020}}}'
+        - --exportedServiceSet
+        - '{"rules":[{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}]}'
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        ports:
+        - name: grpc-mcp
+          containerPort: 15010
+        - name: grpc-fds
+          containerPort: 15020
+`, dataPlaneIP, discoveryIP)); err != nil {
+			return fmt.Errorf("failed to patch federation-controller: %v", err)
+		}
+	}
+	return nil
+}
+
+func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
+	dataplaneGateway, err := c.Kube().CoreV1().Services(ns).Get(context.TODO(), name, v1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get %s/%s service from cluster %s: %v", name, ns, c.Name(), err)
+	}
+	for _, ip := range dataplaneGateway.Status.LoadBalancer.Ingress {
+		if ip.IP != "" {
+			return ip.IP, nil
+		}
+	}
+	return "", fmt.Errorf("no load balancer IP found for service %s/%s in cluster %s", name, ns, c.Name())
 }
