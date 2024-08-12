@@ -4,14 +4,18 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
 	"istio.io/istio/pkg/test/framework"
+	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo"
 	"istio.io/istio/pkg/test/framework/components/echo/check"
 	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
 	"istio.io/istio/pkg/test/framework/components/echo/match"
+	"istio.io/istio/pkg/test/util/retry"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const strictMTLS = `
@@ -37,10 +41,32 @@ func TestMeshFederation(t *testing.T) {
 		if len(a) == 0 {
 			ctx.Fatalf("failed to find a match for a")
 		}
+		if err := exportService(ctx.Clusters().GetByName(westClusterName), "b", westApps.namespace.Name()); err != nil {
+			t.Errorf("failed to export service b in cluster %s: %v", westClusterName, err)
+		}
+
 		a[0].CallOrFail(t, echo.CallOptions{
 			Address: fmt.Sprintf("b.%s.svc.cluster.local", westApps.namespace.Name()),
 			Port:    ports.HTTP,
 			Check:   check.Status(200),
 		})
 	})
+}
+
+func exportService(c cluster.Cluster, svcName, svcNs string) error {
+	if err := retry.UntilSuccess(func() error {
+		svc, err := c.Kube().CoreV1().Services(svcNs).Get(context.TODO(), svcName, v1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get service %s/%s: %v", svcNs, svcName, err)
+		}
+		svc.Labels["export-service"] = "true"
+		_, err = c.Kube().CoreV1().Services(svcNs).Update(context.TODO(), svc, v1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to update service %s/%s: %v", svcNs, svcName, err)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to export service %s/%s: %v", svcNs, svcName, err)
+	}
+	return nil
 }

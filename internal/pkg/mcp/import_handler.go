@@ -53,15 +53,20 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 		_, err := h.serviceController.clientset.CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
+				ports := []*istionetv1alpha3.ServicePort{}
+				for _, port := range importedSvc.Ports {
+					ports = append(ports, &istionetv1alpha3.ServicePort{
+						Name:       port.Name,
+						Number:     port.Number,
+						Protocol:   port.Protocol,
+						TargetPort: port.TargetPort,
+					})
+				}
 				// User created service doesn't exist, create ServiceEntry.
 				seSpec := &istionetv1alpha3.ServiceEntry{
 					// TODO: should we also append "${name}.${ns}" and "${name}.${ns}.svc"?
 					Hosts: []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
-					Ports: []*istionetv1alpha3.ServicePort{{
-						Name:     "http",
-						Number:   8000,
-						Protocol: "HTTP",
-					}},
+					Ports: ports,
 					// TODO: build endpoints from remote ingress gateway address
 					Endpoints: []*istionetv1alpha3.WorkloadEntry{{
 						Address: h.cfg.MeshPeers.Remote.DataPlane.Addresses[0],
