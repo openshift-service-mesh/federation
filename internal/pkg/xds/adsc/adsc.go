@@ -6,6 +6,7 @@ import (
 	"fmt"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 	"math"
 	"time"
@@ -73,6 +74,10 @@ func (a *ADSC) dial() error {
 		grpc.WithInitialWindowSize(int32(defaultInitialWindowSize)),
 		grpc.WithInitialConnWindowSize(int32(defaultInitialConnWindowSize)),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(defaultClientMaxReceiveMessageSize)),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff:           backoff.DefaultConfig,
+			MinConnectTimeout: 5 * time.Second,
+		}),
 	)
 	if err != nil {
 		return err

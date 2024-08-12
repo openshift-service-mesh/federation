@@ -39,8 +39,7 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 		if err := proto.Unmarshal(res.Value, exportedService); err != nil {
 			return fmt.Errorf("unable to unmarshal exported service: %v", err)
 		}
-		fmt.Println("Imported service name:", exportedService.Name)
-		fmt.Println("Imported service namespace:", exportedService.Namespace)
+		fmt.Printf("Imported service: [%s,%s,%v]\n", exportedService.Name, exportedService.Namespace, exportedService.Ports)
 		if exportedService.Name == "" || exportedService.Namespace == "" {
 			fmt.Println("Ignoring resource with empty name or namespace: ", res)
 			continue
@@ -50,9 +49,10 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 
 	var mcpResources []mcpResource
 	for _, importedSvc := range importedServices {
-		_, err := h.serviceController.clientset.CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
+		s, err := h.serviceController.clientset.CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
+				fmt.Println("service not found: ", importedSvc.Name)
 				ports := []*istionetv1alpha3.ServicePort{}
 				for _, port := range importedSvc.Ports {
 					ports = append(ports, &istionetv1alpha3.ServicePort{
@@ -76,7 +76,7 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 						Network:  "west-network",
 						Locality: "west",
 						Labels: map[string]string{
-							"app":                       "httpbin",
+							"app":                       "b",
 							"security.istio.io/tlsMode": "istio",
 						},
 					}},
@@ -88,16 +88,21 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 					namespace: "istio-system",
 					object:    seSpec,
 				})
+				fmt.Println("created mcp resource: ", mcpResources)
 			} else {
 				return fmt.Errorf("Error retrieving Service: %w", err)
 			}
+		} else {
+			fmt.Println("Should create WorkloadEntry, svc: ", s)
 		}
 		// TODO: else create WorkloadEntry
 	}
+	fmt.Println("mcp resources: ", mcpResources)
 	serializedResources, err := serialize(mcpResources...)
 	if err != nil {
 		return fmt.Errorf("failed to generate imported services: %w", err)
 	}
+	fmt.Println("Serialized resources: ", serializedResources)
 	h.pushRequests <- xds.PushRequest{
 		TypeUrl:   "networking.istio.io/v1alpha3/ServiceEntry",
 		Resources: serializedResources,

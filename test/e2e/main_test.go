@@ -6,6 +6,8 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -41,6 +43,7 @@ func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
 		Setup(createControlPlaneNamespace).
+		Setup(createCACertsSecret).
 		Setup(deployFederationControllers).
 		Setup(deployControlPlanes).
 		Setup(patchFederationControllers).
@@ -81,6 +84,44 @@ func createControlPlaneNamespace(ctx resource.Context) error {
 		}); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func createCACertsSecret(ctx resource.Context) error {
+	for idx, c := range ctx.Clusters() {
+		clusterName := clusterNames[idx]
+		data := map[string][]byte{
+			"root-cert.pem":  {},
+			"cert-chain.pem": {},
+			"ca-cert.pem":    {},
+			"ca-key.pem":     {},
+		}
+		if err := setCacertKeys(fmt.Sprintf("%s/test/testdata/certs/%s", rootDir, clusterName), data); err != nil {
+			return fmt.Errorf("failed to set keys in cacerts secret (cluster=%s): %v", clusterName, err)
+		}
+		cacerts := &corev1.Secret{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "cacerts",
+				Namespace: "istio-system",
+			},
+			Data: data,
+		}
+		if _, err := c.Kube().CoreV1().Secrets("istio-system").Create(context.TODO(), cacerts, v1.CreateOptions{}); err != nil {
+			return fmt.Errorf("failed to create cacerts secret (cluster=%s): %v", clusterName, err)
+		}
+	}
+	return nil
+}
+
+func setCacertKeys(dir string, data map[string][]byte) error {
+	for key := range data {
+		fileName := fmt.Sprintf("%s/%s", dir, key)
+		fileData, err := os.ReadFile(fileName)
+		if err != nil {
+			return fmt.Errorf("failed to read file %s: %v", fileName, err)
+		}
+		data[key] = fileData
 	}
 	return nil
 }
@@ -140,7 +181,7 @@ spec:
       serviceAccount: federation-controller
       containers:
       - name: server
-        image: quay.io/jewertow/federation-controller:ports
+        image: quay.io/jewertow/federation-controller:ports-timeout
         args:
         - --meshPeers
         - '{"remote":{"dataPlane":{"addresses":["%s"],"port":15443},"discovery":{"addresses":["%s"],"port":15020}}}'
@@ -181,7 +222,7 @@ type echoDeployment struct {
 	apps      echo.Instances
 }
 
-func deployEcho(d *echoDeployment, name, nsPrefix, targetCluster string) func(t resource.Context) error {
+func deployEcho(d *echoDeployment, name, nsPrefix, targetClusterName string) func(t resource.Context) error {
 	return func(ctx resource.Context) error {
 		ns, err := namespace.New(ctx, namespace.Config{
 			Prefix: nsPrefix,
@@ -192,12 +233,22 @@ func deployEcho(d *echoDeployment, name, nsPrefix, targetCluster string) func(t 
 		}
 		d.namespace = ns
 
-		newApp, err := deployment.New(ctx).WithClusters(ctx.Clusters().GetByName(targetCluster)).WithConfig(echo.Config{
+		targetCluster := ctx.Clusters().GetByName(targetClusterName)
+		newApp, err := deployment.New(ctx).WithClusters(targetCluster).WithConfig(echo.Config{
 			Service:   name,
 			Namespace: ns,
+			Ports:     ports.All(),
 		}).Build()
 		if err != nil {
 			return fmt.Errorf("failed to create echo: %v", err)
+		}
+
+		for _, c := range ctx.Clusters().Exclude(targetCluster) {
+			// We have to remove this service in non-target clusters, because it's always created in all clusters.
+			// TODO: this step should be optional when we will support WorkloadEntry
+			if err := c.Kube().CoreV1().Services(ns.Name()).Delete(context.TODO(), name, v1.DeleteOptions{}); err != nil {
+				return fmt.Errorf("failed to delete echo %s/%s in cluster %s: %v", name, ns.Name(), c.Name(), err)
+			}
 		}
 
 		d.apps = d.apps.Append(newApp)

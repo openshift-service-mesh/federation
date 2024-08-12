@@ -17,6 +17,7 @@ type mcpResource struct {
 func serialize(mcpResources ...mcpResource) ([]*anypb.Any, error) {
 	var serializedResources []*anypb.Any
 	for _, mcpRes := range mcpResources {
+		fmt.Println("mcp resource: ", mcpRes.name)
 		mcpResBody := &anypb.Any{}
 		if err := anypb.MarshalFrom(mcpResBody, mcpRes.object, proto.MarshalOptions{}); err != nil {
 			return []*anypb.Any{}, fmt.Errorf("failed to serialize object to protobuf format: %w", err)
@@ -31,6 +32,7 @@ func serialize(mcpResources ...mcpResource) ([]*anypb.Any, error) {
 		if err := anypb.MarshalFrom(serializedResource, mcpResTyped, proto.MarshalOptions{}); err != nil {
 			return []*anypb.Any{}, fmt.Errorf("failed to serialize MCP resource to protobuf format: %w", err)
 		}
+		fmt.Println("serialized resource: ", serializedResource)
 		serializedResources = append(serializedResources, serializedResource)
 	}
 	return serializedResources, nil

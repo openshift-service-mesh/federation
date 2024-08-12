@@ -119,10 +119,15 @@ func main() {
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 	serviceController := startControllers(ctx, clientset, cfg, informerFactory, fdsPushRequests, mcpPushRequests)
 
+	onNewFDSSubscription := func() {
+		fdsPushRequests <- xds.PushRequest{
+			TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService",
+		}
+	}
 	federationServer := adss.NewServer(
 		&adss.ServerOpts{Port: 15020, ServerID: "fds"},
 		fdsPushRequests,
-		nil,
+		onNewFDSSubscription,
 		federation.NewExportedServicesGenerator(*cfg, informerFactory),
 	)
 	go func() {
@@ -151,6 +156,7 @@ func main() {
 				go func() {
 					if err := federationClient.Run(); err != nil {
 						klog.Error("failed to start FDS client: ", err)
+						os.Exit(1)
 					}
 				}()
 			}

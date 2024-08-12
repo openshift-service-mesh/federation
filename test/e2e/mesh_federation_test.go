@@ -6,8 +6,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"testing"
-
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo"
@@ -16,6 +14,7 @@ import (
 	"istio.io/istio/pkg/test/framework/components/echo/match"
 	"istio.io/istio/pkg/test/util/retry"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"testing"
 )
 
 const strictMTLS = `
