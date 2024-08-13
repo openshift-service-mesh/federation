@@ -35,7 +35,8 @@ kind get kubeconfig --name east > $ROOT/east.kubeconfig
 install_metallb_retry west
 install_metallb_retry east
 
-sed "s/{{.clusterName}}/west/g" $ROOT/testdata/istio.yaml > $ROOT/testdata/istio-west.yaml
-istioctl manifest generate -f $ROOT/testdata/istio-west.yaml > $ROOT/testdata/istio-west-manifests.yaml
-sed "s/{{.clusterName}}/east/g" $ROOT/testdata/istio.yaml > $ROOT/testdata/istio-east.yaml
-istioctl manifest generate -f $ROOT/testdata/istio-east.yaml > $ROOT/testdata/istio-east-manifests.yaml
+mkdir -p $ROOT/testdata/out
+sed "s/{{.clusterName}}/west/g" $ROOT/testdata/istio.yaml > $ROOT/testdata/out/istio-west.yaml
+istioctl manifest generate -f $ROOT/testdata/out/istio-west.yaml > $ROOT/testdata/out/istio-west-manifests.yaml
+sed "s/{{.clusterName}}/east/g" $ROOT/testdata/istio.yaml > $ROOT/testdata/out/istio-east.yaml
+istioctl manifest generate -f $ROOT/testdata/out/istio-east.yaml > $ROOT/testdata/out/istio-east-manifests.yaml

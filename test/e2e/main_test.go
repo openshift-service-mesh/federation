@@ -133,7 +133,7 @@ func setCacertKeys(dir string, data map[string][]byte) error {
 func deployControlPlanes(ctx resource.Context) error {
 	for idx, c := range ctx.Clusters() {
 		clusterName := clusterNames[idx]
-		if err := c.Config().ApplyYAMLFiles("", fmt.Sprintf("%s/test/testdata/istio-%s-manifests.yaml", rootDir, clusterName)); err != nil {
+		if err := c.Config().ApplyYAMLFiles("", fmt.Sprintf("%s/test/testdata/out/istio-%s-manifests.yaml", rootDir, clusterName)); err != nil {
 			return fmt.Errorf("failed to deploy istio control plane: %v", err)
 		}
 	}

@@ -6,3 +6,4 @@ east.kubeconfig
 east/
 west.kubeconfig
 west/
+test/testdata/out
