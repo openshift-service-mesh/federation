@@ -9,6 +9,7 @@ message ExportedService {
   string name = 1;
   string namespace = 2;
   repeated ServicePort ports = 3;
+  map<string, string> labels = 4;
 }
 
 message ServicePort {

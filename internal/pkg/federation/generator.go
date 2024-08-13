@@ -61,6 +61,7 @@ func (g exportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 			Name:      svc.Name,
 			Namespace: svc.Namespace,
 			Ports:     ports,
+			Labels:    svc.Labels,
 		}
 		serializedExportedService := &anypb.Any{}
 		if err := anypb.MarshalFrom(serializedExportedService, exportedService, proto.MarshalOptions{}); err != nil {
