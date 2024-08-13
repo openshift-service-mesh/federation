@@ -36,16 +36,16 @@ func TestTraffic(t *testing.T) {
 			}
 		}
 
-		a := match.ServiceName(echo.NamespacedName{Name: "a", Namespace: eastApps.namespace}).GetMatches(eastApps.apps)
+		a := match.ServiceName(echo.NamespacedName{Name: "a", Namespace: appNs}).GetMatches(eastApps)
 		if len(a) == 0 {
 			ctx.Fatalf("failed to find a match for a")
 		}
-		if err := exportService(ctx.Clusters().GetByName(westClusterName), "b", westApps.namespace.Name()); err != nil {
+		if err := exportService(ctx.Clusters().GetByName(westClusterName), "b", appNs.Name()); err != nil {
 			t.Errorf("failed to export service b in cluster %s: %v", westClusterName, err)
 		}
 
 		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fmt.Sprintf("b.%s.svc.cluster.local", westApps.namespace.Name()),
+			Address: fmt.Sprintf("b.%s.svc.cluster.local", appNs.Name()),
 			Port:    ports.HTTP,
 			Check:   check.Status(200),
 		})
