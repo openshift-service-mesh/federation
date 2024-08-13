@@ -6,7 +6,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,6 +14,7 @@ import (
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo"
+	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
 	"istio.io/istio/pkg/test/framework/components/echo/deployment"
 	"istio.io/istio/pkg/test/framework/components/namespace"
 	"istio.io/istio/pkg/test/framework/resource"
@@ -47,6 +47,7 @@ func TestMain(m *testing.M) {
 		Setup(deployFederationControllers).
 		Setup(deployControlPlanes).
 		Setup(patchFederationControllers).
+		// TODO: SetupParallel()
 		Setup(deployEcho(eastApps, "a", "east", eastClusterName)).
 		Setup(deployEcho(westApps, "b", "west", westClusterName)).
 		Run()
