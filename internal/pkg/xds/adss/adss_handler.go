@@ -92,6 +92,8 @@ func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
 		if discoveryRequest.GetVersionInfo() == "" {
 			resources, err := adss.generateResources(discoveryRequest.GetTypeUrl())
 			if err != nil {
+				// TODO: Do not push empty resources if there was an error during resource generation,
+				// because that may cause unintentional removal of the subscribed resources.
 				klog.Errorf("[%s] failed to generate resources of type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
 			}
 			klog.Infof("[%s] Sending initial config snapshot for type %s", adss.serverID, discoveryRequest.GetTypeUrl())

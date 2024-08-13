@@ -3,6 +3,5 @@ out
 Makefile.selfsigned.mk
 common.mk
 east.kubeconfig
-east/
 west.kubeconfig
-west/
+test/testdata/out

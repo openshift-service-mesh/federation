@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
+	"strings"
 )
 
 var _ adss.RequestHandler = (*exportedServicesGenerator)(nil)
@@ -40,9 +41,26 @@ func (g exportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 		if !common.MatchExportRules(svc, g.cfg.ExportedServiceSet.GetLabelSelectors()) {
 			continue
 		}
+		var ports []*v1alpha1.ServicePort
+		for _, port := range svc.Spec.Ports {
+			servicePort := &v1alpha1.ServicePort{
+				Name:   port.Name,
+				Number: uint32(port.Port),
+			}
+			if port.TargetPort.IntVal != 0 {
+				servicePort.TargetPort = uint32(port.TargetPort.IntVal)
+			}
+			// TODO: handle appProtocol and other prefixes
+			if strings.HasPrefix(port.Name, "http-") {
+				servicePort.Protocol = "HTTP"
+			}
+			ports = append(ports, servicePort)
+		}
 		exportedService := &v1alpha1.ExportedService{
 			Name:      svc.Name,
 			Namespace: svc.Namespace,
+			Ports:     ports,
+			Labels:    svc.Labels,
 		}
 		serializedExportedService := &anypb.Any{}
 		if err := anypb.MarshalFrom(serializedExportedService, exportedService, proto.MarshalOptions{}); err != nil {
