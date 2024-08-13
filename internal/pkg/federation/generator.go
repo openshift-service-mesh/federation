@@ -35,7 +35,6 @@ func (g exportedServicesGenerator) GetTypeUrl() string {
 }
 
 func (g exportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
-	fmt.Println("Generating exported services response")
 	var serializedServices []*anypb.Any
 	for _, obj := range g.serviceInformer.GetStore().List() {
 		svc := obj.(*corev1.Service)
@@ -69,6 +68,5 @@ func (g exportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 		}
 		serializedServices = append(serializedServices, serializedExportedService)
 	}
-	fmt.Println("Generated exported services response: ", serializedServices)
 	return serializedServices, nil
 }
