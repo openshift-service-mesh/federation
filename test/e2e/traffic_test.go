@@ -27,7 +27,7 @@ spec:
     mode: STRICT
 `
 
-func TestMeshFederation(t *testing.T) {
+func TestTraffic(t *testing.T) {
 	framework.NewTest(t).Run(func(ctx framework.TestContext) {
 		// TODO: move to TestMain
 		for _, c := range ctx.Clusters() {
