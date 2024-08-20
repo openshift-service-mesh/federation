@@ -51,10 +51,9 @@ func TestMain(m *testing.M) {
 		Setup(namespace.Setup(&appNs, namespace.Config{Prefix: "app", Inject: true})).
 		Setup(deployApps(&eastApps, eastClusterName, namespace.Future(&appNs), "a", "b")).
 		Setup(deployApps(&westApps, westClusterName, namespace.Future(&appNs), "b", "c")).
-		// b must be removed from the east cluster, because we want to test importing a service
-		// that exists only in the remote cluster; in other words we want to test a -> c request,
-		// and it should work when imported service "c" does not exist in the client's cluster.
-		Setup(removeServiceFromOtherClusters("c", namespace.Future(&appNs), westClusterName)).
+		// c must be removed from the east cluster, because we want to test importing a service
+		// that exists only in the remote cluster.
+		Setup(removeServiceFromClusters("c", namespace.Future(&appNs), eastClusterName)).
 		Run()
 }
 
@@ -241,12 +240,12 @@ func deployApps(apps *echo.Instances, targetClusterName string, ns namespace.Get
 	}
 }
 
-func removeServiceFromOtherClusters(name string, ns namespace.Getter, targetClusterName string) func(t resource.Context) error {
+func removeServiceFromClusters(name string, ns namespace.Getter, targetClusterNames ...string) func(t resource.Context) error {
 	return func(ctx resource.Context) error {
-		targetCluster := ctx.Clusters().GetByName(targetClusterName)
-		for _, c := range ctx.Clusters().Exclude(targetCluster) {
-			if err := c.Kube().CoreV1().Services(ns.Get().Name()).Delete(context.TODO(), name, v1.DeleteOptions{}); err != nil {
-				return fmt.Errorf("failed to delete echo %s/%s in cluster %s: %v", name, ns.Get().Name(), c.Name(), err)
+		for _, targetClusterName := range targetClusterNames {
+			targetCluster := ctx.Clusters().GetByName(targetClusterName)
+			if err := targetCluster.Kube().CoreV1().Services(ns.Get().Name()).Delete(context.TODO(), name, v1.DeleteOptions{}); err != nil {
+				return fmt.Errorf("failed to delete Service %s/%s from cluster %s: %v", name, ns.Get().Name(), targetCluster.Name(), err)
 			}
 		}
 		return nil
