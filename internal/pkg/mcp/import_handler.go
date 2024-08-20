@@ -30,7 +30,7 @@ func NewImportedServiceHandler(cfg *config.Federation, serviceController *Contro
 	}
 }
 
-func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
+func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 	fmt.Println("Importing service...")
 	var importedServices []*v1alpha1.ExportedService
 	for _, res := range resources {
@@ -46,8 +46,12 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 		importedServices = append(importedServices, exportedService)
 	}
 
-	var mcpResources []mcpResource
+	var seResources []mcpResource
+	var weResources []mcpResource
 	for _, importedSvc := range importedServices {
+		// enforce Istio mTLS
+		importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
+
 		_, err := h.serviceController.clientset.CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
@@ -61,30 +65,16 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 					})
 				}
 
-				// enforce Istio mTLS
-				importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
-
 				// User created service doesn't exist, create ServiceEntry.
 				seSpec := &istionetv1alpha3.ServiceEntry{
 					// TODO: should we also append "${name}.${ns}" and "${name}.${ns}.svc"?
-					Hosts: []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
-					Ports: ports,
-					// TODO: build endpoints from remote ingress gateway address
-					Endpoints: []*istionetv1alpha3.WorkloadEntry{{
-						Address: h.cfg.MeshPeers.Remote.DataPlane.Addresses[0],
-						Ports: map[string]uint32{
-							// TODO: Handle all ports
-							"http": h.cfg.MeshPeers.Remote.DataPlane.Port,
-						},
-						// TODO: network and locality should come from federation config
-						Network:  "west-network",
-						Locality: "west",
-						Labels:   importedSvc.Labels,
-					}},
+					Hosts:      []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
+					Ports:      ports,
+					Endpoints:  h.makeWorkloadEntries(importedSvc.Labels),
 					Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
 					Resolution: istionetv1alpha3.ServiceEntry_STATIC,
 				}
-				mcpResources = append(mcpResources, mcpResource{
+				seResources = append(seResources, mcpResource{
 					name: fmt.Sprintf("import-%s", importedSvc.Name),
 					// TODO: config namespace should come from federation config
 					namespace: "istio-system",
@@ -93,15 +83,49 @@ func (h importedServiceHandler) Handle(resources []*anypb.Any) error {
 			} else {
 				return fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)
 			}
+		} else {
+			workloadEntrySpecs := h.makeWorkloadEntries(importedSvc.Labels)
+			for idx, weSpec := range workloadEntrySpecs {
+				weResources = append(weResources, mcpResource{
+					name:      fmt.Sprintf("import-%s-%d", importedSvc.Name, idx),
+					namespace: importedSvc.Namespace,
+					object:    weSpec,
+				})
+			}
 		}
-		// TODO: else create WorkloadEntry
 	}
-	serializedResources, err := serialize(mcpResources...)
+
+	if err := h.push("networking.istio.io/v1alpha3/ServiceEntry", seResources); err != nil {
+		return err
+	}
+	if err := h.push("networking.istio.io/v1alpha3/WorkloadEntry", weResources); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *importedServiceHandler) makeWorkloadEntries(labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
+	return []*istionetv1alpha3.WorkloadEntry{{
+		// TODO: Handle all addresses
+		Address: h.cfg.MeshPeers.Remote.DataPlane.Addresses[0],
+		Ports: map[string]uint32{
+			// TODO: Handle all ports
+			"http": h.cfg.MeshPeers.Remote.DataPlane.Port,
+		},
+		// TODO: network and locality should come from federation config
+		Network:  "west-network",
+		Locality: "west",
+		Labels:   labels,
+	}}
+}
+
+func (h *importedServiceHandler) push(typeUrl string, resources []mcpResource) error {
+	serializedResources, err := serialize(resources...)
 	if err != nil {
-		return fmt.Errorf("failed to generate ServiceEntry resources for imported services: %v", err)
+		return fmt.Errorf("failed to serialize resources created for imported services: %v", err)
 	}
 	h.pushRequests <- xds.PushRequest{
-		TypeUrl:   "networking.istio.io/v1alpha3/ServiceEntry",
+		TypeUrl:   typeUrl,
 		Resources: serializedResources,
 	}
 	return nil

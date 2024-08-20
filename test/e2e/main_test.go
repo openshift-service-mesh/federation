@@ -49,12 +49,12 @@ func TestMain(m *testing.M) {
 		Setup(deployControlPlanes).
 		Setup(patchFederationControllers).
 		Setup(namespace.Setup(&appNs, namespace.Config{Prefix: "app", Inject: true})).
-		SetupParallel(
-			deployApp(&eastApps, "a", namespace.Future(&appNs), eastClusterName),
-			deployApp(&westApps, "b", namespace.Future(&appNs), westClusterName)).
-		// b must be removed from the west cluster, because we want to test importing a service
-		// that exists only in the remote cluster
-		Setup(removeServiceFromOtherClusters("b", namespace.Future(&appNs), westClusterName)).
+		Setup(deployApps(&eastApps, eastClusterName, namespace.Future(&appNs), "a", "b")).
+		Setup(deployApps(&westApps, westClusterName, namespace.Future(&appNs), "b", "c")).
+		// b must be removed from the east cluster, because we want to test importing a service
+		// that exists only in the remote cluster; in other words we want to test a -> c request,
+		// and it should work when imported service "c" does not exist in the client's cluster.
+		Setup(removeServiceFromOtherClusters("c", namespace.Future(&appNs), westClusterName)).
 		Run()
 }
 
@@ -187,7 +187,7 @@ spec:
       serviceAccount: federation-controller
       containers:
       - name: server
-        image: quay.io/jewertow/federation-controller:latest
+        image: quay.io/jewertow/federation-controller:workload-entry
         args:
         - --meshPeers
         - '{"remote":{"dataPlane":{"addresses":["%s"],"port":15443},"discovery":{"addresses":["%s"],"port":15020}}}'
@@ -223,18 +223,20 @@ func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
 	return "", fmt.Errorf("no load balancer IP found for service %s/%s in cluster %s", name, ns, c.Name())
 }
 
-func deployApp(apps *echo.Instances, name string, ns namespace.Getter, targetClusterName string) func(t resource.Context) error {
+func deployApps(apps *echo.Instances, targetClusterName string, ns namespace.Getter, names ...string) func(t resource.Context) error {
 	return func(ctx resource.Context) error {
 		targetCluster := ctx.Clusters().GetByName(targetClusterName)
-		newApp, err := deployment.New(ctx).WithClusters(targetCluster).WithConfig(echo.Config{
-			Service:   name,
-			Namespace: ns.Get(),
-			Ports:     ports.All(),
-		}).Build()
-		if err != nil {
-			return fmt.Errorf("failed to create echo: %v", err)
+		for _, name := range names {
+			newApp, err := deployment.New(ctx).WithClusters(targetCluster).WithConfig(echo.Config{
+				Service:   name,
+				Namespace: ns.Get(),
+				Ports:     ports.All(),
+			}).Build()
+			if err != nil {
+				return fmt.Errorf("failed to create echo: %v", err)
+			}
+			*apps = apps.Append(newApp)
 		}
-		*apps = apps.Append(newApp)
 		return nil
 	}
 }
