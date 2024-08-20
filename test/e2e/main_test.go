@@ -49,6 +49,9 @@ func TestMain(m *testing.M) {
 		Setup(deployControlPlanes).
 		Setup(patchFederationControllers).
 		Setup(namespace.Setup(&appNs, namespace.Config{Prefix: "app", Inject: true})).
+		// a - client
+		// b - service available in east and west clusters - covers importing with WorkloadEntry
+		// c - service available only in west cluster - covers importing with ServiceEntry
 		Setup(deployApps(&eastApps, eastClusterName, namespace.Future(&appNs), "a", "b")).
 		Setup(deployApps(&westApps, westClusterName, namespace.Future(&appNs), "b", "c")).
 		// c must be removed from the east cluster, because we want to test importing a service
