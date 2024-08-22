@@ -27,8 +27,9 @@ import (
 var (
 	clusterNames = []string{"east", "west"}
 
-	eastApps = &echoDeployment{}
-	westApps = &echoDeployment{}
+	appNs    namespace.Instance
+	eastApps echo.Instances
+	westApps echo.Instances
 
 	_, file, _, _ = runtime.Caller(0)
 	rootDir       = filepath.Join(filepath.Dir(file), "../..")
@@ -47,9 +48,15 @@ func TestMain(m *testing.M) {
 		Setup(deployFederationControllers).
 		Setup(deployControlPlanes).
 		Setup(patchFederationControllers).
-		// TODO: SetupParallel()
-		Setup(deployEcho(eastApps, "a", "east", eastClusterName)).
-		Setup(deployEcho(westApps, "b", "west", westClusterName)).
+		Setup(namespace.Setup(&appNs, namespace.Config{Prefix: "app", Inject: true})).
+		// a - client
+		// b - service available in east and west clusters - covers importing with WorkloadEntry
+		// c - service available only in west cluster - covers importing with ServiceEntry
+		Setup(deployApps(&eastApps, eastClusterName, namespace.Future(&appNs), "a", "b")).
+		Setup(deployApps(&westApps, westClusterName, namespace.Future(&appNs), "b", "c")).
+		// c must be removed from the east cluster, because we want to test importing a service
+		// that exists only in the remote cluster.
+		Setup(removeServiceFromClusters("c", namespace.Future(&appNs), eastClusterName)).
 		Run()
 }
 
@@ -218,41 +225,32 @@ func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
 	return "", fmt.Errorf("no load balancer IP found for service %s/%s in cluster %s", name, ns, c.Name())
 }
 
-type echoDeployment struct {
-	namespace namespace.Instance
-	apps      echo.Instances
+func deployApps(apps *echo.Instances, targetClusterName string, ns namespace.Getter, names ...string) func(t resource.Context) error {
+	return func(ctx resource.Context) error {
+		targetCluster := ctx.Clusters().GetByName(targetClusterName)
+		for _, name := range names {
+			newApp, err := deployment.New(ctx).WithClusters(targetCluster).WithConfig(echo.Config{
+				Service:   name,
+				Namespace: ns.Get(),
+				Ports:     ports.All(),
+			}).Build()
+			if err != nil {
+				return fmt.Errorf("failed to create echo: %v", err)
+			}
+			*apps = apps.Append(newApp)
+		}
+		return nil
+	}
 }
 
-func deployEcho(d *echoDeployment, name, nsPrefix, targetClusterName string) func(t resource.Context) error {
+func removeServiceFromClusters(name string, ns namespace.Getter, targetClusterNames ...string) func(t resource.Context) error {
 	return func(ctx resource.Context) error {
-		ns, err := namespace.New(ctx, namespace.Config{
-			Prefix: nsPrefix,
-			Inject: true,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create namespace: %s", ns.Name())
-		}
-		d.namespace = ns
-
-		targetCluster := ctx.Clusters().GetByName(targetClusterName)
-		newApp, err := deployment.New(ctx).WithClusters(targetCluster).WithConfig(echo.Config{
-			Service:   name,
-			Namespace: ns,
-			Ports:     ports.All(),
-		}).Build()
-		if err != nil {
-			return fmt.Errorf("failed to create echo: %v", err)
-		}
-
-		for _, c := range ctx.Clusters().Exclude(targetCluster) {
-			// We have to remove this service in non-target clusters, because it's always created in all clusters.
-			// TODO: this step should be optional when we will support WorkloadEntry
-			if err := c.Kube().CoreV1().Services(ns.Name()).Delete(context.TODO(), name, v1.DeleteOptions{}); err != nil {
-				return fmt.Errorf("failed to delete echo %s/%s in cluster %s: %v", name, ns.Name(), c.Name(), err)
+		for _, targetClusterName := range targetClusterNames {
+			targetCluster := ctx.Clusters().GetByName(targetClusterName)
+			if err := targetCluster.Kube().CoreV1().Services(ns.Get().Name()).Delete(context.TODO(), name, v1.DeleteOptions{}); err != nil {
+				return fmt.Errorf("failed to delete Service %s/%s from cluster %s: %v", name, ns.Get().Name(), targetCluster.Name(), err)
 			}
 		}
-
-		d.apps = d.apps.Append(newApp)
 		return nil
 	}
 }

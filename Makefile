@@ -24,6 +24,7 @@ kind-clusters:
 e2e-test:
 	go test -tags=integ -run TestTraffic ./test/e2e \
 		--istio.test.kube.config=$(shell pwd)/test/east.kubeconfig,$(shell pwd)/test/west.kubeconfig\
+		--istio.test.kube.networkTopology=0:east-network,1:west-network\
 		--istio.test.onlyWorkloads=standard
 
 e2e: kind-clusters e2e-test

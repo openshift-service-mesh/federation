@@ -36,18 +36,50 @@ func TestTraffic(t *testing.T) {
 			}
 		}
 
-		a := match.ServiceName(echo.NamespacedName{Name: "a", Namespace: eastApps.namespace}).GetMatches(eastApps.apps)
+		a := match.ServiceName(echo.NamespacedName{Name: "a", Namespace: appNs}).GetMatches(eastApps)
 		if len(a) == 0 {
 			ctx.Fatalf("failed to find a match for a")
 		}
-		if err := exportService(ctx.Clusters().GetByName(westClusterName), "b", westApps.namespace.Name()); err != nil {
+
+		ctx.NewSubTest("requests to b should be routed only to local instances").Run(func(ctx framework.TestContext) {
+			a[0].CallOrFail(t, echo.CallOptions{
+				Address: fmt.Sprintf("b.%s.svc.cluster.local", appNs.Name()),
+				Port:    ports.HTTP,
+				Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), cluster.Clusters{ctx.Clusters().GetByName(eastClusterName)})),
+				Count:   5,
+			})
+		})
+
+		ctx.NewSubTest("requests to c should fail").Run(func(ctx framework.TestContext) {
+			a[0].CallOrFail(t, echo.CallOptions{
+				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
+				Port:    ports.HTTP,
+				Check:   check.Status(503),
+			})
+		})
+
+		if err := exportService(ctx.Clusters().GetByName(westClusterName), "b", appNs.Name()); err != nil {
 			t.Errorf("failed to export service b in cluster %s: %v", westClusterName, err)
 		}
+		if err := exportService(ctx.Clusters().GetByName(westClusterName), "c", appNs.Name()); err != nil {
+			t.Errorf("failed to export service c in cluster %s: %v", westClusterName, err)
+		}
 
-		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fmt.Sprintf("b.%s.svc.cluster.local", westApps.namespace.Name()),
-			Port:    ports.HTTP,
-			Check:   check.Status(200),
+		ctx.NewSubTest("requests to b should be routed to local and remote instances").Run(func(ctx framework.TestContext) {
+			a[0].CallOrFail(t, echo.CallOptions{
+				Address: fmt.Sprintf("b.%s.svc.cluster.local", appNs.Name()),
+				Port:    ports.HTTP,
+				Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+				Count:   5,
+			})
+		})
+
+		ctx.NewSubTest("requests to c should succeed").Run(func(ctx framework.TestContext) {
+			a[0].CallOrFail(t, echo.CallOptions{
+				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
+				Port:    ports.HTTP,
+				Check:   check.OK(),
+			})
 		})
 	})
 }
