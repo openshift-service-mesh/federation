@@ -81,7 +81,8 @@ func TestHandle(t *testing.T) {
 				Endpoints: []*istionetv1alpha3.WorkloadEntry{{
 					Address: "192.168.0.1",
 					Ports: map[string]uint32{
-						"http": 15443,
+						"http":  15443,
+						"https": 15443,
 					},
 					Labels: map[string]string{
 						"app":                       "a",
@@ -102,7 +103,8 @@ func TestHandle(t *testing.T) {
 				Endpoints: []*istionetv1alpha3.WorkloadEntry{{
 					Address: "192.168.0.1",
 					Ports: map[string]uint32{
-						"http": 15443,
+						"http":  15443,
+						"https": 15443,
 					},
 					Labels: map[string]string{
 						"app":                       "a",

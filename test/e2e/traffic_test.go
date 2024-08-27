@@ -6,6 +6,9 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"testing"
+	"time"
+
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo"
@@ -14,7 +17,6 @@ import (
 	"istio.io/istio/pkg/test/framework/components/echo/match"
 	"istio.io/istio/pkg/test/util/retry"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 const strictMTLS = `
@@ -55,6 +57,7 @@ func TestTraffic(t *testing.T) {
 				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
 				Port:    ports.HTTP,
 				Check:   check.Status(503),
+				Timeout: 1 * time.Second,
 			})
 		})
 
@@ -65,22 +68,24 @@ func TestTraffic(t *testing.T) {
 			t.Errorf("failed to export service c in cluster %s: %v", westClusterName, err)
 		}
 
-		ctx.NewSubTest("requests to b should be routed to local and remote instances").Run(func(ctx framework.TestContext) {
-			a[0].CallOrFail(t, echo.CallOptions{
-				Address: fmt.Sprintf("b.%s.svc.cluster.local", appNs.Name()),
-				Port:    ports.HTTP,
-				Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
-				Count:   5,
+		for _, port := range []echo.Port{ports.HTTP, ports.HTTPS} {
+			ctx.NewSubTest(fmt.Sprintf("requests to b should be routed to local and remote instances (protocol=%s)", port.Name)).Run(func(ctx framework.TestContext) {
+				a[0].CallOrFail(t, echo.CallOptions{
+					Address: fmt.Sprintf("b.%s.svc.cluster.local", appNs.Name()),
+					Port:    port,
+					Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+					Count:   5,
+				})
 			})
-		})
 
-		ctx.NewSubTest("requests to c should succeed").Run(func(ctx framework.TestContext) {
-			a[0].CallOrFail(t, echo.CallOptions{
-				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
-				Port:    ports.HTTP,
-				Check:   check.OK(),
+			ctx.NewSubTest(fmt.Sprintf("requests to c should succeed (protocol=%s)", port.Name)).Run(func(ctx framework.TestContext) {
+				a[0].CallOrFail(t, echo.CallOptions{
+					Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
+					Port:    port,
+					Check:   check.OK(),
+				})
 			})
-		})
+		}
 	})
 }
 

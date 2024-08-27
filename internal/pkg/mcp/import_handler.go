@@ -72,7 +72,7 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 					// TODO: should we also append "${name}.${ns}" and "${name}.${ns}.svc"?
 					Hosts:      []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
 					Ports:      ports,
-					Endpoints:  h.makeWorkloadEntries(importedSvc.Labels),
+					Endpoints:  h.makeWorkloadEntries(importedSvc.Ports, importedSvc.Labels),
 					Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
 					Resolution: istionetv1alpha3.ServiceEntry_STATIC,
 				}
@@ -88,7 +88,7 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 				return fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)
 			}
 		} else {
-			workloadEntrySpecs := h.makeWorkloadEntries(importedSvc.Labels)
+			workloadEntrySpecs := h.makeWorkloadEntries(importedSvc.Ports, importedSvc.Labels)
 			for idx, weSpec := range workloadEntrySpecs {
 				weResources = append(weResources, mcpResource{
 					name:      fmt.Sprintf("import-%s-%d", importedSvc.Name, idx),
@@ -107,18 +107,19 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 	return nil
 }
 
-func (h *importedServiceHandler) makeWorkloadEntries(labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
-	return []*istionetv1alpha3.WorkloadEntry{{
+func (h *importedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
+	we := &istionetv1alpha3.WorkloadEntry{
 		// TODO: Handle all addresses
-		Address: h.cfg.MeshPeers.Remote.DataPlane.Addresses[0],
-		Ports: map[string]uint32{
-			// TODO: Handle all ports
-			"http": h.cfg.MeshPeers.Remote.DataPlane.Port,
-		},
+		Address:  h.cfg.MeshPeers.Remote.DataPlane.Addresses[0],
 		Network:  h.cfg.MeshPeers.Remote.Network,
 		Locality: h.cfg.MeshPeers.Remote.Locality,
 		Labels:   labels,
-	}}
+		Ports:    make(map[string]uint32, len(ports)),
+	}
+	for _, p := range ports {
+		we.Ports[p.Name] = h.cfg.MeshPeers.Remote.DataPlane.Port
+	}
+	return []*istionetv1alpha3.WorkloadEntry{we}
 }
 
 func (h *importedServiceHandler) push(typeUrl string, resources []mcpResource) error {
