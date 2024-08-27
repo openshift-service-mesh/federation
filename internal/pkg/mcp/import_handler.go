@@ -77,7 +77,9 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 					Resolution: istionetv1alpha3.ServiceEntry_STATIC,
 				}
 				seResources = append(seResources, mcpResource{
-					name: fmt.Sprintf("import-%s", importedSvc.Name),
+					// name of the MCP resource must include name and namespace to ensure uniqueness
+					// TODO: add peer name to ensure uniqueness when more than 2 peers are connected
+					name: fmt.Sprintf("import_%s_%s", importedSvc.Name, importedSvc.Namespace),
 					// TODO: config namespace should come from federation config
 					namespace: "istio-system",
 					object:    seSpec,

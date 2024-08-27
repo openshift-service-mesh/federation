@@ -29,44 +29,60 @@ var (
 			},
 		},
 	}
+
+	httpPort = &v1alpha1.ServicePort{
+		Name:     "http",
+		Number:   80,
+		Protocol: "HTTP",
+	}
+	httpsPort = &v1alpha1.ServicePort{
+		Name:     "https",
+		Number:   443,
+		Protocol: "HTTPS",
+	}
+	istioHttpPort = &istionetv1alpha3.ServicePort{
+		Name:     "http",
+		Number:   80,
+		Protocol: "HTTP",
+	}
+	istioHttpsPort = &istionetv1alpha3.ServicePort{
+		Name:     "https",
+		Number:   443,
+		Protocol: "HTTPS",
+	}
 )
 
 func TestHandle(t *testing.T) {
 	testCases := []struct {
-		name                string
-		exportedService     *v1alpha1.ExportedService
-		expectedMcpResource mcpResource
+		name                 string
+		exportedServices     []*v1alpha1.ExportedService
+		expectedMcpResources []mcpResource
 	}{{
 		name: "received exported service does not exists locally - ServiceEntry expected",
-		exportedService: &v1alpha1.ExportedService{
-			Name:      "test",
-			Namespace: "default",
-			Ports: []*v1alpha1.ServicePort{{
-				Name:     "http",
-				Number:   80,
-				Protocol: "HTTP",
-			}},
-			Labels: map[string]string{
-				"app": "test",
-			},
-		},
-		expectedMcpResource: mcpResource{
-			name:      "import-test",
+		exportedServices: []*v1alpha1.ExportedService{{
+			Name:      "a",
+			Namespace: "ns1",
+			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort},
+			Labels:    map[string]string{"app": "a"},
+		}, {
+			Name:      "a",
+			Namespace: "ns2",
+			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort},
+			Labels:    map[string]string{"app": "a"},
+		}},
+		expectedMcpResources: []mcpResource{{
+			name:      "import_a_ns1",
 			namespace: "istio-system",
 			object: &istionetv1alpha3.ServiceEntry{
-				Hosts: []string{"test.default.svc.cluster.local"},
-				Ports: []*istionetv1alpha3.ServicePort{{
-					Name:     "http",
-					Number:   80,
-					Protocol: "HTTP",
-				}},
+				Hosts: []string{"a.ns1.svc.cluster.local"},
+				Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort},
 				Endpoints: []*istionetv1alpha3.WorkloadEntry{{
 					Address: "192.168.0.1",
 					Ports: map[string]uint32{
 						"http": 15443,
 					},
 					Labels: map[string]string{
-						"app":                       "test",
+						"app":                       "a",
 						"security.istio.io/tlsMode": "istio",
 					},
 					Network:  "west-network",
@@ -75,7 +91,28 @@ func TestHandle(t *testing.T) {
 				Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
 				Resolution: istionetv1alpha3.ServiceEntry_STATIC,
 			},
-		},
+		}, {
+			name:      "import_a_ns2",
+			namespace: "istio-system",
+			object: &istionetv1alpha3.ServiceEntry{
+				Hosts: []string{"a.ns2.svc.cluster.local"},
+				Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort},
+				Endpoints: []*istionetv1alpha3.WorkloadEntry{{
+					Address: "192.168.0.1",
+					Ports: map[string]uint32{
+						"http": 15443,
+					},
+					Labels: map[string]string{
+						"app":                       "a",
+						"security.istio.io/tlsMode": "istio",
+					},
+					Network:  "west-network",
+					Locality: "west",
+				}},
+				Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
+				Resolution: istionetv1alpha3.ServiceEntry_STATIC,
+			},
+		}},
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -99,13 +136,13 @@ func TestHandle(t *testing.T) {
 			// Handle must be called in a goroutine, because mcpPushRequests is an unbuffered channel,
 			// so it's blocked until another goroutine reads from the channel
 			go func() {
-				if err := handler.Handle(serializeExportedService(t, tc.exportedService)); err != nil {
+				if err := handler.Handle(serializeExportedServices(t, tc.exportedServices)); err != nil {
 					t.Errorf("error handling request: %v", err)
 					return
 				}
 			}()
 
-			expectedServiceEntryResources, err := serialize(tc.expectedMcpResource)
+			expectedServiceEntryResources, err := serialize(tc.expectedMcpResources...)
 			if err != nil {
 				t.Fatalf("error serializing expected service entry: %v", err)
 			}
@@ -126,11 +163,15 @@ func TestHandle(t *testing.T) {
 	}
 }
 
-func serializeExportedService(t *testing.T, exportedService *v1alpha1.ExportedService) []*anypb.Any {
+func serializeExportedServices(t *testing.T, exportedServices []*v1alpha1.ExportedService) []*anypb.Any {
 	t.Helper()
-	serializedExportedService := &anypb.Any{}
-	if err := anypb.MarshalFrom(serializedExportedService, exportedService, proto.MarshalOptions{}); err != nil {
-		t.Errorf("failed to serialize ExportedService to protobuf message: %v", err)
+	var out []*anypb.Any
+	for _, s := range exportedServices {
+		serializedExportedService := &anypb.Any{}
+		if err := anypb.MarshalFrom(serializedExportedService, s, proto.MarshalOptions{}); err != nil {
+			t.Errorf("failed to serialize ExportedService to protobuf message: %v", err)
+		}
+		out = append(out, serializedExportedService)
 	}
-	return []*anypb.Any{serializedExportedService}
+	return out
 }
