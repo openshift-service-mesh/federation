@@ -96,7 +96,6 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 			}
 		}
 	}
-
 	if err := h.push("networking.istio.io/v1alpha3/ServiceEntry", seResources); err != nil {
 		return err
 	}

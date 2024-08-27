@@ -64,7 +64,7 @@ func (g exportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 		}
 		serializedExportedService := &anypb.Any{}
 		if err := anypb.MarshalFrom(serializedExportedService, exportedService, proto.MarshalOptions{}); err != nil {
-			return []*anypb.Any{}, fmt.Errorf("failed to serialize Gateway to protobuf message: %w", err)
+			return []*anypb.Any{}, fmt.Errorf("failed to serialize ExportedService to protobuf message: %w", err)
 		}
 		serializedServices = append(serializedServices, serializedExportedService)
 	}
