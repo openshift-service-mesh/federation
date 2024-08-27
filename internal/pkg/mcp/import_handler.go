@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/xds"
@@ -31,16 +32,16 @@ func NewImportedServiceHandler(cfg *config.Federation, serviceController *Contro
 }
 
 func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
-	fmt.Println("Importing service...")
+	log.Info("Importing service...")
 	var importedServices []*v1alpha1.ExportedService
 	for _, res := range resources {
 		exportedService := &v1alpha1.ExportedService{}
 		if err := proto.Unmarshal(res.Value, exportedService); err != nil {
 			return fmt.Errorf("unable to unmarshal exported service: %v", err)
 		}
-		fmt.Printf("Received exported service: [%s,%s,%v]\n", exportedService.Name, exportedService.Namespace, exportedService.Ports)
+		log.Infof("Received exported service: [%s,%s,%v]\n", exportedService.Name, exportedService.Namespace, exportedService.Ports)
 		if exportedService.Name == "" || exportedService.Namespace == "" {
-			fmt.Println("Ignoring resource with empty name or namespace: ", res)
+			log.Infof("Ignoring resource with empty name or namespace: %v", res)
 			continue
 		}
 		importedServices = append(importedServices, exportedService)

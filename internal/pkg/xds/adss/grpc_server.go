@@ -9,7 +9,6 @@ import (
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
-	"k8s.io/klog/v2"
 )
 
 type Server struct {
@@ -60,12 +59,12 @@ func (s *Server) Run(ctx context.Context) error {
 
 	routinesGroup.Go(func() error {
 		defer cancel()
-		klog.Infof("[%s] Running gRPC server", s.opts.ServerID)
+		log.Infof("[%s] Running gRPC server", s.opts.ServerID)
 		return s.grpc.Serve(listener)
 	})
 
 	routinesGroup.Go(func() error {
-		defer klog.Info("[%s] gRPC server was shut down", s.opts.ServerID)
+		defer log.Infof("[%s] gRPC server was shut down", s.opts.ServerID)
 		<-ctx.Done()
 		s.grpc.GracefulStop()
 		return nil
@@ -79,9 +78,9 @@ loop:
 			break loop
 
 		case pushRequest := <-s.pushRequests:
-			klog.Infof("[%s] Received push request: %v", s.opts.ServerID, pushRequest)
+			log.Infof("[%s] Received push request: %v", s.opts.ServerID, pushRequest)
 			if err := s.ads.push(pushRequest); err != nil {
-				klog.Errorf("[%s] failed to push to subscribers: %v", s.opts.ServerID, err)
+				log.Errorf("[%s] failed to push to subscribers: %v", s.opts.ServerID, err)
 			}
 		}
 	}

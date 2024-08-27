@@ -16,8 +16,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
-	"k8s.io/klog/v2"
+	istiolog "istio.io/istio/pkg/log"
 )
+
+var log = istiolog.RegisterScope("adss", "Aggregated Discovery Service Server")
 
 // DeltaDiscoveryStream is a server interface for XDS.
 // DeltaDiscoveryStream is a server interface for Delta XDS.
@@ -47,7 +49,7 @@ var _ discovery.AggregatedDiscoveryServiceServer = (*adsServer)(nil)
 
 // NewADSServer creates a new instance of the AggregatedDiscoveryServiceServer.
 func (adss *adsServer) StreamAggregatedResources(downstream DiscoveryStream) error {
-	klog.Infof("[%s] New subscriber connected", adss.serverID)
+	log.Infof("[%s] New subscriber connected", adss.serverID)
 	ctx, closeStream := context.WithCancel(downstream.Context())
 
 	sub := &subscriber{
@@ -81,24 +83,24 @@ var (
 
 // recvFromStream receives discovery requests from the subscriber.
 func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
-	klog.Infof("[%s] Received from stream %d", adss.serverID, id)
+	log.Infof("[%s] Received from stream %d", adss.serverID, id)
 	for {
 		discoveryRequest, err := downstream.Recv()
 		if err != nil {
-			klog.Errorf("[%s] error while recv discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), err)
+			log.Errorf("[%s] error while recv discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), err)
 			break
 		}
-		klog.Infof("[%s] Got discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
+		log.Infof("[%s] Got discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
 		if discoveryRequest.GetVersionInfo() == "" {
 			resources, err := adss.generateResources(discoveryRequest.GetTypeUrl())
 			if err != nil {
 				// TODO: Do not push empty resources if there was an error during resource generation,
 				// because that may cause unintentional removal of the subscribed resources.
-				klog.Errorf("[%s] failed to generate resources of type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
+				log.Errorf("[%s] failed to generate resources of type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
 			}
-			klog.Infof("[%s] Sending initial config snapshot for type %s", adss.serverID, discoveryRequest.GetTypeUrl())
+			log.Infof("[%s] Sending initial config snapshot for type %s", adss.serverID, discoveryRequest.GetTypeUrl())
 			if err := sendToStream(downstream, discoveryRequest.GetTypeUrl(), resources, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
-				klog.Errorf("[%s] failed to send initial config snapshot for type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
+				log.Errorf("[%s] failed to send initial config snapshot for type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
 			}
 		}
 	}
@@ -106,9 +108,9 @@ func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
 
 func (adss *adsServer) generateResources(typeUrl string) ([]*anypb.Any, error) {
 	if handler, found := adss.handlers[typeUrl]; found {
-		klog.Infof("[%s] Generating config snapshot for type %s", adss.serverID, typeUrl)
+		log.Infof("[%s] Generating config snapshot for type %s", adss.serverID, typeUrl)
 		if resources, err := handler.GenerateResponse(); err != nil {
-			klog.Errorf("[%s] error generating resources of type %s: %v", adss.serverID, typeUrl, err)
+			log.Errorf("[%s] error generating resources of type %s: %v", adss.serverID, typeUrl, err)
 			return []*anypb.Any{}, err
 		} else {
 			return resources, nil
@@ -144,7 +146,7 @@ func (adss *adsServer) subscribersLen() int {
 
 func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 	if adss.subscribersLen() == 0 {
-		klog.Infof("[%s] Skip pushing XDS resources for request [type=%s,resources=%v] as there are no subscribers", adss.serverID, pushRequest.TypeUrl, pushRequest.Resources)
+		log.Infof("[%s] Skip pushing XDS resources for request [type=%s,resources=%v] as there are no subscribers", adss.serverID, pushRequest.TypeUrl, pushRequest.Resources)
 		return nil
 	}
 
@@ -157,9 +159,9 @@ func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 		}
 	}
 
-	klog.Infof("[%s] Pushing discovery response to subscribers: [type=%s,resources=%v]", adss.serverID, pushRequest.TypeUrl, resources)
+	log.Infof("[%s] Pushing discovery response to subscribers: [type=%s,resources=%v]", adss.serverID, pushRequest.TypeUrl, resources)
 	adss.subscribers.Range(func(key, value any) bool {
-		klog.Infof("[%s] Sending to subscriber %s", adss.serverID, fmt.Sprintf(subIDFmtStr, key.(uint64)))
+		log.Infof("[%s] Sending to subscriber %s", adss.serverID, fmt.Sprintf(subIDFmtStr, key.(uint64)))
 		if err := value.(*subscriber).stream.Send(&discovery.DiscoveryResponse{
 			TypeUrl:     pushRequest.TypeUrl,
 			VersionInfo: strconv.FormatInt(time.Now().Unix(), 10), // TODO improve version computation
@@ -168,7 +170,7 @@ func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 				Identifier: os.Getenv("POD_NAME"),
 			},
 		}); err != nil {
-			klog.Errorf("[%s] error sending MCP resources: %v", adss.serverID, err)
+			log.Errorf("[%s] error sending MCP resources: %v", adss.serverID, err)
 			value.(*subscriber).closeStream()
 			adss.subscribers.Delete(key)
 		}
@@ -180,7 +182,7 @@ func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 // closeSubscribers closes all active subscriber streams.
 func (adss *adsServer) closeSubscribers() {
 	adss.subscribers.Range(func(key, value any) bool {
-		klog.Infof("[%s] Closing stream of subscriber %s", adss.serverID, fmt.Sprintf(subIDFmtStr, key.(uint64)))
+		log.Infof("[%s] Closing stream of subscriber %s", adss.serverID, fmt.Sprintf(subIDFmtStr, key.(uint64)))
 		value.(*subscriber).closeStream()
 		adss.subscribers.Delete(key)
 

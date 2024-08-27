@@ -12,7 +12,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog/v2"
 )
 
 const maxRetries = 5
@@ -58,7 +57,7 @@ func NewResourceController(client kubernetes.Interface, informer cache.SharedInd
 			newEvent.eventType = "create"
 			newEvent.resourceType = objName(resourceType)
 			newEvent.obj = obj.(runtime.Object)
-			klog.Infof("Processing add to %v: %s", resourceType, newEvent.key)
+			log.Infof("Processing add to %v: %s", resourceType, newEvent.key)
 			if err == nil {
 				queue.Add(newEvent)
 			}
@@ -69,7 +68,7 @@ func NewResourceController(client kubernetes.Interface, informer cache.SharedInd
 			newEvent.resourceType = objName(resourceType)
 			newEvent.obj = new.(runtime.Object)
 			newEvent.oldObj = old.(runtime.Object)
-			klog.Infof("Processing update to %v: %s", resourceType, newEvent.key)
+			log.Infof("Processing update to %v: %s", resourceType, newEvent.key)
 			if err == nil {
 				queue.Add(newEvent)
 			}
@@ -79,7 +78,7 @@ func NewResourceController(client kubernetes.Interface, informer cache.SharedInd
 			newEvent.eventType = "delete"
 			newEvent.resourceType = objName(resourceType)
 			newEvent.obj = obj.(runtime.Object)
-			klog.Infof("Processing delete to %v: %s", resourceType, newEvent.key)
+			log.Infof("Processing delete to %v: %s", resourceType, newEvent.key)
 			if err == nil {
 				queue.Add(newEvent)
 			}
@@ -105,7 +104,7 @@ func (c *Controller) Run(stopCh <-chan struct{}, informersInitGroup *sync.WaitGr
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	klog.Infof("starting %s controller", c.resourceType)
+	log.Infof("starting %s controller", c.resourceType)
 
 	go c.informer.Run(stopCh)
 
@@ -114,7 +113,7 @@ func (c *Controller) Run(stopCh <-chan struct{}, informersInitGroup *sync.WaitGr
 		return
 	}
 
-	klog.Infof("%s controller synced and ready", c.resourceType)
+	log.Infof("%s controller synced and ready", c.resourceType)
 
 	informersInitGroup.Done()
 
@@ -154,11 +153,11 @@ func (c *Controller) processNextItem() bool {
 		// No error, reset the ratelimit counters
 		c.queue.Forget(newEvent)
 	} else if c.queue.NumRequeues(newEvent) < maxRetries {
-		klog.Warningf("Error processing %s (will retry): %v", newEvent.(Event).key, err)
+		log.Warnf("Error processing %s (will retry): %v", newEvent.(Event).key, err)
 		c.queue.AddRateLimited(newEvent)
 	} else {
 		// err != nil and too many retries
-		klog.Errorf("Error processing %s (giving up): %v", newEvent.(Event).key, err)
+		log.Errorf("Error processing %s (giving up): %v", newEvent.(Event).key, err)
 		c.queue.Forget(newEvent)
 		utilruntime.HandleError(err)
 	}
