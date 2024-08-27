@@ -58,7 +58,7 @@ spec:
         image: quay.io/jewertow/federation-controller:latest
         args:
         - --meshPeers
-        - '{"remote":{"dataPlane":{"addresses":["127.0.0.1"],"port":15443},"discovery":{"addresses":["{{.federationControllerIP}}"],"port":15020}}}'
+        - '{"remote":{"dataPlane":{"addresses":["127.0.0.1"],"port":15443},"discovery":{"addresses":["{{.federationControllerIP}}"],"port":15020},"network":"west-network","locality":"west"}}'
         - --exportedServiceSet
         - '{"rules":[{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}]}'
         env:

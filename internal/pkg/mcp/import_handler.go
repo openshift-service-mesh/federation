@@ -115,9 +115,8 @@ func (h *importedServiceHandler) makeWorkloadEntries(labels map[string]string) [
 			// TODO: Handle all ports
 			"http": h.cfg.MeshPeers.Remote.DataPlane.Port,
 		},
-		// TODO: network and locality should come from federation config
-		Network:  "west-network",
-		Locality: "west",
+		Network:  h.cfg.MeshPeers.Remote.Network,
+		Locality: h.cfg.MeshPeers.Remote.Locality,
 		Labels:   labels,
 	}}
 }
