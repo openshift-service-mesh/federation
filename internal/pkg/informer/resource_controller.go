@@ -1,4 +1,4 @@
-package mcp
+package informer
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	istiolog "istio.io/istio/pkg/log"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -15,6 +16,8 @@ import (
 )
 
 const maxRetries = 5
+
+var log = istiolog.RegisterScope("controller", "K8s resource controller")
 
 type Handler interface {
 	Init() error
@@ -57,7 +60,7 @@ func NewResourceController(client kubernetes.Interface, informer cache.SharedInd
 			newEvent.eventType = "create"
 			newEvent.resourceType = objName(resourceType)
 			newEvent.obj = obj.(runtime.Object)
-			log.Infof("Processing add to %v: %s", resourceType, newEvent.key)
+			log.Debugf("Processing add to %v: %s", resourceType, newEvent.key)
 			if err == nil {
 				queue.Add(newEvent)
 			}
@@ -68,7 +71,7 @@ func NewResourceController(client kubernetes.Interface, informer cache.SharedInd
 			newEvent.resourceType = objName(resourceType)
 			newEvent.obj = new.(runtime.Object)
 			newEvent.oldObj = old.(runtime.Object)
-			log.Infof("Processing update to %v: %s", resourceType, newEvent.key)
+			log.Debugf("Processing update to %v: %s", resourceType, newEvent.key)
 			if err == nil {
 				queue.Add(newEvent)
 			}
@@ -78,7 +81,7 @@ func NewResourceController(client kubernetes.Interface, informer cache.SharedInd
 			newEvent.eventType = "delete"
 			newEvent.resourceType = objName(resourceType)
 			newEvent.obj = obj.(runtime.Object)
-			log.Infof("Processing delete to %v: %s", resourceType, newEvent.key)
+			log.Debugf("Processing delete to %v: %s", resourceType, newEvent.key)
 			if err == nil {
 				queue.Add(newEvent)
 			}
@@ -133,6 +136,10 @@ func (c *Controller) HasSynced() bool {
 // LastSyncResourceVersion is required for the cache.Controller interface.
 func (c *Controller) LastSyncResourceVersion() string {
 	return c.informer.LastSyncResourceVersion()
+}
+
+func (c *Controller) ClientSet() kubernetes.Interface {
+	return c.clientset
 }
 
 func (c *Controller) runWorker() {
