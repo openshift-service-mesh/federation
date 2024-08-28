@@ -12,12 +12,14 @@ import (
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/informer"
 	"github.com/jewertow/federation/internal/pkg/xds"
+	"golang.org/x/net/context"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	mcp "istio.io/api/mcp/v1alpha1"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	istiocfg "istio.io/istio/pkg/config"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -78,9 +80,11 @@ func TestHandle(t *testing.T) {
 	testCases := []struct {
 		name                 string
 		exportedServices     []*v1alpha1.ExportedService
+		existingServices     []*corev1.Service
+		expectedXDSType      string
 		expectedIstioConfigs []*istiocfg.Config
 	}{{
-		name: "received exported service does not exists locally - ServiceEntry expected",
+		name: "received exported services do not exist locally - ServiceEntry expected",
 		exportedServices: []*v1alpha1.ExportedService{{
 			Name:      "a",
 			Namespace: "ns1",
@@ -92,6 +96,7 @@ func TestHandle(t *testing.T) {
 			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort},
 			Labels:    map[string]string{"app": "a"},
 		}},
+		expectedXDSType: "networking.istio.io/v1alpha3/ServiceEntry",
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
 				Name:      "import_a_ns1",
@@ -123,12 +128,68 @@ func TestHandle(t *testing.T) {
 				Resolution: istionetv1alpha3.ServiceEntry_STATIC,
 			},
 		}},
+	}, {
+		name: "received exported service do not exist locally - WorkloadEntry expected",
+		exportedServices: []*v1alpha1.ExportedService{{
+			Name:      "a",
+			Namespace: "ns1",
+			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort},
+			Labels:    map[string]string{"app": "a"},
+		}, {
+			Name:      "a",
+			Namespace: "ns2",
+			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort},
+			Labels:    map[string]string{"app": "a"},
+		}},
+		existingServices: []*corev1.Service{{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "a",
+				Namespace: "ns1",
+			},
+		}, {
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "a",
+				Namespace: "ns2",
+			},
+		}},
+		expectedXDSType: "networking.istio.io/v1alpha3/WorkloadEntry",
+		expectedIstioConfigs: []*istiocfg.Config{{
+			Meta: istiocfg.Meta{
+				Name:      "import_a_0",
+				Namespace: "ns1",
+			},
+			Spec: buildWorkloadEntry("192.168.0.1"),
+		}, {
+			Meta: istiocfg.Meta{
+				Name:      "import_a_1",
+				Namespace: "ns1",
+			},
+			Spec: buildWorkloadEntry("192.168.0.2"),
+		}, {
+			Meta: istiocfg.Meta{
+				Name:      "import_a_0",
+				Namespace: "ns2",
+			},
+			Spec: buildWorkloadEntry("192.168.0.1"),
+		}, {
+			Meta: istiocfg.Meta{
+				Name:      "import_a_1",
+				Namespace: "ns2",
+			},
+			Spec: buildWorkloadEntry("192.168.0.2"),
+		}},
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			client := fake.NewSimpleClientset()
 			informerFactory := informers.NewSharedInformerFactory(client, 0)
 			serviceInformer := informerFactory.Core().V1().Services().Informer()
+
+			for _, svc := range tc.existingServices {
+				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.TODO(), svc, v1.CreateOptions{}); err != nil {
+					t.Fatalf("failed to create service %s/%s: %v", svc.Name, svc.Namespace, err)
+				}
+			}
 
 			serviceController, err := informer.NewResourceController(client, serviceInformer, corev1.Service{}, []informer.Handler{})
 			if err != nil {
@@ -155,7 +216,7 @@ func TestHandle(t *testing.T) {
 			timeout := time.After(1 * time.Second)
 			select {
 			case req := <-mcpPushRequests:
-				if req.TypeUrl != "networking.istio.io/v1alpha3/ServiceEntry" {
+				if req.TypeUrl != tc.expectedXDSType {
 					t.Errorf("expected ServiceEntry but got %s", req.TypeUrl)
 				}
 				istioConfigs := deserializeIstioConfigs(t, req.Resources)

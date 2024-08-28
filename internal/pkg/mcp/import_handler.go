@@ -88,7 +88,7 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 			workloadEntrySpecs := h.makeWorkloadEntries(importedSvc.Ports, importedSvc.Labels)
 			for idx, weSpec := range workloadEntrySpecs {
 				weResources = append(weResources, mcpResource{
-					name:      fmt.Sprintf("import-%s-%d", importedSvc.Name, idx),
+					name:      fmt.Sprintf("import_%s_%d", importedSvc.Name, idx),
 					namespace: importedSvc.Namespace,
 					object:    weSpec,
 				})
@@ -123,6 +123,10 @@ func (h *importedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePo
 }
 
 func (h *importedServiceHandler) push(typeUrl string, resources []mcpResource) error {
+	if len(resources) == 0 {
+		return nil
+	}
+
 	serializedResources, err := serialize(resources...)
 	if err != nil {
 		return fmt.Errorf("failed to serialize resources created for imported services: %v", err)
