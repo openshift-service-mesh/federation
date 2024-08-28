@@ -108,18 +108,21 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 }
 
 func (h *importedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
-	we := &istionetv1alpha3.WorkloadEntry{
-		// TODO: Handle all addresses
-		Address:  h.cfg.MeshPeers.Remote.DataPlane.Addresses[0],
-		Network:  h.cfg.MeshPeers.Remote.Network,
-		Locality: h.cfg.MeshPeers.Remote.Locality,
-		Labels:   labels,
-		Ports:    make(map[string]uint32, len(ports)),
+	var workloadEntries []*istionetv1alpha3.WorkloadEntry
+	for _, addr := range h.cfg.MeshPeers.Remote.DataPlane.Addresses {
+		we := &istionetv1alpha3.WorkloadEntry{
+			Address:  addr,
+			Network:  h.cfg.MeshPeers.Remote.Network,
+			Locality: h.cfg.MeshPeers.Remote.Locality,
+			Labels:   labels,
+			Ports:    make(map[string]uint32, len(ports)),
+		}
+		for _, p := range ports {
+			we.Ports[p.Name] = h.cfg.MeshPeers.Remote.DataPlane.Port
+		}
+		workloadEntries = append(workloadEntries, we)
 	}
-	for _, p := range ports {
-		we.Ports[p.Name] = h.cfg.MeshPeers.Remote.DataPlane.Port
-	}
-	return []*istionetv1alpha3.WorkloadEntry{we}
+	return workloadEntries
 }
 
 func (h *importedServiceHandler) push(typeUrl string, resources []mcpResource) error {
