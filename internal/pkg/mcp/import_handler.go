@@ -33,16 +33,14 @@ func NewImportedServiceHandler(cfg *config.Federation, serviceController *inform
 }
 
 func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
-	log.Info("Importing service...")
 	var importedServices []*v1alpha1.ExportedService
 	for _, res := range resources {
 		exportedService := &v1alpha1.ExportedService{}
 		if err := proto.Unmarshal(res.Value, exportedService); err != nil {
 			return fmt.Errorf("unable to unmarshal exported service: %v", err)
 		}
-		log.Infof("Received exported service: [%s,%s,%v]\n", exportedService.Name, exportedService.Namespace, exportedService.Ports)
+		// TODO: replace with full validation that returns an error on invalid request
 		if exportedService.Name == "" || exportedService.Namespace == "" {
-			log.Infof("Ignoring resource with empty name or namespace: %v", res)
 			continue
 		}
 		importedServices = append(importedServices, exportedService)
@@ -51,43 +49,42 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 	var seResources []mcpResource
 	var weResources []mcpResource
 	for _, importedSvc := range importedServices {
-		// enforce Istio mTLS
+		// enable Istio mTLS
 		importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
 
 		_, err := h.serviceController.ClientSet().CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
 		if err != nil {
-			if errors.IsNotFound(err) {
-				var ports []*istionetv1alpha3.ServicePort
-				for _, port := range importedSvc.Ports {
-					ports = append(ports, &istionetv1alpha3.ServicePort{
-						Name:       port.Name,
-						Number:     port.Number,
-						Protocol:   port.Protocol,
-						TargetPort: port.TargetPort,
-					})
-				}
-
-				// User created service doesn't exist, create ServiceEntry.
-				seSpec := &istionetv1alpha3.ServiceEntry{
-					// TODO: should we also append "${name}.${ns}" and "${name}.${ns}.svc"?
-					Hosts:      []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
-					Ports:      ports,
-					Endpoints:  h.makeWorkloadEntries(importedSvc.Ports, importedSvc.Labels),
-					Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
-					Resolution: istionetv1alpha3.ServiceEntry_STATIC,
-				}
-				seResources = append(seResources, mcpResource{
-					// name of the MCP resource must include name and namespace to ensure uniqueness
-					// TODO: add peer name to ensure uniqueness when more than 2 peers are connected
-					name: fmt.Sprintf("import_%s_%s", importedSvc.Name, importedSvc.Namespace),
-					// TODO: config namespace should come from federation config
-					namespace: "istio-system",
-					object:    seSpec,
-				})
-			} else {
+			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)
 			}
+			// User created service doesn't exist, create ServiceEntry.
+			var ports []*istionetv1alpha3.ServicePort
+			for _, port := range importedSvc.Ports {
+				ports = append(ports, &istionetv1alpha3.ServicePort{
+					Name:       port.Name,
+					Number:     port.Number,
+					Protocol:   port.Protocol,
+					TargetPort: port.TargetPort,
+				})
+			}
+			seSpec := &istionetv1alpha3.ServiceEntry{
+				// TODO: should we also append "${name}.${ns}" and "${name}.${ns}.svc"?
+				Hosts:      []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
+				Ports:      ports,
+				Endpoints:  h.makeWorkloadEntries(importedSvc.Ports, importedSvc.Labels),
+				Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
+				Resolution: istionetv1alpha3.ServiceEntry_STATIC,
+			}
+			seResources = append(seResources, mcpResource{
+				// name of the MCP resource must include name and namespace to ensure uniqueness
+				// TODO: add peer name to ensure uniqueness when more than 2 peers are connected
+				name: fmt.Sprintf("import_%s_%s", importedSvc.Name, importedSvc.Namespace),
+				// TODO: config namespace should come from federation config
+				namespace: "istio-system",
+				object:    seSpec,
+			})
 		} else {
+			// User created service already exists, create WorkloadEntries.
 			workloadEntrySpecs := h.makeWorkloadEntries(importedSvc.Ports, importedSvc.Labels)
 			for idx, weSpec := range workloadEntrySpecs {
 				weResources = append(weResources, mcpResource{
