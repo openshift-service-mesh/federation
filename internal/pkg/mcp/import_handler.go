@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
@@ -16,7 +17,12 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ adsc.ResponseHandler = (*importedServiceHandler)(nil)
+var (
+	_ adsc.ResponseHandler = (*importedServiceHandler)(nil)
+
+	httpProtocols = []string{"HTTP", "HTTP2", "HTTP_PROXY", "GRPC", "GRPC-Web"}
+	tlsProtocols  = []string{"HTTPS", "TLS"}
+)
 
 type importedServiceHandler struct {
 	cfg               *config.Federation
@@ -68,11 +74,7 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 				})
 			}
 			seSpec := &istionetv1alpha3.ServiceEntry{
-				Hosts: []string{
-					fmt.Sprintf("%s.%s", importedSvc.Name, importedSvc.Namespace),
-					fmt.Sprintf("%s.%s.svc", importedSvc.Name, importedSvc.Namespace),
-					fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace),
-				},
+				Hosts:      generateHosts(importedSvc),
 				Ports:      ports,
 				Endpoints:  h.makeWorkloadEntries(importedSvc.Ports, importedSvc.Labels),
 				Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
@@ -139,4 +141,17 @@ func (h *importedServiceHandler) push(typeUrl string, resources []mcpResource) e
 		Resources: serializedResources,
 	}
 	return nil
+}
+
+func generateHosts(importedService *v1alpha1.ExportedService) []string {
+	for _, port := range importedService.Ports {
+		if !slices.Contains(httpProtocols, port.Protocol) && !slices.Contains(tlsProtocols, port.Protocol) {
+			return []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedService.Name, importedService.Namespace)}
+		}
+	}
+	return []string{
+		fmt.Sprintf("%s.%s", importedService.Name, importedService.Namespace),
+		fmt.Sprintf("%s.%s.svc", importedService.Name, importedService.Namespace),
+		fmt.Sprintf("%s.%s.svc.cluster.local", importedService.Name, importedService.Namespace),
+	}
 }

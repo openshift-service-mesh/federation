@@ -48,6 +48,11 @@ var (
 		Number:   443,
 		Protocol: "HTTPS",
 	}
+	tcpPort = &v1alpha1.ServicePort{
+		Name:     "telnet",
+		Number:   23,
+		Protocol: "TCP",
+	}
 	istioHttpPort = &istionetv1alpha3.ServicePort{
 		Name:     "http",
 		Number:   80,
@@ -57,6 +62,11 @@ var (
 		Name:     "https",
 		Number:   443,
 		Protocol: "HTTPS",
+	}
+	istioTcpPort = &istionetv1alpha3.ServicePort{
+		Name:     "telnet",
+		Number:   23,
+		Protocol: "TCP",
 	}
 
 	buildWorkloadEntry = func(addr string) *istionetv1alpha3.WorkloadEntry {
@@ -185,6 +195,54 @@ func TestHandle(t *testing.T) {
 				Namespace: "ns2",
 			},
 			Spec: buildWorkloadEntry("192.168.0.2"),
+		}},
+	}, {
+		name: "received exported services with TCP port - ServiceEntry with single hostname expected",
+		exportedServices: []*v1alpha1.ExportedService{{
+			Name:      "a",
+			Namespace: "ns1",
+			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort, tcpPort},
+			Labels:    map[string]string{"app": "a"},
+		}},
+		expectedXDSType: "networking.istio.io/v1alpha3/ServiceEntry",
+		expectedIstioConfigs: []*istiocfg.Config{{
+			Meta: istiocfg.Meta{
+				Name:      "import_a_ns1",
+				Namespace: "istio-system",
+			},
+			Spec: &istionetv1alpha3.ServiceEntry{
+				Hosts: []string{"a.ns1.svc.cluster.local"},
+				Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort, istioTcpPort},
+				Endpoints: []*istionetv1alpha3.WorkloadEntry{{
+					Address: "192.168.0.1",
+					Ports: map[string]uint32{
+						"http":   15443,
+						"https":  15443,
+						"telnet": 15443,
+					},
+					Labels: map[string]string{
+						"app":                       "a",
+						"security.istio.io/tlsMode": "istio",
+					},
+					Network:  defaultConfig.MeshPeers.Remote.Network,
+					Locality: defaultConfig.MeshPeers.Remote.Locality,
+				}, {
+					Address: "192.168.0.2",
+					Ports: map[string]uint32{
+						"http":   15443,
+						"https":  15443,
+						"telnet": 15443,
+					},
+					Labels: map[string]string{
+						"app":                       "a",
+						"security.istio.io/tlsMode": "istio",
+					},
+					Network:  defaultConfig.MeshPeers.Remote.Network,
+					Locality: defaultConfig.MeshPeers.Remote.Locality,
+				}},
+				Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
+				Resolution: istionetv1alpha3.ServiceEntry_STATIC,
+			},
 		}},
 	}}
 	for _, tc := range testCases {

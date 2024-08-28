@@ -232,7 +232,12 @@ func deployApps(apps *echo.Instances, targetClusterName string, ns namespace.Get
 			newApp, err := deployment.New(ctx).WithClusters(targetCluster).WithConfig(echo.Config{
 				Service:   name,
 				Namespace: ns.Get(),
-				Ports:     ports.All(),
+				Ports: echo.Ports{
+					ports.HTTP,
+					ports.GRPC,
+					ports.HTTP2,
+					ports.HTTPS,
+				},
 			}).Build()
 			if err != nil {
 				return fmt.Errorf("failed to create echo: %v", err)

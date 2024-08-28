@@ -70,20 +70,32 @@ func TestTraffic(t *testing.T) {
 
 		for _, port := range []echo.Port{ports.HTTP, ports.HTTPS} {
 			ctx.NewSubTest(fmt.Sprintf("requests to b should be routed to local and remote instances (protocol=%s)", port.Name)).Run(func(ctx framework.TestContext) {
-				a[0].CallOrFail(t, echo.CallOptions{
-					Address: fmt.Sprintf("b.%s.svc.cluster.local", appNs.Name()),
-					Port:    port,
-					Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
-					Count:   5,
-				})
+				for _, host := range []string{
+					fmt.Sprintf("b.%s", appNs.Name()),
+					fmt.Sprintf("b.%s.svc", appNs.Name()),
+					fmt.Sprintf("b.%s.svc.cluster.local", appNs.Name()),
+				} {
+					a[0].CallOrFail(t, echo.CallOptions{
+						Address: host,
+						Port:    port,
+						Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+						Count:   5,
+					})
+				}
 			})
 
 			ctx.NewSubTest(fmt.Sprintf("requests to c should succeed (protocol=%s)", port.Name)).Run(func(ctx framework.TestContext) {
-				a[0].CallOrFail(t, echo.CallOptions{
-					Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
-					Port:    port,
-					Check:   check.OK(),
-				})
+				for _, host := range []string{
+					fmt.Sprintf("c.%s", appNs.Name()),
+					fmt.Sprintf("c.%s.svc", appNs.Name()),
+					fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
+				} {
+					a[0].CallOrFail(t, echo.CallOptions{
+						Address: host,
+						Port:    port,
+						Check:   check.OK(),
+					})
+				}
 			})
 		}
 	})
