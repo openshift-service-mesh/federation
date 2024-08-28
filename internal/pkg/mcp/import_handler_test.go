@@ -103,7 +103,11 @@ func TestHandle(t *testing.T) {
 				Namespace: "istio-system",
 			},
 			Spec: &istionetv1alpha3.ServiceEntry{
-				Hosts: []string{"a.ns1.svc.cluster.local"},
+				Hosts: []string{
+					"a.ns1",
+					"a.ns1.svc",
+					"a.ns1.svc.cluster.local",
+				},
 				Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort},
 				Endpoints: []*istionetv1alpha3.WorkloadEntry{
 					buildWorkloadEntry("192.168.0.1"),
@@ -118,7 +122,11 @@ func TestHandle(t *testing.T) {
 				Namespace: "istio-system",
 			},
 			Spec: &istionetv1alpha3.ServiceEntry{
-				Hosts: []string{"a.ns2.svc.cluster.local"},
+				Hosts: []string{
+					"a.ns2",
+					"a.ns2.svc",
+					"a.ns2.svc.cluster.local",
+				},
 				Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort},
 				Endpoints: []*istionetv1alpha3.WorkloadEntry{
 					buildWorkloadEntry("192.168.0.1"),

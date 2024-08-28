@@ -68,8 +68,11 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 				})
 			}
 			seSpec := &istionetv1alpha3.ServiceEntry{
-				// TODO: should we also append "${name}.${ns}" and "${name}.${ns}.svc"?
-				Hosts:      []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
+				Hosts: []string{
+					fmt.Sprintf("%s.%s", importedSvc.Name, importedSvc.Namespace),
+					fmt.Sprintf("%s.%s.svc", importedSvc.Name, importedSvc.Namespace),
+					fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace),
+				},
 				Ports:      ports,
 				Endpoints:  h.makeWorkloadEntries(importedSvc.Ports, importedSvc.Labels),
 				Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
