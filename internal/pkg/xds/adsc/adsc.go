@@ -3,13 +3,15 @@ package adsc
 import (
 	"context"
 	"errors"
-	"fmt"
+
+	"math"
+	"time"
+
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
-	"math"
-	"time"
+	istiolog "istio.io/istio/pkg/log"
 )
 
 const (
@@ -17,6 +19,8 @@ const (
 	defaultInitialConnWindowSize       = 1024 * 1024 // default gRPC InitialWindowSize
 	defaultInitialWindowSize           = 1024 * 1024 // default gRPC ConnWindowSize
 )
+
+var log = istiolog.RegisterScope("adsc", "Aggregated Discovery Service Client")
 
 type ADSCConfig struct {
 	DiscoveryAddr            string
@@ -62,7 +66,7 @@ func (a *ADSC) Run() error {
 
 func (a *ADSC) send(req *discovery.DiscoveryRequest) error {
 	req.ResponseNonce = time.Now().String()
-	fmt.Println("Sending Discovery Request to ADS server: ", req.String())
+	log.Infof("Sending Discovery Request to ADS server: %s", req.String())
 	return a.stream.Send(req)
 }
 
@@ -90,18 +94,18 @@ func (a *ADSC) handleRecv() {
 		var err error
 		msg, err := a.stream.Recv()
 		if err != nil {
-			fmt.Println("connection closed with err: ", err)
+			log.Infof("connection closed with err: %v", err)
 			return
 		}
-		fmt.Println("received response of type ", msg.TypeUrl)
-		fmt.Println("received response body ", msg.Resources)
+		log.Infof("received response of type %s", msg.TypeUrl)
+		log.Infof("received response body %v", msg.Resources)
 		if handler, found := a.cfg.Handlers[msg.TypeUrl]; found {
-			fmt.Println("ResponseHandler found for type ", msg.TypeUrl)
+			log.Infof("ResponseHandler found for type %s", msg.TypeUrl)
 			if err := handler.Handle(msg.Resources); err != nil {
-				fmt.Println("error handling resource ", msg.TypeUrl, err)
+				log.Infof("error handling resource %s: %v", msg.TypeUrl, err)
 			}
 		} else {
-			fmt.Println("no handler found for type", msg.TypeUrl)
+			log.Infof("no handler found for type: %s", msg.TypeUrl)
 		}
 	}
 }

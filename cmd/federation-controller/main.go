@@ -5,35 +5,63 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	"github.com/jewertow/federation/internal/pkg/federation"
-	"github.com/jewertow/federation/internal/pkg/xds/adsc"
-	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
+	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	"github.com/jewertow/federation/internal/pkg/federation"
+	"github.com/jewertow/federation/internal/pkg/xds/adsc"
+
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/mcp"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adss"
+	"github.com/spf13/cobra"
+	istiolog "istio.io/istio/pkg/log"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
 )
 
-// Global variable to store the parsed arguments and "flag" arguments
+// Global variable to store the parsed commandline arguments
 var (
-	meshPeer = flag.String("meshPeers", "",
-		"Mesh peers that include address ip/hostname to remote Peer, and the ports for dataplane and discovery")
-	exportedServiceSet = flag.String("exportedServiceSet", "",
-		"ExportedServiceSet that include selectors to match the services that will be exported")
-	importedServiceSet = flag.String("importedServiceSet", "",
-		"ImportedServiceSet that include selectors to match the services that will be imported")
+	meshPeer, exportedServiceSet, importedServiceSet string
+	loggingOptions                                   = istiolog.DefaultOptions()
+	log                                              = istiolog.RegisterScope("default", "default logging scope")
 )
+
+// NewRootCommand returns the root cobra command of federation-controller
+func NewRootCommand() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:          "federation-controller",
+		Short:        "Istio Federation.",
+		Long:         "Federation is a controller that utilizes MCP protocol to configure mesh-federation in Istio.",
+		SilenceUsage: true,
+		PreRunE: func(c *cobra.Command, args []string) error {
+			c.PersistentFlags().AddGoFlagSet(flag.CommandLine)
+			return nil
+		},
+	}
+
+	addFlags(rootCmd)
+	return rootCmd
+}
+
+func addFlags(c *cobra.Command) {
+	// Process commandline args.
+	c.PersistentFlags().StringVar(&meshPeer, "meshPeers", "",
+		"Mesh peers that include address ip/hostname to remote Peer, and the ports for dataplane and discovery")
+	c.PersistentFlags().StringVar(&exportedServiceSet, "exportedServiceSet", "",
+		"ExportedServiceSet that include selectors to match the services that will be exported")
+	c.PersistentFlags().StringVar(&importedServiceSet, "importedServiceSet", "",
+		"ImportedServiceSet that include selectors to match the services that will be imported")
+
+	// Attach the Istio logging options to the command.
+	loggingOptions.AttachCobraFlags(c)
+}
 
 // unmarshalJSON is a utility function to unmarshal a YAML string into a struct
 // and return an error if the unmarshalling fails.
@@ -53,14 +81,14 @@ func parse() (*config.Federation, error) {
 		imported config.ImportedServiceSet
 	)
 
-	if err := unmarshalJSON(*meshPeer, &peers); err != nil {
+	if err := unmarshalJSON(meshPeer, &peers); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal mesh peers: %w", err)
 	}
-	if err := unmarshalJSON(*exportedServiceSet, &exported); err != nil {
+	if err := unmarshalJSON(exportedServiceSet, &exported); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal exported services: %w", err)
 	}
-	if *importedServiceSet != "" {
-		if err := unmarshalJSON(*importedServiceSet, &imported); err != nil {
+	if importedServiceSet != "" {
+		if err := unmarshalJSON(importedServiceSet, &imported); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal imported services: %w", err)
 		}
 	}
@@ -83,34 +111,39 @@ func startControllers(
 	serviceController, err := mcp.NewResourceController(client, serviceInformer, corev1.Service{},
 		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, fdsPushRequests, mcpPushRequests)})
 	if err != nil {
-		log.Fatal("Error while creating service informer: ", err)
+		log.Fatalf("Error while creating service informer: %v", err)
 	}
 	go serviceController.Run(ctx.Done(), &informersInitGroup)
 
 	informersInitGroup.Wait()
-	klog.Infof("All controllers have been synchronized")
+	log.Info("All controllers have been synchronized")
 	return serviceController
 }
 
 func main() {
-	flag.Parse()
-	cfg, err := parse()
-	if err != nil {
-		fmt.Println(err)
+	rootCmd := NewRootCommand()
+	if err := rootCmd.Execute(); err != nil {
+		log.Error(err)
 		os.Exit(1)
 	}
-	fmt.Println("Configuration: ", cfg)
+
+	cfg, err := parse()
+	if err != nil {
+		log.Error(err)
+		os.Exit(1)
+	}
+	log.Infof("Configuration: %v", cfg)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
-		klog.Fatal("failed to create in-cluster config: ", err)
+		log.Fatalf("failed to create in-cluster config: %v", err)
 	}
 	clientset, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
-		klog.Fatalf("failed to create Kubernetes clientset: %s", err.Error())
+		log.Fatalf("failed to create Kubernetes clientset: %v", err.Error())
 	}
 
 	fdsPushRequests := make(chan xds.PushRequest)
@@ -148,12 +181,12 @@ func main() {
 			},
 		})
 		if err != nil {
-			klog.Fatalf("failed to creates FDS client: %v", err)
+			log.Fatalf("failed to creates FDS client: %v", err)
 		}
 		onNewMCPSubscription = func() {
 			go func() {
 				if err := federationClient.Run(); err != nil {
-					klog.Fatalf("failed to start FDS client: %v", err)
+					log.Fatalf("failed to start FDS client: %v", err)
 				}
 			}()
 		}
@@ -166,7 +199,7 @@ func main() {
 		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
 	)
 	if err := mcpServer.Run(ctx); err != nil {
-		log.Fatal("Error running XDS server: ", err)
+		log.Fatalf("Error running XDS server: %v", err)
 	}
 
 	os.Exit(0)
