@@ -45,6 +45,7 @@ func TestMain(m *testing.M) {
 		NewSuite(m).
 		Setup(createControlPlaneNamespace).
 		Setup(createCACertsSecret).
+		// federation controller must be deployed first, as Istio will not become ready until it connects to all config sources
 		Setup(deployFederationControllers).
 		Setup(deployControlPlanes).
 		Setup(patchFederationControllers).
@@ -161,10 +162,12 @@ func patchFederationControllers(ctx resource.Context) error {
 	for _, localCluster := range ctx.Clusters() {
 		var dataPlaneIP string
 		var discoveryIP string
+		var remoteClusterName string
 		for _, remoteCluster := range ctx.Clusters() {
 			if localCluster.Name() == remoteCluster.Name() {
 				continue
 			}
+			remoteClusterName = remoteCluster.Name()
 			var err error
 			dataPlaneIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
 			discoveryIP, err = findLoadBalancerIP(remoteCluster, "federation-controller-lb", "istio-system")
@@ -192,7 +195,7 @@ spec:
         image: quay.io/jewertow/federation-controller:latest
         args:
         - --meshPeers
-        - '{"remote":{"dataPlane":{"addresses":["%s"],"port":15443},"discovery":{"addresses":["%s"],"port":15020}}}'
+        - '{"remote":{"dataPlane":{"addresses":["%s"],"port":15443},"discovery":{"addresses":["%s"],"port":15020},"network":"%s-network"}}'
         - --exportedServiceSet
         - '{"rules":[{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}]}'
         env:
@@ -205,7 +208,7 @@ spec:
           containerPort: 15010
         - name: grpc-fds
           containerPort: 15020
-`, dataPlaneIP, discoveryIP)); err != nil {
+`, dataPlaneIP, discoveryIP, remoteClusterName)); err != nil {
 			return fmt.Errorf("failed to patch federation-controller: %v", err)
 		}
 	}
