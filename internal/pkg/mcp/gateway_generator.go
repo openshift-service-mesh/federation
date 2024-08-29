@@ -2,12 +2,13 @@ package mcp
 
 import (
 	"fmt"
-	"github.com/jewertow/federation/internal/pkg/common"
-	"github.com/jewertow/federation/internal/pkg/xds/adss"
 
+	"github.com/jewertow/federation/internal/pkg/common"
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/xds/adss"
 	"google.golang.org/protobuf/types/known/anypb"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
+	istiocfg "istio.io/istio/pkg/config"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -63,9 +64,12 @@ func (g *gatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
 		}},
 	}
 
-	return serialize(mcpResource{
-		name:      "mcp-federation-ingress-gateway",
-		namespace: "istio-system",
-		object:    gwSpec,
+	return serialize(&istiocfg.Config{
+		Meta: istiocfg.Meta{
+			Name: "mcp-federation-ingress-gateway",
+			// TODO: set from config
+			Namespace: "istio-system",
+		},
+		Spec: gwSpec,
 	})
 }
