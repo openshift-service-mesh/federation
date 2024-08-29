@@ -32,8 +32,7 @@ var (
 					Addresses: []string{"192.168.0.1", "192.168.0.2"},
 					Port:      15443,
 				},
-				Network:  "west-network",
-				Locality: "west",
+				Network: "west-network",
 			},
 		},
 	}
@@ -80,8 +79,7 @@ var (
 				"app":                       "a",
 				"security.istio.io/tlsMode": "istio",
 			},
-			Network:  defaultConfig.MeshPeers.Remote.Network,
-			Locality: defaultConfig.MeshPeers.Remote.Locality,
+			Network: defaultConfig.MeshPeers.Remote.Network,
 		}
 	}
 )
@@ -224,8 +222,7 @@ func TestHandle(t *testing.T) {
 						"app":                       "a",
 						"security.istio.io/tlsMode": "istio",
 					},
-					Network:  defaultConfig.MeshPeers.Remote.Network,
-					Locality: defaultConfig.MeshPeers.Remote.Locality,
+					Network: defaultConfig.MeshPeers.Remote.Network,
 				}, {
 					Address: "192.168.0.2",
 					Ports: map[string]uint32{
@@ -237,8 +234,7 @@ func TestHandle(t *testing.T) {
 						"app":                       "a",
 						"security.istio.io/tlsMode": "istio",
 					},
-					Network:  defaultConfig.MeshPeers.Remote.Network,
-					Locality: defaultConfig.MeshPeers.Remote.Locality,
+					Network: defaultConfig.MeshPeers.Remote.Network,
 				}},
 				Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
 				Resolution: istionetv1alpha3.ServiceEntry_STATIC,

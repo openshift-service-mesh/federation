@@ -7,7 +7,6 @@ type MeshPeers struct {
 type Remote struct {
 	DataPlane DataPlane `yaml:"dataPlane"`
 	Discovery Discovery `yaml:"discovery"`
-	Locality  string    `yaml:"locality"`
 	Network   string    `yaml:"network"`
 }
 

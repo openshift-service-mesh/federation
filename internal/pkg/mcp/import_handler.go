@@ -113,11 +113,10 @@ func (h *importedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePo
 	var workloadEntries []*istionetv1alpha3.WorkloadEntry
 	for _, addr := range h.cfg.MeshPeers.Remote.DataPlane.Addresses {
 		we := &istionetv1alpha3.WorkloadEntry{
-			Address:  addr,
-			Network:  h.cfg.MeshPeers.Remote.Network,
-			Locality: h.cfg.MeshPeers.Remote.Locality,
-			Labels:   labels,
-			Ports:    make(map[string]uint32, len(ports)),
+			Address: addr,
+			Network: h.cfg.MeshPeers.Remote.Network,
+			Labels:  labels,
+			Ports:   make(map[string]uint32, len(ports)),
 		}
 		for _, p := range ports {
 			we.Ports[p.Name] = h.cfg.MeshPeers.Remote.DataPlane.Port
