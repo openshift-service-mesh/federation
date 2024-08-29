@@ -27,6 +27,11 @@ import (
 var (
 	defaultConfig = config.Federation{
 		MeshPeers: config.MeshPeers{
+			Local: &config.Local{
+				ControlPlane: &config.ControlPlane{
+					Namespace: "istio-system",
+				},
+			},
 			Remote: config.Remote{
 				DataPlane: config.DataPlane{
 					Addresses: []string{"192.168.0.1", "192.168.0.2"},

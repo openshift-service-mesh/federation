@@ -195,7 +195,7 @@ spec:
         image: quay.io/jewertow/federation-controller:latest
         args:
         - --meshPeers
-        - '{"remote":{"dataPlane":{"addresses":["%s"],"port":15443},"discovery":{"addresses":["%s"],"port":15020},"network":"%s-network"}}'
+        - '{"local":{"controlPlane":{"namespace":"istio-system"}},"remote":{"dataPlane":{"addresses":["%s"],"port":15443},"discovery":{"addresses":["%s"],"port":15020},"network":"%s-network"}}'
         - --exportedServiceSet
         - '{"rules":[{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}]}'
         env:
