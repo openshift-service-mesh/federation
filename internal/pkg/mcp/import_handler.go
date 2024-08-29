@@ -6,6 +6,7 @@ import (
 
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/informer"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adsc"
 	"google.golang.org/protobuf/proto"
@@ -19,11 +20,11 @@ var _ adsc.ResponseHandler = (*importedServiceHandler)(nil)
 
 type importedServiceHandler struct {
 	cfg               *config.Federation
-	serviceController *Controller
+	serviceController *informer.Controller
 	pushRequests      chan<- xds.PushRequest
 }
 
-func NewImportedServiceHandler(cfg *config.Federation, serviceController *Controller, pushRequests chan<- xds.PushRequest) *importedServiceHandler {
+func NewImportedServiceHandler(cfg *config.Federation, serviceController *informer.Controller, pushRequests chan<- xds.PushRequest) *importedServiceHandler {
 	return &importedServiceHandler{
 		cfg:               cfg,
 		serviceController: serviceController,
@@ -53,7 +54,7 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 		// enforce Istio mTLS
 		importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
 
-		_, err := h.serviceController.clientset.CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
+		_, err := h.serviceController.ClientSet().CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				var ports []*istionetv1alpha3.ServicePort

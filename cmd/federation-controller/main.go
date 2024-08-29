@@ -11,12 +11,12 @@ import (
 	"syscall"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	"github.com/jewertow/federation/internal/pkg/federation"
-	"github.com/jewertow/federation/internal/pkg/xds/adsc"
-
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/federation"
+	"github.com/jewertow/federation/internal/pkg/informer"
 	"github.com/jewertow/federation/internal/pkg/mcp"
 	"github.com/jewertow/federation/internal/pkg/xds"
+	"github.com/jewertow/federation/internal/pkg/xds/adsc"
 	"github.com/jewertow/federation/internal/pkg/xds/adss"
 	"github.com/spf13/cobra"
 	istiolog "istio.io/istio/pkg/log"
@@ -45,7 +45,6 @@ func NewRootCommand() *cobra.Command {
 			return nil
 		},
 	}
-
 	addFlags(rootCmd)
 	return rootCmd
 }
@@ -104,12 +103,12 @@ func parse() (*config.Federation, error) {
 func startControllers(
 	ctx context.Context, client kubernetes.Interface, cfg *config.Federation,
 	informerFactory informers.SharedInformerFactory, fdsPushRequests, mcpPushRequests chan<- xds.PushRequest,
-) *mcp.Controller {
+) *informer.Controller {
 	var informersInitGroup sync.WaitGroup
 	informersInitGroup.Add(1)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
-	serviceController, err := mcp.NewResourceController(client, serviceInformer, corev1.Service{},
-		[]mcp.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, fdsPushRequests, mcpPushRequests)})
+	serviceController, err := informer.NewResourceController(client, serviceInformer, corev1.Service{},
+		[]informer.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, fdsPushRequests, mcpPushRequests)})
 	if err != nil {
 		log.Fatalf("Error while creating service informer: %v", err)
 	}
@@ -133,6 +132,10 @@ func main() {
 		os.Exit(1)
 	}
 	log.Infof("Configuration: %v", cfg)
+
+	if err := istiolog.Configure(loggingOptions); err != nil {
+		log.Errorf("failed to configure logging options: %v", err)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
