@@ -1,0 +1,26 @@
+image:
+  repository: quay.io/jewertow/federation-controller
+  pullPolicy: IfNotPresent
+  tag: latest
+
+federation:
+  meshPeers:
+    local:
+      controlPlane:
+        namespace: "istio-system"
+    remote:
+      dataPlane:
+        addresses:
+        - "192.168.0.1"
+        port: 15443
+      discovery:
+        addresses:
+        - "192.168.0.2"
+        port: 15020
+      network: west-network
+  exportedServiceSet:
+    rules:
+    - type: LabelSelector
+      labelSelectors:
+      - matchLabels:
+          export-service: "true"

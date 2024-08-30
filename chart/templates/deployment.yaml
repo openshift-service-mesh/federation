@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chart.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "chart.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "chart.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "chart.name" . }}
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+        args:
+        - '--meshPeers={{ .Values.federation.meshPeers | toJson }}'
+        - '--exportedServiceSet={{ .Values.federation.exportedServiceSet | toJson }}'
+        ports:
+        - name: grpc-mcp
+          containerPort: 15010
+        - name: grpc-fds
+          containerPort: 15020
