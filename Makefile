@@ -1,12 +1,15 @@
 OUT := $(shell pwd)
 
-.PHONY: build
+.PHONY: build test
 
 export TAG ?= latest
 
 build:
 	go get ./...
 	go build -C cmd/federation-controller -o "${OUT}/out/"
+
+test:
+	go test ./...
 
 docker: build
 	docker build -t quay.io/jewertow/federation-controller:$(TAG) -f build/Dockerfile .

@@ -6,24 +6,19 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	mcpv1alpha1 "istio.io/api/mcp/v1alpha1"
+	istiocfg "istio.io/istio/pkg/config"
 )
 
-type mcpResource struct {
-	name      string
-	namespace string
-	object    proto.Message
-}
-
-func serialize(mcpResources ...mcpResource) ([]*anypb.Any, error) {
+func serialize(configs ...*istiocfg.Config) ([]*anypb.Any, error) {
 	var serializedResources []*anypb.Any
-	for _, mcpRes := range mcpResources {
+	for _, cfg := range configs {
 		mcpResBody := &anypb.Any{}
-		if err := anypb.MarshalFrom(mcpResBody, mcpRes.object, proto.MarshalOptions{}); err != nil {
+		if err := anypb.MarshalFrom(mcpResBody, (cfg.Spec).(proto.Message), proto.MarshalOptions{}); err != nil {
 			return []*anypb.Any{}, fmt.Errorf("failed to serialize object to protobuf format: %w", err)
 		}
 		mcpResTyped := &mcpv1alpha1.Resource{
 			Metadata: &mcpv1alpha1.Metadata{
-				Name: fmt.Sprintf("%s/%s", mcpRes.namespace, mcpRes.name),
+				Name: fmt.Sprintf("%s/%s", cfg.Meta.Namespace, cfg.Meta.Name),
 			},
 			Body: mcpResBody,
 		}
