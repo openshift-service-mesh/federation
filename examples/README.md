@@ -24,8 +24,10 @@ EOF
 ```shell
 kind get kubeconfig --name east > east.kubeconfig
 alias keast="KUBECONFIG=$(pwd)/east.kubeconfig kubectl"
+alias helm-east="KUBECONFIG=$(pwd)/east.kubeconfig helm"
 kind get kubeconfig --name west > west.kubeconfig
 alias kwest="KUBECONFIG=$(pwd)/west.kubeconfig kubectl"
+alias helm-west="KUBECONFIG=$(pwd)/west.kubeconfig helm"
 ```
 
 3. Install MetalLB on and configure IP address pools:
@@ -97,11 +99,11 @@ kwest create secret generic cacerts -n istio-system \
 
 ### Deploy federation controllers
 ```shell
-KUBECONFIG=west.kubeconfig helm -n istio-system install west-mesh chart --values examples/exporting-controller.yaml
+helm-west -n istio-system install west-mesh chart --values examples/exporting-controller.yaml
 ```
 ```shell
 DISCOVERY_IP=$(kwest get svc federation-controller-lb -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-KUBECONFIG=east.kubeconfig helm install east-mesh chart -n istio-system \
+helm-east install east-mesh chart -n istio-system \
   --values examples/importing-controller.yaml \
   --set "federation.meshPeers.remote.discovery.addresses[0]=$DISCOVERY_IP"
 ```
@@ -115,7 +117,7 @@ istioctl --kubeconfig=east.kubeconfig install -f examples/importing-mesh.yaml -y
 ### Configure east-west gateway address:
 ```shell
 DATAPLANE_IP=$(kwest get svc istio-eastwestgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-KUBECONFIG=east.kubeconfig helm upgrade east-mesh chart -n istio-system \
+helm-east upgrade east-mesh chart -n istio-system \
   --values examples/importing-controller.yaml \
   --set "federation.meshPeers.remote.discovery.addresses[0]=$DISCOVERY_IP" \
   --set "federation.meshPeers.remote.dataPlane.addresses[0]=$DATAPLANE_IP"

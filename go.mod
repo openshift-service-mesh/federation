@@ -3,9 +3,7 @@ module github.com/jewertow/federation
 go 1.22.1
 
 // Client-go does not handle different versions of mergo due to some breaking changes - use the matching version
-replace (
-	github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
-)
+replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
 require (
 	github.com/envoyproxy/go-control-plane v0.12.1-0.20240415211714-57c85e1829e6
@@ -18,6 +16,7 @@ require (
 	k8s.io/api v0.30.3
 	k8s.io/apimachinery v0.30.3
 	k8s.io/client-go v0.30.3
+	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
 )
 
 require (
@@ -203,7 +202,6 @@ require (
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240423202451-8948a665c108 // indirect
 	k8s.io/kubectl v0.30.0 // indirect
-	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0 // indirect
 	sigs.k8s.io/controller-runtime v0.18.0 // indirect
 	sigs.k8s.io/gateway-api v1.1.0 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect

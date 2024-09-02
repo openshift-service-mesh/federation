@@ -9,8 +9,4 @@ federation:
       controlPlane:
         namespace: "istio-system"
     remote:
-      dataPlane:
-        port: 15443
-      discovery:
-        port: 15020
       network: west-network

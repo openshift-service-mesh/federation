@@ -121,7 +121,7 @@ func (h *importedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePo
 			Ports:   make(map[string]uint32, len(ports)),
 		}
 		for _, p := range ports {
-			we.Ports[p.Name] = h.cfg.MeshPeers.Remote.DataPlane.Port
+			we.Ports[p.Name] = h.cfg.MeshPeers.Remote.DataPlane.GetPort()
 		}
 		workloadEntries = append(workloadEntries, we)
 	}
