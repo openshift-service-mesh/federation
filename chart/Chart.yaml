@@ -1,0 +1,6 @@
+apiVersion: v2
+name: federation-controller
+description: Federation is a controller that utilizes MCP protocol to configure mesh federation in Istio.
+type: application
+version: 0.0.1
+appVersion: "0.0.1"
