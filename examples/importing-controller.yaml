@@ -1,8 +1,3 @@
-image:
-  repository: quay.io/jewertow/federation-controller
-  pullPolicy: IfNotPresent
-  tag: latest
-
 federation:
   meshPeers:
     local:
