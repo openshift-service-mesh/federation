@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -150,16 +151,22 @@ func deployControlPlanes(ctx resource.Context) error {
 }
 
 func deployFederationControllers(ctx resource.Context) error {
-	for _, c := range ctx.Clusters() {
-		if err := c.Config().ApplyYAMLFiles("istio-system", fmt.Sprintf("%s/test/testdata/federation-controller-manifests.yaml", rootDir)); err != nil {
-			return fmt.Errorf("failed to deploy federation controller: %v", err)
+	for idx := range ctx.Clusters() {
+		helmInstallCmd := exec.Command("helm", "install", "-n", "istio-system",
+			fmt.Sprintf("%s-federation-controller", clusterNames[idx]),
+			fmt.Sprintf("%s/chart", rootDir),
+			fmt.Sprintf("--values=%s/examples/exporting-controller.yaml", rootDir))
+		helmInstallCmd.Env = os.Environ()
+		helmInstallCmd.Env = append(helmInstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+		if err := helmInstallCmd.Run(); err != nil {
+			return fmt.Errorf("failed to deploy federation controller (cluster=%s): %v", clusterNames[idx], err)
 		}
 	}
 	return nil
 }
 
 func patchFederationControllers(ctx resource.Context) error {
-	for _, localCluster := range ctx.Clusters() {
+	for idx, localCluster := range ctx.Clusters() {
 		var dataPlaneIP string
 		var discoveryIP string
 		var remoteClusterName string
@@ -175,42 +182,19 @@ func patchFederationControllers(ctx resource.Context) error {
 				return fmt.Errorf("could not get IPs from remote federation-controller: %v", err)
 			}
 		}
-		if err := localCluster.ApplyYAMLContents("istio-system", fmt.Sprintf(`
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: federation-controller
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: federation-controller
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: federation-controller
-    spec:
-      serviceAccount: federation-controller
-      containers:
-      - name: server
-        image: quay.io/jewertow/federation-controller:latest
-        args:
-        - --meshPeers
-        - '{"local":{"controlPlane":{"namespace":"istio-system"}},"remote":{"dataPlane":{"addresses":["%s"],"port":15443},"discovery":{"addresses":["%s"],"port":15020},"network":"%s-network"}}'
-        - --exportedServiceSet
-        - '{"rules":[{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}]}'
-        env:
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        ports:
-        - name: grpc-mcp
-          containerPort: 15010
-        - name: grpc-fds
-          containerPort: 15020
-`, dataPlaneIP, discoveryIP, remoteClusterName)); err != nil {
-			return fmt.Errorf("failed to patch federation-controller: %v", err)
+		helmUpgradeCmd := exec.Command("helm", "upgrade", "-n", "istio-system",
+			fmt.Sprintf("%s-federation-controller", clusterNames[idx]),
+			fmt.Sprintf("%s/chart", rootDir),
+			fmt.Sprintf("--values=%s/examples/exporting-controller.yaml", rootDir),
+			"--set", fmt.Sprintf("federation.meshPeers.remote.discovery.addresses[0]=%s", discoveryIP),
+			"--set", fmt.Sprintf("federation.meshPeers.remote.dataPlane.addresses[0]=%s", dataPlaneIP),
+			"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
+		helmUpgradeCmd.Env = os.Environ()
+		helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+		if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to upgrade federation controller: %v, %v", string(out), err)
 		}
+		return nil
 	}
 	return nil
 }
