@@ -14,27 +14,21 @@ import (
 	"strings"
 )
 
-var _ adss.RequestHandler = (*exportedServicesGenerator)(nil)
+var _ adss.RequestHandler = (*ExportedServicesGenerator)(nil)
 
-type exportedServicesGenerator struct {
+type ExportedServicesGenerator struct {
 	cfg             config.Federation
-	typeUrl         string
 	serviceInformer cache.SharedIndexInformer
 }
 
-func NewExportedServicesGenerator(cfg config.Federation, informerFactory informers.SharedInformerFactory) *exportedServicesGenerator {
-	return &exportedServicesGenerator{
+func NewExportedServicesGenerator(cfg config.Federation, informerFactory informers.SharedInformerFactory) *ExportedServicesGenerator {
+	return &ExportedServicesGenerator{
 		cfg:             cfg,
-		typeUrl:         "federation.istio-ecosystem.io/v1alpha1/ExportedService",
 		serviceInformer: informerFactory.Core().V1().Services().Informer(),
 	}
 }
 
-func (g exportedServicesGenerator) GetTypeUrl() string {
-	return g.typeUrl
-}
-
-func (g exportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
+func (g ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 	var serializedServices []*anypb.Any
 	for _, obj := range g.serviceInformer.GetStore().List() {
 		svc := obj.(*corev1.Service)

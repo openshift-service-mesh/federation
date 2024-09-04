@@ -157,14 +157,16 @@ func main() {
 
 	triggerFDSPushOnNewSubscription := func() {
 		fdsPushRequests <- xds.PushRequest{
-			TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService",
+			TypeUrl: xds.ExportedServiceTypeUrl,
 		}
 	}
 	federationServer := adss.NewServer(
 		&adss.ServerOpts{Port: 15020, ServerID: "fds"},
 		fdsPushRequests,
 		triggerFDSPushOnNewSubscription,
-		federation.NewExportedServicesGenerator(*cfg, informerFactory),
+		map[string]adss.RequestHandler{
+			xds.ExportedServiceTypeUrl: federation.NewExportedServicesGenerator(*cfg, informerFactory),
+		},
 	)
 	go func() {
 		if err := federationServer.Run(ctx); err != nil {
@@ -177,10 +179,10 @@ func main() {
 		federationClient, err := adsc.New(&adsc.ADSCConfig{
 			DiscoveryAddr: fmt.Sprintf("%s:15020", cfg.MeshPeers.Remote.Discovery.Addresses[0]),
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
-				TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService",
+				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
 			Handlers: map[string]adsc.ResponseHandler{
-				"federation.istio-ecosystem.io/v1alpha1/ExportedService": mcp.NewImportedServiceHandler(cfg, serviceController, mcpPushRequests),
+				xds.ExportedServiceTypeUrl: mcp.NewImportedServiceHandler(cfg, serviceController, mcpPushRequests),
 			},
 		})
 		if err != nil {
@@ -199,7 +201,9 @@ func main() {
 		&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
 		mcpPushRequests,
 		onNewMCPSubscription,
-		mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
+		map[string]adss.RequestHandler{
+			xds.GatewayTypeUrl: mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
+		},
 	)
 	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatalf("Error running XDS server: %v", err)

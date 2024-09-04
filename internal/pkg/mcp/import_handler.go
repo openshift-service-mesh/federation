@@ -19,27 +19,27 @@ import (
 )
 
 var (
-	_ adsc.ResponseHandler = (*importedServiceHandler)(nil)
+	_ adsc.ResponseHandler = (*ImportedServiceHandler)(nil)
 
 	httpProtocols = []string{"HTTP", "HTTP2", "HTTP_PROXY", "GRPC", "GRPC-Web"}
 	tlsProtocols  = []string{"HTTPS", "TLS"}
 )
 
-type importedServiceHandler struct {
+type ImportedServiceHandler struct {
 	cfg               *config.Federation
 	serviceController *informer.Controller
 	pushRequests      chan<- xds.PushRequest
 }
 
-func NewImportedServiceHandler(cfg *config.Federation, serviceController *informer.Controller, pushRequests chan<- xds.PushRequest) *importedServiceHandler {
-	return &importedServiceHandler{
+func NewImportedServiceHandler(cfg *config.Federation, serviceController *informer.Controller, pushRequests chan<- xds.PushRequest) *ImportedServiceHandler {
+	return &ImportedServiceHandler{
 		cfg:               cfg,
 		serviceController: serviceController,
 		pushRequests:      pushRequests,
 	}
 }
 
-func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
+func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
 	var importedServices []*v1alpha1.ExportedService
 	for _, res := range resources {
 		exportedService := &v1alpha1.ExportedService{}
@@ -102,16 +102,16 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 			}
 		}
 	}
-	if err := h.push("networking.istio.io/v1alpha3/ServiceEntry", serviceEntries); err != nil {
+	if err := h.push(xds.ServiceEntryTypeUrl, serviceEntries); err != nil {
 		return err
 	}
-	if err := h.push("networking.istio.io/v1alpha3/WorkloadEntry", workloadEntries); err != nil {
+	if err := h.push(xds.WorkloadEntryTypeUrl, workloadEntries); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (h *importedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
+func (h *ImportedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
 	var workloadEntries []*istionetv1alpha3.WorkloadEntry
 	for _, addr := range h.cfg.MeshPeers.Remote.DataPlane.Addresses {
 		we := &istionetv1alpha3.WorkloadEntry{
@@ -128,7 +128,7 @@ func (h *importedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePo
 	return workloadEntries
 }
 
-func (h *importedServiceHandler) push(typeUrl string, configs []*istioconfig.Config) error {
+func (h *ImportedServiceHandler) push(typeUrl string, configs []*istioconfig.Config) error {
 	if len(configs) == 0 {
 		return nil
 	}

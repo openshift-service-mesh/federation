@@ -108,7 +108,7 @@ func TestHandle(t *testing.T) {
 			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort},
 			Labels:    map[string]string{"app": "a"},
 		}},
-		expectedXDSType: "networking.istio.io/v1alpha3/ServiceEntry",
+		expectedXDSType: xds.ServiceEntryTypeUrl,
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
 				Name:      "import_a_ns1",
@@ -172,7 +172,7 @@ func TestHandle(t *testing.T) {
 				Namespace: "ns2",
 			},
 		}},
-		expectedXDSType: "networking.istio.io/v1alpha3/WorkloadEntry",
+		expectedXDSType: xds.WorkloadEntryTypeUrl,
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
 				Name:      "import_a_0",
@@ -206,7 +206,7 @@ func TestHandle(t *testing.T) {
 			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort, tcpPort},
 			Labels:    map[string]string{"app": "a"},
 		}},
-		expectedXDSType: "networking.istio.io/v1alpha3/ServiceEntry",
+		expectedXDSType: xds.ServiceEntryTypeUrl,
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
 				Name:      "import_a_ns1",

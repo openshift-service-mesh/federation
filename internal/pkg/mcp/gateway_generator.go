@@ -14,32 +14,25 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-var _ adss.RequestHandler = (*gatewayResourceGenerator)(nil)
+var _ adss.RequestHandler = (*GatewayResourceGenerator)(nil)
 
-type gatewayResourceGenerator struct {
-	typeUrl         string
+type GatewayResourceGenerator struct {
 	cfg             config.Federation
 	serviceInformer cache.SharedIndexInformer
 }
 
-func NewGatewayResourceGenerator(cfg config.Federation, informerFactory informers.SharedInformerFactory) *gatewayResourceGenerator {
-	return &gatewayResourceGenerator{
-		"networking.istio.io/v1alpha3/Gateway",
-		cfg,
-		informerFactory.Core().V1().Services().Informer(),
+func NewGatewayResourceGenerator(cfg config.Federation, informerFactory informers.SharedInformerFactory) *GatewayResourceGenerator {
+	return &GatewayResourceGenerator{
+		cfg:             cfg,
+		serviceInformer: informerFactory.Core().V1().Services().Informer(),
 	}
 }
 
-func (g *gatewayResourceGenerator) GetTypeUrl() string {
-	return g.typeUrl
-}
-
-func (g *gatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
+func (g *GatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
 	var hosts []string
 	for _, obj := range g.serviceInformer.GetStore().List() {
 		svc := obj.(*corev1.Service)
 		if common.MatchExportRules(svc, g.cfg.ExportedServiceSet.GetLabelSelectors()) {
-			// TODO: should we also append "${name}.${ns}" and "${name}.${ns}.svc"?
 			hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace))
 		}
 	}
