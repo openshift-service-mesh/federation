@@ -50,12 +50,19 @@ func (w *ServiceExportEventHandler) ObjectUpdated(oldObj, newObj runtime.Object)
 }
 
 func (w *ServiceExportEventHandler) triggerXDSPushIfMatchRules(services ...*corev1.Service) {
-	for _, svc := range services {
-		if common.MatchExportRules(svc, w.cfg.ExportedServiceSet.GetLabelSelectors()) {
-			log.Infof("Found a service matching selector: %s/%s\n", svc.Namespace, svc.Name)
-			w.mcpPushRequests <- xds.PushRequest{TypeUrl: "networking.istio.io/v1alpha3/Gateway"}
-			w.fdsPushRequests <- xds.PushRequest{TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService"}
-			return
+	exportLabels := w.cfg.ExportedServiceSet.GetLabelSelectors()
+	if len(services) == 2 {
+		if common.MatchExportRules(services[0], exportLabels) != common.MatchExportRules(services[1], exportLabels) {
+			w.triggerXDSPush()
+		}
+	} else {
+		if common.MatchExportRules(services[0], exportLabels) {
+			w.triggerXDSPush()
 		}
 	}
+}
+
+func (w *ServiceExportEventHandler) triggerXDSPush() {
+	w.mcpPushRequests <- xds.PushRequest{TypeUrl: "networking.istio.io/v1alpha3/Gateway"}
+	w.fdsPushRequests <- xds.PushRequest{TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService"}
 }
