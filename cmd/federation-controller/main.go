@@ -182,7 +182,7 @@ func main() {
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
 			Handlers: map[string]adsc.ResponseHandler{
-				xds.ExportedServiceTypeUrl: mcp.NewImportedServiceHandler(cfg, serviceController, mcpPushRequests),
+				xds.ExportedServiceTypeUrl: mcp.NewImportedServiceHandler(cfg, serviceController.Client(), mcpPushRequests),
 			},
 		})
 		if err != nil {
@@ -202,7 +202,7 @@ func main() {
 		mcpPushRequests,
 		onNewMCPSubscription,
 		map[string]adss.RequestHandler{
-			xds.GatewayTypeUrl: mcp.NewGatewayResourceGenerator(*cfg, informerFactory),
+			xds.GatewayTypeUrl: mcp.NewGatewayResourceGenerator(*cfg, serviceController.ServiceInformer()),
 		},
 	)
 	if err := mcpServer.Run(ctx); err != nil {

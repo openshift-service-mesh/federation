@@ -66,6 +66,6 @@ func (w *ServiceExportEventHandler) triggerXDSPushIfMatchRules(services ...*core
 }
 
 func (w *ServiceExportEventHandler) triggerXDSPush() {
-	w.mcpPushRequests <- xds.PushRequest{TypeUrl: "networking.istio.io/v1alpha3/Gateway"}
-	w.fdsPushRequests <- xds.PushRequest{TypeUrl: "federation.istio-ecosystem.io/v1alpha1/ExportedService"}
+	w.mcpPushRequests <- xds.PushRequest{TypeUrl: xds.GatewayTypeUrl}
+	w.fdsPushRequests <- xds.PushRequest{TypeUrl: xds.ExportedServiceTypeUrl}
 }

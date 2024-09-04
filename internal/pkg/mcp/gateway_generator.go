@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"fmt"
+	"k8s.io/client-go/tools/cache"
+	"sort"
 
 	"github.com/jewertow/federation/internal/pkg/common"
 	"github.com/jewertow/federation/internal/pkg/config"
@@ -10,21 +12,20 @@ import (
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	istiocfg "istio.io/istio/pkg/config"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/tools/cache"
 )
 
 var _ adss.RequestHandler = (*GatewayResourceGenerator)(nil)
 
+// GatewayResourceGenerator generates Istio Gateway for all Services matching export rules.
 type GatewayResourceGenerator struct {
 	cfg             config.Federation
 	serviceInformer cache.SharedIndexInformer
 }
 
-func NewGatewayResourceGenerator(cfg config.Federation, informerFactory informers.SharedInformerFactory) *GatewayResourceGenerator {
+func NewGatewayResourceGenerator(cfg config.Federation, serviceInformer cache.SharedIndexInformer) *GatewayResourceGenerator {
 	return &GatewayResourceGenerator{
 		cfg:             cfg,
-		serviceInformer: informerFactory.Core().V1().Services().Informer(),
+		serviceInformer: serviceInformer,
 	}
 }
 
@@ -39,15 +40,16 @@ func (g *GatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
 	if len(hosts) == 0 {
 		return nil, nil
 	}
+	// ServiceInformer.GetStore.List is not idempotent, so to avoid redundant XDS push from Istio to proxies,
+	// we must return hostnames in the same order.
+	sort.Strings(hosts)
 
 	gwSpec := &istionetv1alpha3.Gateway{
-		Selector: map[string]string{
-			"istio": "eastwestgateway",
-		},
+		Selector: g.cfg.MeshPeers.Local.Gateways.DataPlane.Selector,
 		Servers: []*istionetv1alpha3.Server{{
 			Hosts: hosts,
 			Port: &istionetv1alpha3.Port{
-				Number:   15443,
+				Number:   g.cfg.MeshPeers.Local.Gateways.DataPlane.GetPort(),
 				Name:     "tls",
 				Protocol: "TLS",
 			},
@@ -59,9 +61,8 @@ func (g *GatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
 
 	return serialize(&istiocfg.Config{
 		Meta: istiocfg.Meta{
-			Name: "mcp-federation-ingress-gateway",
-			// TODO: set from config
-			Namespace: "istio-system",
+			Name:      "mcp-federation-ingress-gateway",
+			Namespace: g.cfg.MeshPeers.Local.GetDataPlaneGatewayNamespace(),
 		},
 		Spec: gwSpec,
 	})

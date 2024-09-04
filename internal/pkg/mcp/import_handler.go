@@ -3,11 +3,11 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"k8s.io/client-go/kubernetes"
 	"slices"
 
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/informer"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adsc"
 	"google.golang.org/protobuf/proto"
@@ -26,16 +26,16 @@ var (
 )
 
 type ImportedServiceHandler struct {
-	cfg               *config.Federation
-	serviceController *informer.Controller
-	pushRequests      chan<- xds.PushRequest
+	cfg          *config.Federation
+	kubeClient   kubernetes.Interface
+	pushRequests chan<- xds.PushRequest
 }
 
-func NewImportedServiceHandler(cfg *config.Federation, serviceController *informer.Controller, pushRequests chan<- xds.PushRequest) *ImportedServiceHandler {
+func NewImportedServiceHandler(cfg *config.Federation, kubeClient kubernetes.Interface, pushRequests chan<- xds.PushRequest) *ImportedServiceHandler {
 	return &ImportedServiceHandler{
-		cfg:               cfg,
-		serviceController: serviceController,
-		pushRequests:      pushRequests,
+		cfg:          cfg,
+		kubeClient:   kubeClient,
+		pushRequests: pushRequests,
 	}
 }
 
@@ -59,7 +59,7 @@ func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
 		// enable Istio mTLS
 		importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
 
-		_, err := h.serviceController.ClientSet().CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
+		_, err := h.kubeClient.CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)

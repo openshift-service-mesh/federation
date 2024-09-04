@@ -268,7 +268,7 @@ func TestHandle(t *testing.T) {
 			informersInitGroup.Wait()
 
 			mcpPushRequests := make(chan xds.PushRequest)
-			handler := NewImportedServiceHandler(&defaultConfig, serviceController, mcpPushRequests)
+			handler := NewImportedServiceHandler(&defaultConfig, serviceController.Client(), mcpPushRequests)
 
 			// Handle must be called in a goroutine, because mcpPushRequests is an unbuffered channel,
 			// so it's blocked until another goroutine reads from the channel

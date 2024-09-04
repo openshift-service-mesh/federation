@@ -138,8 +138,12 @@ func (c *Controller) LastSyncResourceVersion() string {
 	return c.informer.LastSyncResourceVersion()
 }
 
-func (c *Controller) ClientSet() kubernetes.Interface {
+func (c *Controller) Client() kubernetes.Interface {
 	return c.clientset
+}
+
+func (c *Controller) ServiceInformer() cache.SharedIndexInformer {
+	return c.informer
 }
 
 func (c *Controller) runWorker() {

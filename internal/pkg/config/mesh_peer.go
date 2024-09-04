@@ -13,10 +13,35 @@ type MeshPeers struct {
 
 type Local struct {
 	ControlPlane *ControlPlane `yaml:"controlPlane"`
+	Gateways     *Gateways     `yaml:"gateway"`
 }
 
 type ControlPlane struct {
 	Namespace string `yaml:"namespace"`
+}
+
+type Gateways struct {
+	DataPlane *LocalDataPlaneGateway `yaml:"dataPlane"`
+}
+
+type LocalDataPlaneGateway struct {
+	Namespace string            `yaml:"namespace"`
+	Port      uint32            `yaml:"port"`
+	Selector  map[string]string `yaml:"selector"`
+}
+
+func (l *Local) GetDataPlaneGatewayNamespace() string {
+	if l.Gateways.DataPlane.Namespace == "" {
+		return l.ControlPlane.Namespace
+	}
+	return l.Gateways.DataPlane.Namespace
+}
+
+func (g *LocalDataPlaneGateway) GetPort() uint32 {
+	if g.Port == 0 {
+		return defaultDataPlanePort
+	}
+	return g.Port
 }
 
 type Remote struct {
