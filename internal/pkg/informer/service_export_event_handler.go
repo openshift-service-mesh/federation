@@ -8,6 +8,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+var _ Handler = (*ServiceExportEventHandler)(nil)
+
+// ServiceExportEventHandler processes Service events and triggers proper FDS/MCP pushes if an event matches export rules.
 type ServiceExportEventHandler struct {
 	cfg             config.Federation
 	fdsPushRequests chan<- xds.PushRequest
