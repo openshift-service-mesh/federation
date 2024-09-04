@@ -35,7 +35,6 @@ var (
 			Remote: config.Remote{
 				DataPlane: config.DataPlane{
 					Addresses: []string{"192.168.0.1", "192.168.0.2"},
-					Port:      15443,
 				},
 				Network: "west-network",
 			},

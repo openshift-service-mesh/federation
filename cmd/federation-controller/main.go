@@ -108,7 +108,7 @@ func startControllers(
 	informersInitGroup.Add(1)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
 	serviceController, err := informer.NewResourceController(client, serviceInformer, corev1.Service{},
-		[]informer.Handler{mcp.NewExportedServiceSetHandler(*cfg, serviceInformer, fdsPushRequests, mcpPushRequests)})
+		[]informer.Handler{informer.NewServiceExportEventHandler(*cfg, fdsPushRequests, mcpPushRequests)})
 	if err != nil {
 		log.Fatalf("Error while creating service informer: %v", err)
 	}
