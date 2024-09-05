@@ -29,6 +29,41 @@ var (
 			}},
 		},
 	}
+
+	allPorts = []corev1.ServicePort{
+		{Name: "http", Port: 80, Protocol: "HTTP"},
+		{Name: "http-prefix", Port: 81, Protocol: "HTTP"},
+		{Name: "http2", Port: 82, Protocol: "HTTP"},
+		{Name: "http2-prefix", Port: 83, Protocol: "HTTP"},
+		{Name: "https", Port: 443, Protocol: "HTTPS"},
+		{Name: "https-prefix", Port: 543, Protocol: "HTTPS"},
+		{Name: "grpc", Port: 643, Protocol: "GRPC"},
+		{Name: "grpc-prefix", Port: 743, Protocol: "GRPC"},
+		{Name: "tls", Port: 843, Protocol: "TLS"},
+		{Name: "tls-prefix", Port: 943, Protocol: "TLS"},
+		{Name: "tcp", Port: 22, Protocol: "TCP"},
+		{Name: "tcp-prefix", Port: 23, Protocol: "TCP"},
+		{Name: "mongo", Port: 27017, Protocol: "MONGO"},
+		{Name: "mongo-prefix", Port: 37017, Protocol: "MONGO"},
+		{Name: "unknown", Port: 1, Protocol: "TCP"},
+	}
+	allExportedPorts = []*v1alpha1.ServicePort{
+		{Name: "http", Number: 80, Protocol: "HTTP"},
+		{Name: "http-prefix", Number: 81, Protocol: "HTTP"},
+		{Name: "http2", Number: 82, Protocol: "HTTP2"},
+		{Name: "http2-prefix", Number: 83, Protocol: "HTTP2"},
+		{Name: "https", Number: 443, Protocol: "HTTPS"},
+		{Name: "https-prefix", Number: 543, Protocol: "HTTPS"},
+		{Name: "grpc", Number: 643, Protocol: "GRPC"},
+		{Name: "grpc-prefix", Number: 743, Protocol: "GRPC"},
+		{Name: "tls", Number: 843, Protocol: "TLS"},
+		{Name: "tls-prefix", Number: 943, Protocol: "TLS"},
+		{Name: "tcp", Number: 22, Protocol: "TCP"},
+		{Name: "tcp-prefix", Number: 23, Protocol: "TCP"},
+		{Name: "mongo", Number: 27017, Protocol: "MONGO"},
+		{Name: "mongo-prefix", Number: 37017, Protocol: "MONGO"},
+		{Name: "unknown", Number: 1, Protocol: "TCP"},
+	}
 )
 
 func TestNewExportedServicesGenerator(t *testing.T) {
@@ -55,13 +90,7 @@ func TestNewExportedServicesGenerator(t *testing.T) {
 					"export": "true",
 				},
 			},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{
-					Name:     "http",
-					Protocol: corev1.ProtocolTCP,
-					Port:     80,
-				}},
-			},
+			Spec: corev1.ServiceSpec{Ports: allPorts},
 		}, {
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "a",
@@ -71,22 +100,12 @@ func TestNewExportedServicesGenerator(t *testing.T) {
 					"export": "true",
 				},
 			},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{
-					Name:     "http",
-					Protocol: corev1.ProtocolTCP,
-					Port:     80,
-				}},
-			},
+			Spec: corev1.ServiceSpec{Ports: allPorts},
 		}},
 		expectedExportedServices: []*v1alpha1.ExportedService{{
 			Name:      "b",
 			Namespace: "ns1",
-			Ports: []*v1alpha1.ServicePort{{
-				Name:     "http",
-				Number:   80,
-				Protocol: "HTTP",
-			}},
+			Ports:     allExportedPorts,
 			Labels: map[string]string{
 				"app":    "b",
 				"export": "true",
@@ -94,11 +113,7 @@ func TestNewExportedServicesGenerator(t *testing.T) {
 		}, {
 			Name:      "a",
 			Namespace: "ns2",
-			Ports: []*v1alpha1.ServicePort{{
-				Name:     "http",
-				Number:   80,
-				Protocol: "HTTP",
-			}},
+			Ports:     allExportedPorts,
 			Labels: map[string]string{
 				"app":    "a",
 				"export": "true",

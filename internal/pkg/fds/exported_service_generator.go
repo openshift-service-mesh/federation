@@ -43,9 +43,21 @@ func (g ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 			if port.TargetPort.IntVal != 0 {
 				servicePort.TargetPort = uint32(port.TargetPort.IntVal)
 			}
-			// TODO: handle appProtocol and other prefixes
-			if strings.HasPrefix(port.Name, "http") {
+			// TODO: handle appProtocol
+			if port.Name == "https" || strings.HasPrefix(port.Name, "https-") {
+				servicePort.Protocol = "HTTPS"
+			} else if port.Name == "http" || strings.HasPrefix(port.Name, "http-") {
 				servicePort.Protocol = "HTTP"
+			} else if port.Name == "http2" || strings.HasPrefix(port.Name, "http2-") {
+				servicePort.Protocol = "HTTP2"
+			} else if port.Name == "grpc" || strings.HasPrefix(port.Name, "grpc-") {
+				servicePort.Protocol = "GRPC"
+			} else if port.Name == "tls" || strings.HasPrefix(port.Name, "tls-") {
+				servicePort.Protocol = "TLS"
+			} else if port.Name == "mongo" || strings.HasPrefix(port.Name, "mongo-") {
+				servicePort.Protocol = "MONGO"
+			} else {
+				servicePort.Protocol = "TCP"
 			}
 			ports = append(ports, servicePort)
 		}
