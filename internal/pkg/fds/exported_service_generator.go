@@ -1,4 +1,4 @@
-package federation
+package fds
 
 import (
 	"fmt"
@@ -9,7 +9,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"strings"
 )
@@ -21,10 +20,10 @@ type ExportedServicesGenerator struct {
 	serviceInformer cache.SharedIndexInformer
 }
 
-func NewExportedServicesGenerator(cfg config.Federation, informerFactory informers.SharedInformerFactory) *ExportedServicesGenerator {
+func NewExportedServicesGenerator(cfg config.Federation, serviceInformer cache.SharedIndexInformer) *ExportedServicesGenerator {
 	return &ExportedServicesGenerator{
 		cfg:             cfg,
-		serviceInformer: informerFactory.Core().V1().Services().Informer(),
+		serviceInformer: serviceInformer,
 	}
 }
 
@@ -45,7 +44,7 @@ func (g ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 				servicePort.TargetPort = uint32(port.TargetPort.IntVal)
 			}
 			// TODO: handle appProtocol and other prefixes
-			if strings.HasPrefix(port.Name, "http-") {
+			if strings.HasPrefix(port.Name, "http") {
 				servicePort.Protocol = "HTTP"
 			}
 			ports = append(ports, servicePort)

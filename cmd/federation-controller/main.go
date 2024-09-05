@@ -12,7 +12,7 @@ import (
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/federation"
+	"github.com/jewertow/federation/internal/pkg/fds"
 	"github.com/jewertow/federation/internal/pkg/informer"
 	"github.com/jewertow/federation/internal/pkg/mcp"
 	"github.com/jewertow/federation/internal/pkg/xds"
@@ -165,7 +165,7 @@ func main() {
 		fdsPushRequests,
 		triggerFDSPushOnNewSubscription,
 		map[string]adss.RequestHandler{
-			xds.ExportedServiceTypeUrl: federation.NewExportedServicesGenerator(*cfg, informerFactory),
+			xds.ExportedServiceTypeUrl: fds.NewExportedServicesGenerator(*cfg, serviceController.ServiceInformer()),
 		},
 	)
 	go func() {

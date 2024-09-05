@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"fmt"
-	"k8s.io/client-go/tools/cache"
 	"sort"
 
 	"github.com/jewertow/federation/internal/pkg/common"
@@ -12,6 +11,7 @@ import (
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	istiocfg "istio.io/istio/pkg/config"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 var _ adss.RequestHandler = (*GatewayResourceGenerator)(nil)
