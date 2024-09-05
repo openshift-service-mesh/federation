@@ -30,20 +30,6 @@ type LocalDataPlaneGateway struct {
 	Selector  map[string]string `yaml:"selector"`
 }
 
-func (l *Local) GetDataPlaneGatewayNamespace() string {
-	if l.Gateways.DataPlane.Namespace == "" {
-		return l.ControlPlane.Namespace
-	}
-	return l.Gateways.DataPlane.Namespace
-}
-
-func (g *LocalDataPlaneGateway) GetPort() uint32 {
-	if g.Port == 0 {
-		return defaultDataPlanePort
-	}
-	return g.Port
-}
-
 type Remote struct {
 	DataPlane DataPlane `yaml:"dataPlane"`
 	Discovery Discovery `yaml:"discovery"`
@@ -53,14 +39,7 @@ type Remote struct {
 // TODO: unify DataPlane and Discovery
 type DataPlane struct {
 	Addresses []string `yaml:"addresses"`
-	Port      *uint32  `yaml:"port"`
-}
-
-func (d *DataPlane) GetPort() uint32 {
-	if d.Port != nil {
-		return *d.Port
-	}
-	return defaultDataPlanePort
+	Port      uint32   `yaml:"port"`
 }
 
 type Discovery struct {

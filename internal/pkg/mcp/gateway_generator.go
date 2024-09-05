@@ -49,7 +49,7 @@ func (g *GatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
 		Servers: []*istionetv1alpha3.Server{{
 			Hosts: hosts,
 			Port: &istionetv1alpha3.Port{
-				Number:   g.cfg.MeshPeers.Local.Gateways.DataPlane.GetPort(),
+				Number:   g.cfg.GetLocalDataPlaneGatewayPort(),
 				Name:     "tls",
 				Protocol: "TLS",
 			},
@@ -62,7 +62,7 @@ func (g *GatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
 	return serialize(&istiocfg.Config{
 		Meta: istiocfg.Meta{
 			Name:      "mcp-federation-ingress-gateway",
-			Namespace: g.cfg.MeshPeers.Local.GetDataPlaneGatewayNamespace(),
+			Namespace: g.cfg.GetLocalDataPlaneGatewayNamespace(),
 		},
 		Spec: gwSpec,
 	})
