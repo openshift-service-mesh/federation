@@ -1,6 +1,10 @@
 package mcp
 
 import (
+	"reflect"
+	"sync"
+	"testing"
+
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/informer"
 	"golang.org/x/net/context"
@@ -10,9 +14,6 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
-	"reflect"
-	"sync"
-	"testing"
 )
 
 var (
