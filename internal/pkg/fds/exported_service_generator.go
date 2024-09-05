@@ -28,7 +28,7 @@ func NewExportedServicesGenerator(cfg config.Federation, serviceInformer cache.S
 }
 
 func (g ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
-	var serializedServices []*anypb.Any
+	var exportedServices []*v1alpha1.ExportedService
 	for _, obj := range g.serviceInformer.GetStore().List() {
 		svc := obj.(*corev1.Service)
 		if !common.MatchExportRules(svc, g.cfg.ExportedServiceSet.GetLabelSelectors()) {
@@ -67,9 +67,17 @@ func (g ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 			Ports:     ports,
 			Labels:    svc.Labels,
 		}
+		exportedServices = append(exportedServices, exportedService)
+	}
+	return serialize(exportedServices)
+}
+
+func serialize(exportedServices []*v1alpha1.ExportedService) ([]*anypb.Any, error) {
+	var serializedServices []*anypb.Any
+	for _, exportedService := range exportedServices {
 		serializedExportedService := &anypb.Any{}
 		if err := anypb.MarshalFrom(serializedExportedService, exportedService, proto.MarshalOptions{}); err != nil {
-			return []*anypb.Any{}, fmt.Errorf("failed to serialize ExportedService to protobuf message: %w", err)
+			return []*anypb.Any{}, fmt.Errorf("failed to serialize ExportedService %s/%s to protobuf message: %w", exportedService.Name, exportedService.Namespace, err)
 		}
 		serializedServices = append(serializedServices, serializedExportedService)
 	}
