@@ -146,8 +146,8 @@ func TestXDSTriggers(t *testing.T) {
 				tc.handlerFunc(handler)
 			}()
 
-			checkChannel(t, mcpPushRequests, "networking.istio.io/v1alpha3/Gateway", tc.isTimeoutExpected)
-			checkChannel(t, fdsPushRequests, "federation.istio-ecosystem.io/v1alpha1/ExportedService", tc.isTimeoutExpected)
+			checkChannel(t, mcpPushRequests, xds.GatewayTypeUrl, tc.isTimeoutExpected)
+			checkChannel(t, fdsPushRequests, xds.ExportedServiceTypeUrl, tc.isTimeoutExpected)
 		})
 	}
 }
