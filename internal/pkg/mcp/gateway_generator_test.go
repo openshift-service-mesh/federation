@@ -137,7 +137,7 @@ func TestGatewayGenerator(t *testing.T) {
 			}
 			for idx, cfg := range istioConfigs {
 				if !reflect.DeepEqual(cfg.DeepCopy(), tc.expectedIstioConfigs[idx].DeepCopy()) {
-					t.Errorf("expected object: \n[%v], \nbut got: \n[%v]", cfg, tc.expectedIstioConfigs[idx])
+					t.Errorf("expected object: \n[%v], \nbut got: \n[%v]", tc.expectedIstioConfigs[idx], cfg)
 				}
 			}
 		})

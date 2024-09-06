@@ -2,6 +2,8 @@ package fds
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/common"
 	"github.com/jewertow/federation/internal/pkg/config"
@@ -10,7 +12,6 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"strings"
 )
 
 var _ adss.RequestHandler = (*ExportedServicesGenerator)(nil)
@@ -43,22 +44,7 @@ func (g ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 			if port.TargetPort.IntVal != 0 {
 				servicePort.TargetPort = uint32(port.TargetPort.IntVal)
 			}
-			// TODO: handle appProtocol
-			if port.Name == "https" || strings.HasPrefix(port.Name, "https-") {
-				servicePort.Protocol = "HTTPS"
-			} else if port.Name == "http" || strings.HasPrefix(port.Name, "http-") {
-				servicePort.Protocol = "HTTP"
-			} else if port.Name == "http2" || strings.HasPrefix(port.Name, "http2-") {
-				servicePort.Protocol = "HTTP2"
-			} else if port.Name == "grpc" || strings.HasPrefix(port.Name, "grpc-") {
-				servicePort.Protocol = "GRPC"
-			} else if port.Name == "tls" || strings.HasPrefix(port.Name, "tls-") {
-				servicePort.Protocol = "TLS"
-			} else if port.Name == "mongo" || strings.HasPrefix(port.Name, "mongo-") {
-				servicePort.Protocol = "MONGO"
-			} else {
-				servicePort.Protocol = "TCP"
-			}
+			servicePort.Protocol = detectProtocol(port.Name)
 			ports = append(ports, servicePort)
 		}
 		exportedService := &v1alpha1.ExportedService{
@@ -70,6 +56,24 @@ func (g ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 		exportedServices = append(exportedServices, exportedService)
 	}
 	return serialize(exportedServices)
+}
+
+// TODO: check appProtocol and reject UDP
+func detectProtocol(portName string) string {
+	if portName == "https" || strings.HasPrefix(portName, "https-") {
+		return "HTTPS"
+	} else if portName == "http" || strings.HasPrefix(portName, "http-") {
+		return "HTTP"
+	} else if portName == "http2" || strings.HasPrefix(portName, "http2-") {
+		return "HTTP2"
+	} else if portName == "grpc" || strings.HasPrefix(portName, "grpc-") {
+		return "GRPC"
+	} else if portName == "tls" || strings.HasPrefix(portName, "tls-") {
+		return "TLS"
+	} else if portName == "mongo" || strings.HasPrefix(portName, "mongo-") {
+		return "MONGO"
+	}
+	return "TCP"
 }
 
 func serialize(exportedServices []*v1alpha1.ExportedService) ([]*anypb.Any, error) {
