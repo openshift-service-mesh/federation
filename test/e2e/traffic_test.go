@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/codes"
 	"istio.io/istio/pkg/test/echo/common/scheme"
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/cluster"
@@ -96,6 +97,13 @@ func TestTraffic(t *testing.T) {
 					Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
 					Count:   5,
 				})
+				a[0].CallOrFail(t, echo.CallOptions{
+					Address: host,
+					Port:    ports.GRPC,
+					Scheme:  scheme.GRPC,
+					Check:   check.And(check.GRPCStatus(codes.OK), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+					Count:   5,
+				})
 			}
 		})
 
@@ -123,6 +131,12 @@ func TestTraffic(t *testing.T) {
 				Port:    ports.HTTPS,
 				Scheme:  scheme.HTTPS,
 				Check:   check.OK(),
+			})
+			a[0].CallOrFail(t, echo.CallOptions{
+				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
+				Port:    ports.GRPC,
+				Scheme:  scheme.GRPC,
+				Check:   check.GRPCStatus(codes.OK),
 			})
 		})
 	})
