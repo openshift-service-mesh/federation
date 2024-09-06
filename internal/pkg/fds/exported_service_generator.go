@@ -7,6 +7,7 @@ import (
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/common"
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adss"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -28,7 +29,11 @@ func NewExportedServicesGenerator(cfg config.Federation, serviceInformer cache.S
 	}
 }
 
-func (g ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
+func (g *ExportedServicesGenerator) GetTypeUrl() string {
+	return xds.ExportedServiceTypeUrl
+}
+
+func (g *ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 	var exportedServices []*v1alpha1.ExportedService
 	for _, obj := range g.serviceInformer.GetStore().List() {
 		svc := obj.(*corev1.Service)

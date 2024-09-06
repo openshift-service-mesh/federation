@@ -6,6 +6,7 @@ import (
 
 	"github.com/jewertow/federation/internal/pkg/common"
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adss"
 	"google.golang.org/protobuf/types/known/anypb"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
@@ -27,6 +28,10 @@ func NewGatewayResourceGenerator(cfg config.Federation, serviceInformer cache.Sh
 		cfg:             cfg,
 		serviceInformer: serviceInformer,
 	}
+}
+
+func (g *GatewayResourceGenerator) GetTypeUrl() string {
+	return xds.GatewayTypeUrl
 }
 
 func (g *GatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {

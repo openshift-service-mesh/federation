@@ -23,11 +23,15 @@ type ServerOpts struct {
 	ServerID string
 }
 
-func NewServer(opts *ServerOpts, pushRequests <-chan xds.PushRequest, onNewSubscriber func(), handlers map[string]RequestHandler) *Server {
+func NewServer(opts *ServerOpts, pushRequests <-chan xds.PushRequest, onNewSubscriber func(), handlers ...RequestHandler) *Server {
 	// TODO: handle nil opts
 	grpcServer := grpc.NewServer()
+	handlerMap := make(map[string]RequestHandler)
+	for _, g := range handlers {
+		handlerMap[g.GetTypeUrl()] = g
+	}
 	ads := &adsServer{
-		handlers:        handlers,
+		handlers:        handlerMap,
 		onNewSubscriber: onNewSubscriber,
 		serverID:        opts.ServerID,
 	}

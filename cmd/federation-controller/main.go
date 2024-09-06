@@ -164,9 +164,7 @@ func main() {
 		&adss.ServerOpts{Port: 15020, ServerID: "fds"},
 		fdsPushRequests,
 		triggerFDSPushOnNewSubscription,
-		map[string]adss.RequestHandler{
-			xds.ExportedServiceTypeUrl: fds.NewExportedServicesGenerator(*cfg, serviceController.ServiceInformer()),
-		},
+		fds.NewExportedServicesGenerator(*cfg, serviceController.ServiceInformer()),
 	)
 	go func() {
 		if err := federationServer.Run(ctx); err != nil {
@@ -201,9 +199,7 @@ func main() {
 		&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
 		mcpPushRequests,
 		onNewMCPSubscription,
-		map[string]adss.RequestHandler{
-			xds.GatewayTypeUrl: mcp.NewGatewayResourceGenerator(*cfg, serviceController.ServiceInformer()),
-		},
+		mcp.NewGatewayResourceGenerator(*cfg, serviceController.ServiceInformer()),
 	)
 	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatalf("Error running XDS server: %v", err)
