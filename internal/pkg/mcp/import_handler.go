@@ -3,9 +3,6 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/kubernetes"
-	"slices"
-
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/xds"
@@ -16,6 +13,7 @@ import (
 	istioconfig "istio.io/istio/pkg/config"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 var (
@@ -81,7 +79,7 @@ func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
 					Namespace: h.cfg.MeshPeers.Local.ControlPlane.Namespace,
 				},
 				Spec: &istionetv1alpha3.ServiceEntry{
-					Hosts:      generateHosts(importedSvc),
+					Hosts:      []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
 					Ports:      ports,
 					Endpoints:  h.makeWorkloadEntries(importedSvc.Ports, importedSvc.Labels),
 					Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
@@ -142,17 +140,4 @@ func (h *ImportedServiceHandler) push(typeUrl string, configs []*istioconfig.Con
 		Resources: resources,
 	}
 	return nil
-}
-
-func generateHosts(importedService *v1alpha1.ExportedService) []string {
-	for _, port := range importedService.Ports {
-		if !slices.Contains(httpProtocols, port.Protocol) && !slices.Contains(tlsProtocols, port.Protocol) {
-			return []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedService.Name, importedService.Namespace)}
-		}
-	}
-	return []string{
-		fmt.Sprintf("%s.%s", importedService.Name, importedService.Namespace),
-		fmt.Sprintf("%s.%s.svc", importedService.Name, importedService.Namespace),
-		fmt.Sprintf("%s.%s.svc.cluster.local", importedService.Name, importedService.Namespace),
-	}
 }
