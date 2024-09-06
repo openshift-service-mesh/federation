@@ -108,18 +108,14 @@ func TestHandle(t *testing.T) {
 			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort},
 			Labels:    map[string]string{"app": "a"},
 		}},
-		expectedXDSType: "networking.istio.io/v1alpha3/ServiceEntry",
+		expectedXDSType: xds.ServiceEntryTypeUrl,
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
 				Name:      "import_a_ns1",
 				Namespace: "istio-system",
 			},
 			Spec: &istionetv1alpha3.ServiceEntry{
-				Hosts: []string{
-					"a.ns1",
-					"a.ns1.svc",
-					"a.ns1.svc.cluster.local",
-				},
+				Hosts: []string{"a.ns1.svc.cluster.local"},
 				Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort},
 				Endpoints: []*istionetv1alpha3.WorkloadEntry{
 					buildWorkloadEntry("192.168.0.1"),
@@ -134,11 +130,7 @@ func TestHandle(t *testing.T) {
 				Namespace: "istio-system",
 			},
 			Spec: &istionetv1alpha3.ServiceEntry{
-				Hosts: []string{
-					"a.ns2",
-					"a.ns2.svc",
-					"a.ns2.svc.cluster.local",
-				},
+				Hosts: []string{"a.ns2.svc.cluster.local"},
 				Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort},
 				Endpoints: []*istionetv1alpha3.WorkloadEntry{
 					buildWorkloadEntry("192.168.0.1"),
@@ -172,7 +164,7 @@ func TestHandle(t *testing.T) {
 				Namespace: "ns2",
 			},
 		}},
-		expectedXDSType: "networking.istio.io/v1alpha3/WorkloadEntry",
+		expectedXDSType: xds.WorkloadEntryTypeUrl,
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
 				Name:      "import_a_0",
@@ -206,7 +198,7 @@ func TestHandle(t *testing.T) {
 			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort, tcpPort},
 			Labels:    map[string]string{"app": "a"},
 		}},
-		expectedXDSType: "networking.istio.io/v1alpha3/ServiceEntry",
+		expectedXDSType: xds.ServiceEntryTypeUrl,
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
 				Name:      "import_a_ns1",
@@ -268,7 +260,7 @@ func TestHandle(t *testing.T) {
 			informersInitGroup.Wait()
 
 			mcpPushRequests := make(chan xds.PushRequest)
-			handler := NewImportedServiceHandler(&defaultConfig, serviceController, mcpPushRequests)
+			handler := NewImportedServiceHandler(&defaultConfig, serviceController.Client(), mcpPushRequests)
 
 			// Handle must be called in a goroutine, because mcpPushRequests is an unbuffered channel,
 			// so it's blocked until another goroutine reads from the channel

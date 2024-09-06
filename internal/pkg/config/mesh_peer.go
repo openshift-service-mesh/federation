@@ -13,10 +13,21 @@ type MeshPeers struct {
 
 type Local struct {
 	ControlPlane *ControlPlane `yaml:"controlPlane"`
+	Gateways     *Gateways     `yaml:"gateway"`
 }
 
 type ControlPlane struct {
 	Namespace string `yaml:"namespace"`
+}
+
+type Gateways struct {
+	DataPlane *LocalDataPlaneGateway `yaml:"dataPlane"`
+}
+
+type LocalDataPlaneGateway struct {
+	Namespace string            `yaml:"namespace"`
+	Port      uint32            `yaml:"port"`
+	Selector  map[string]string `yaml:"selector"`
 }
 
 type Remote struct {
@@ -28,14 +39,7 @@ type Remote struct {
 // TODO: unify DataPlane and Discovery
 type DataPlane struct {
 	Addresses []string `yaml:"addresses"`
-	Port      *uint32  `yaml:"port"`
-}
-
-func (d *DataPlane) GetPort() uint32 {
-	if d.Port != nil {
-		return *d.Port
-	}
-	return defaultDataPlanePort
+	Port      uint32   `yaml:"port"`
 }
 
 type Discovery struct {

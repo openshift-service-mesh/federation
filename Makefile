@@ -19,7 +19,7 @@ OUT_DIR=internal/api
 
 .PHONY: proto
 proto:
-	protoc --proto_path=$(PROTO_DIR) --go_out=$(OUT_DIR) --go-grpc_out=$(OUT_DIR) $(PROTO_DIR)/**/*.proto
+	protoc --proto_path=$(PROTO_DIR) --go_out=$(OUT_DIR) --go-grpc_out=$(OUT_DIR) --golang-deepcopy_out=:$(OUT_DIR) $(PROTO_DIR)/**/*.proto
 
 kind-clusters:
 	bash test/scripts/kind_provisioner.sh

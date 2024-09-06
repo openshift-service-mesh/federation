@@ -3,11 +3,8 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"slices"
-
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/informer"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adsc"
 	"google.golang.org/protobuf/proto"
@@ -16,30 +13,31 @@ import (
 	istioconfig "istio.io/istio/pkg/config"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 var (
-	_ adsc.ResponseHandler = (*importedServiceHandler)(nil)
+	_ adsc.ResponseHandler = (*ImportedServiceHandler)(nil)
 
 	httpProtocols = []string{"HTTP", "HTTP2", "HTTP_PROXY", "GRPC", "GRPC-Web"}
 	tlsProtocols  = []string{"HTTPS", "TLS"}
 )
 
-type importedServiceHandler struct {
-	cfg               *config.Federation
-	serviceController *informer.Controller
-	pushRequests      chan<- xds.PushRequest
+type ImportedServiceHandler struct {
+	cfg          *config.Federation
+	kubeClient   kubernetes.Interface
+	pushRequests chan<- xds.PushRequest
 }
 
-func NewImportedServiceHandler(cfg *config.Federation, serviceController *informer.Controller, pushRequests chan<- xds.PushRequest) *importedServiceHandler {
-	return &importedServiceHandler{
-		cfg:               cfg,
-		serviceController: serviceController,
-		pushRequests:      pushRequests,
+func NewImportedServiceHandler(cfg *config.Federation, kubeClient kubernetes.Interface, pushRequests chan<- xds.PushRequest) *ImportedServiceHandler {
+	return &ImportedServiceHandler{
+		cfg:          cfg,
+		kubeClient:   kubeClient,
+		pushRequests: pushRequests,
 	}
 }
 
-func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
+func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
 	var importedServices []*v1alpha1.ExportedService
 	for _, res := range resources {
 		exportedService := &v1alpha1.ExportedService{}
@@ -59,7 +57,7 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 		// enable Istio mTLS
 		importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
 
-		_, err := h.serviceController.ClientSet().CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
+		_, err := h.kubeClient.CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)
@@ -81,7 +79,7 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 					Namespace: h.cfg.MeshPeers.Local.ControlPlane.Namespace,
 				},
 				Spec: &istionetv1alpha3.ServiceEntry{
-					Hosts:      generateHosts(importedSvc),
+					Hosts:      []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
 					Ports:      ports,
 					Endpoints:  h.makeWorkloadEntries(importedSvc.Ports, importedSvc.Labels),
 					Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
@@ -102,16 +100,16 @@ func (h *importedServiceHandler) Handle(resources []*anypb.Any) error {
 			}
 		}
 	}
-	if err := h.push("networking.istio.io/v1alpha3/ServiceEntry", serviceEntries); err != nil {
+	if err := h.push(xds.ServiceEntryTypeUrl, serviceEntries); err != nil {
 		return err
 	}
-	if err := h.push("networking.istio.io/v1alpha3/WorkloadEntry", workloadEntries); err != nil {
+	if err := h.push(xds.WorkloadEntryTypeUrl, workloadEntries); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (h *importedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
+func (h *ImportedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
 	var workloadEntries []*istionetv1alpha3.WorkloadEntry
 	for _, addr := range h.cfg.MeshPeers.Remote.DataPlane.Addresses {
 		we := &istionetv1alpha3.WorkloadEntry{
@@ -121,14 +119,14 @@ func (h *importedServiceHandler) makeWorkloadEntries(ports []*v1alpha1.ServicePo
 			Ports:   make(map[string]uint32, len(ports)),
 		}
 		for _, p := range ports {
-			we.Ports[p.Name] = h.cfg.MeshPeers.Remote.DataPlane.GetPort()
+			we.Ports[p.Name] = h.cfg.GetRemoteDataPlaneGatewayPort()
 		}
 		workloadEntries = append(workloadEntries, we)
 	}
 	return workloadEntries
 }
 
-func (h *importedServiceHandler) push(typeUrl string, configs []*istioconfig.Config) error {
+func (h *ImportedServiceHandler) push(typeUrl string, configs []*istioconfig.Config) error {
 	if len(configs) == 0 {
 		return nil
 	}
@@ -142,17 +140,4 @@ func (h *importedServiceHandler) push(typeUrl string, configs []*istioconfig.Con
 		Resources: resources,
 	}
 	return nil
-}
-
-func generateHosts(importedService *v1alpha1.ExportedService) []string {
-	for _, port := range importedService.Ports {
-		if !slices.Contains(httpProtocols, port.Protocol) && !slices.Contains(tlsProtocols, port.Protocol) {
-			return []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedService.Name, importedService.Namespace)}
-		}
-	}
-	return []string{
-		fmt.Sprintf("%s.%s", importedService.Name, importedService.Namespace),
-		fmt.Sprintf("%s.%s.svc", importedService.Name, importedService.Namespace),
-		fmt.Sprintf("%s.%s.svc.cluster.local", importedService.Name, importedService.Namespace),
-	}
 }

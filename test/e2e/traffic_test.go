@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"istio.io/istio/pkg/test/echo/common/scheme"
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo"
@@ -68,36 +70,75 @@ func TestTraffic(t *testing.T) {
 			t.Errorf("failed to export service c in cluster %s: %v", westClusterName, err)
 		}
 
-		for _, port := range []echo.Port{ports.HTTP, ports.HTTPS} {
-			ctx.NewSubTest(fmt.Sprintf("requests to b should be routed to local and remote instances (protocol=%s)", port.Name)).Run(func(ctx framework.TestContext) {
-				for _, host := range []string{
-					fmt.Sprintf("b.%s", appNs.Name()),
-					fmt.Sprintf("b.%s.svc", appNs.Name()),
-					fmt.Sprintf("b.%s.svc.cluster.local", appNs.Name()),
-				} {
-					a[0].CallOrFail(t, echo.CallOptions{
-						Address: host,
-						Port:    port,
-						Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
-						Count:   5,
-					})
-				}
-			})
+		ctx.NewSubTest("requests to b should be routed to local and remote instances").Run(func(ctx framework.TestContext) {
+			for _, host := range []string{
+				fmt.Sprintf("b.%s", appNs.Name()),
+				fmt.Sprintf("b.%s.svc", appNs.Name()),
+				fmt.Sprintf("b.%s.svc.cluster.local", appNs.Name()),
+			} {
+				a[0].CallOrFail(t, echo.CallOptions{
+					Address: host,
+					Port:    ports.HTTP,
+					Scheme:  scheme.HTTP,
+					Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+					Count:   5,
+				})
+				a[0].CallOrFail(t, echo.CallOptions{
+					Address: host,
+					Port:    ports.HTTP2,
+					Scheme:  scheme.HTTP,
+					Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+					Count:   5,
+				})
+				a[0].CallOrFail(t, echo.CallOptions{
+					Address: host,
+					Port:    ports.HTTPS,
+					Scheme:  scheme.HTTPS,
+					Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+					Count:   5,
+				})
+				a[0].CallOrFail(t, echo.CallOptions{
+					Address: host,
+					Port:    ports.GRPC,
+					Scheme:  scheme.GRPC,
+					Check:   check.And(check.GRPCStatus(codes.OK), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+					Count:   5,
+				})
+			}
+		})
 
-			ctx.NewSubTest(fmt.Sprintf("requests to c should succeed (protocol=%s)", port.Name)).Run(func(ctx framework.TestContext) {
-				for _, host := range []string{
-					fmt.Sprintf("c.%s", appNs.Name()),
-					fmt.Sprintf("c.%s.svc", appNs.Name()),
-					fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
-				} {
-					a[0].CallOrFail(t, echo.CallOptions{
-						Address: host,
-						Port:    port,
-						Check:   check.OK(),
-					})
-				}
+		// Services that exist only in remote clusters - created locally as ServiceEntries - cannot be accessed
+		// as <service-name>.<namespace> or <service-name>.<namespace>.svc, because Istio generates clusters
+		// for each hostname defined in a ServiceEntry, and SNI for TLS origination in these clusters
+		// is generated from those hostnames, and at the same time, east-west gateways configure SNI routing
+		// only for FQDNs, so mTLS connections to <service-name>.<namespace> or <service-name>.<namespace>.svc
+		// fail, because there are no filters matching such SNIs.
+		ctx.NewSubTest("requests to c should succeed").Run(func(ctx framework.TestContext) {
+			a[0].CallOrFail(t, echo.CallOptions{
+				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
+				Port:    ports.HTTP,
+				Scheme:  scheme.HTTP,
+				Check:   check.OK(),
 			})
-		}
+			a[0].CallOrFail(t, echo.CallOptions{
+				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
+				Port:    ports.HTTP2,
+				Scheme:  scheme.HTTP,
+				Check:   check.OK(),
+			})
+			a[0].CallOrFail(t, echo.CallOptions{
+				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
+				Port:    ports.HTTPS,
+				Scheme:  scheme.HTTPS,
+				Check:   check.OK(),
+			})
+			a[0].CallOrFail(t, echo.CallOptions{
+				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
+				Port:    ports.GRPC,
+				Scheme:  scheme.GRPC,
+				Check:   check.GRPCStatus(codes.OK),
+			})
+		})
 	})
 }
 

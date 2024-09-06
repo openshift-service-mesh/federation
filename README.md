@@ -54,6 +54,7 @@ ADDRESSES PORT  MATCH                                                           
 1. Go 1.22
 2. protoc 3.19.0
 3. protoc-gen-go v1.30.0
+4. protoc-get-golang-deepcopy
 
 #### Build project
 ```shell

@@ -3,6 +3,10 @@ federation:
     local:
       controlPlane:
         namespace: "istio-system"
+      gateways:
+        dataPlane:
+          selector:
+            istio: eastwestgateway
   exportedServiceSet:
     rules:
     - type: LabelSelector
