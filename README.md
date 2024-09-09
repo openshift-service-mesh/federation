@@ -56,23 +56,29 @@ ADDRESSES PORT  MATCH                                                           
 3. protoc-gen-go v1.30.0
 4. protoc-get-golang-deepcopy
 
-#### Build project
+#### Useful commands
+
+1. Compile controller:
 ```shell
 make
 ```
-
-#### Run integration tests
+2. Run unit tests:
 ```shell
-./test/scripts/kind_provisioner.sh
-go test -tags=integ -run TestMeshFederation ./test/e2e \
-  --istio.test.kube.config=/home/jewertow/oss/federation/test/east.kubeconfig,/home/jewertow/oss/federation/test/west.kubeconfig\
-  --istio.test.onlyWorkloads=standard
+make test
 ```
-
-#### Run locally:
+3. Build image:
 ```shell
-./out/federation-controller \
-  --meshPeers '{"spec":{"remote":{"addresses": ["lb-1234567890.us-east-1.elb.amazonaws.com","192.168.10.56"],"ports":{"dataPlane":15443,"discoery":15020}}}}'\
-  --exportedServiceSet '{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}'\
-  --importedServiceSet '{"type":"LabelSelector","labelSelectors":[{"matchLabels":{"export-service":"true"}}]}'
+HUB=quay.io/jewertow TAG=test make docker
+```
+4. Run e2e tests:
+```shell
+make e2e
+```
+5. Run e2e tests with specific Istio version and custom controller image:
+```shell
+HUB=quay.io/jewertow TAG=test ISTIO_VERSION=1.23.0 make e2e
+```
+5. Re-run e2e tests without setting-up KinD clusters:
+```shell
+make e2e-test
 ```
