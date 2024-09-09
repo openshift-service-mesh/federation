@@ -1,0 +1,20 @@
+{{ if .Capabilities.APIVersions.Has "networking.istio.io/v1" }}
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: federation-ingress-gateway
+  namespace: {{ .Values.federation.meshPeers.local.controlPlane.namespace }}
+spec:
+  selector:
+  {{- range $key, $value := .Values.federation.meshPeers.local.gateways.discovery.selector }}
+    {{ $key }}: {{ $value }}
+  {{- end }}
+  servers:
+  - hosts: ["*"]
+    port:
+      number: {{ .Values.federation.meshPeers.local.gateways.discovery.port }}
+      name: istio-mtls
+      protocol: TLS
+    tls:
+      mode: ISTIO_MUTUAL
+{{ end }}

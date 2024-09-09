@@ -6,9 +6,16 @@ federation:
   meshPeers:
 #    # Local control plane namespace is used to determine where ServiceEntry for imported services
 #    # and Gateway for exported Services should be created in the local mesh.
-#    local:
-#      controlPlane:
-#        namespace: "istio-system"
+    local:
+      controlPlane:
+        namespace: istio-system
+      gateways:
+        dataPlane:
+          namespace: istio-system
+          port: 15443
+        discovery:
+          namespace: istio-system
+          port: 15080
 #    remote:
 #      dataPlane:
 #        addresses:
@@ -17,7 +24,7 @@ federation:
 #      discovery:
 #        addresses:
 #        - "192.168.0.2"
-#        port: 15020
+#        port: 15080
 #      # Unique network name ensures that importing and exporting the same services will not result
 #      # in routing requests to the cluster where the requests come from.
 #      network: west-network

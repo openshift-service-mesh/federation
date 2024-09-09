@@ -19,3 +19,6 @@ spec:
       multiCluster:
         clusterName: east-cluster
       network: east-network
+    pilot:
+      env:
+        ENABLE_NATIVE_SIDECARS: "true"

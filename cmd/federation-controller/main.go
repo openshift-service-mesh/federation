@@ -160,7 +160,7 @@ func main() {
 		}
 	}
 	federationServer := adss.NewServer(
-		&adss.ServerOpts{Port: 15020, ServerID: "fds"},
+		&adss.ServerOpts{Port: 15080, ServerID: "fds"},
 		fdsPushRequests,
 		triggerFDSPushOnNewSubscription,
 		fds.NewExportedServicesGenerator(*cfg, serviceLister),
@@ -174,7 +174,7 @@ func main() {
 	var onNewMCPSubscription func()
 	if len(cfg.MeshPeers.Remote.Discovery.Addresses) > 0 {
 		federationClient, err := adsc.New(&adsc.ADSCConfig{
-			DiscoveryAddr: fmt.Sprintf("%s:15020", cfg.MeshPeers.Remote.Discovery.Addresses[0]),
+			DiscoveryAddr: fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local:15080", cfg.MeshPeers.Local.ControlPlane.Namespace),
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},

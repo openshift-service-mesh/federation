@@ -97,30 +97,42 @@ kwest create secret generic cacerts -n istio-system \
   --from-file=cert-chain.pem=west/cert-chain.pem
 ```
 
-### Deploy federation controllers
-```shell
-helm-west -n istio-system install west-mesh chart --values examples/exporting-controller.yaml
-```
-```shell
-DISCOVERY_IP=$(kwest get svc federation-controller-lb -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-east install east-mesh chart -n istio-system \
-  --values examples/importing-controller.yaml \
-  --set "federation.meshPeers.remote.discovery.addresses[0]=$DISCOVERY_IP"
-```
+### Deploy control planes
 
-### Deploy Istio
+#### Exporting controller
+1. Deploy federation controller:
+```shell
+helm-west install -n istio-system west-mesh chart --values examples/exporting-controller.yaml
+```
+2. Deploy Istio control plane and gateway:
 ```shell
 istioctl --kubeconfig=west.kubeconfig install -f examples/exporting-mesh.yaml -y
-istioctl --kubeconfig=east.kubeconfig install -f examples/importing-mesh.yaml -y
+```
+3. Restart federation deployment to trigger injection:
+```shell
+kwest rollout restart deployment federation-controller -n istio-system
+```
+4. Upgrade federation controller release to apply Istio configs: (TODO: install istio/base charts first instead of this step)
+```shell
+helm-west upgrade -n istio-system west-mesh chart --values examples/exporting-controller.yaml
 ```
 
-### Configure east-west gateway address:
+#### Importing controller
 ```shell
-DATAPLANE_IP=$(kwest get svc istio-eastwestgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+helm-east install east-mesh chart -n istio-system --values examples/importing-controller.yaml
+```
+```shell
+istioctl --kubeconfig=east.kubeconfig install -f examples/importing-mesh.yaml -y
+```
+```shell
+keast rollout restart deployment federation-controller -n istio-system
+```
+```shell
+GATEWAY_IP=$(kwest get svc istio-eastwestgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-east upgrade east-mesh chart -n istio-system \
   --values examples/importing-controller.yaml \
-  --set "federation.meshPeers.remote.discovery.addresses[0]=$DISCOVERY_IP" \
-  --set "federation.meshPeers.remote.dataPlane.addresses[0]=$DATAPLANE_IP"
+  --set "federation.meshPeers.remote.discovery.addresses[0]=$GATEWAY_IP" \
+  --set "federation.meshPeers.remote.dataPlane.addresses[0]=$GATEWAY_IP"
 ```
 
 ### Import and export services

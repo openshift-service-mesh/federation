@@ -34,8 +34,8 @@ spec:
         service:
           ports:
           - name: discovery
-            port: 15020
-            targetPort: 15020
+            port: 15080
+            targetPort: 15080
           - name: data-plane
             port: 15443
             targetPort: 15443

@@ -1,0 +1,16 @@
+{{- if .Capabilities.APIVersions.Has "networking.istio.io/v1" }}
+{{- if and .Values.federation.meshPeers.remote .Values.federation.meshPeers.remote.discovery .Values.federation.meshPeers.remote.discovery.addresses }}
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: originate-istio-mtls-to-remote-federation-controller
+  namespace: {{ .Values.federation.meshPeers.local.controlPlane.namespace }}
+spec:
+  host: remote-federation-controller.{{ .Values.federation.meshPeers.local.controlPlane.namespace }}.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+      {{/* TODO: SNI must be configurable. */}}
+      sni: federation-controller.istio-system.svc.cluster.local
+{{- end }}
+{{- end }}

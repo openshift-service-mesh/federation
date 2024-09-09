@@ -1,10 +1,15 @@
+image:
+  tag: fds-istio-mtls
 federation:
   meshPeers:
     local:
       controlPlane:
-        namespace: "istio-system"
+        namespace: istio-system
       gateways:
         dataPlane:
+          selector:
+            istio: eastwestgateway
+        discovery:
           selector:
             istio: eastwestgateway
   exportedServiceSet:

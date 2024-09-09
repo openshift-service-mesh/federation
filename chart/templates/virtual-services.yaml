@@ -1,0 +1,20 @@
+{{ if .Capabilities.APIVersions.Has "networking.istio.io/v1" }}
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: federation-ingress-gateway-routing
+  namespace: {{ .Values.federation.meshPeers.local.controlPlane.namespace }}
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - federation-ingress-gateway
+  tcp:
+  - match:
+    - port: 15080
+    route:
+    - destination:
+        host: {{ include "chart.name" . }}.{{ .Release.Namespace }}.svc.cluster.local
+        port:
+          number: 15080
+{{ end }}

@@ -11,8 +11,12 @@ spec:
       {{- include "chart.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        traffic.sidecar.istio.io/includeInboundPorts: "*"
+        traffic.sidecar.istio.io/excludeInboundPorts: "15010"
       labels:
         {{- include "chart.labels" . | nindent 8 }}
+        sidecar.istio.io/inject: "true"
     spec:
       serviceAccountName: {{ include "chart.name" . }}
       containers:
@@ -26,4 +30,4 @@ spec:
         - name: grpc-mcp
           containerPort: 15010
         - name: grpc-fds
-          containerPort: 15020
+          containerPort: 15080
