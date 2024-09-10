@@ -1,22 +1,4 @@
-{{/* Kubernetes service is not part of the mesh, so federation-controller cannot connect if outbound traffic policy is REGISTRY_ONLY. */}}
 {{- if .Capabilities.APIVersions.Has "networking.istio.io/v1" }}
-apiVersion: networking.istio.io/v1
-kind: ServiceEntry
-metadata:
-  name: kubernetes
-  namespace: {{ .Values.federation.meshPeers.local.controlPlane.namespace }}
-spec:
-  hosts:
-  - kubernetes.default
-  - kubernetes.default.svc
-  - kubernetes.default.svc.cluster.local
-  location: MESH_EXTERNAL
-  ports:
-  - number: 443
-    name: https
-    protocol: TLS
-  resolution: DNS
----
 {{/* We need ServiceEntry for remote peer, because we can't originate mTLS without a hostname. */}}
 {{- if and .Values.federation.meshPeers.remote .Values.federation.meshPeers.remote.discovery .Values.federation.meshPeers.remote.discovery.addresses }}
 apiVersion: networking.istio.io/v1
