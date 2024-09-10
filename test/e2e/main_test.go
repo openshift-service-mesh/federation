@@ -23,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/env"
 )
 
 var (
@@ -34,6 +35,11 @@ var (
 
 	_, file, _, _ = runtime.Caller(0)
 	rootDir       = filepath.Join(filepath.Dir(file), "../..")
+
+	testHub = env.GetString("HUB", "quay.io/jewertow")
+	testTag = env.GetString("TAG", "latest")
+
+	istioVersion = env.GetString("ISTIO_VERSION", "1.22.1")
 )
 
 const (
@@ -143,7 +149,7 @@ func setCacertKeys(dir string, data map[string][]byte) error {
 func deployControlPlanes(ctx resource.Context) error {
 	for idx, c := range ctx.Clusters() {
 		clusterName := clusterNames[idx]
-		if err := c.Config().ApplyYAMLFiles("", fmt.Sprintf("%s/test/testdata/out/istio-%s-manifests.yaml", rootDir, clusterName)); err != nil {
+		if err := c.Config().ApplyYAMLFiles("", fmt.Sprintf("%s/test/testdata/manifests/%s/istio-%s.yaml", rootDir, istioVersion, clusterName)); err != nil {
 			return fmt.Errorf("failed to deploy istio control plane: %v", err)
 		}
 	}
@@ -155,7 +161,9 @@ func deployFederationControllers(ctx resource.Context) error {
 		helmInstallCmd := exec.Command("helm", "install", "-n", "istio-system",
 			fmt.Sprintf("%s-federation-controller", clusterNames[idx]),
 			fmt.Sprintf("%s/chart", rootDir),
-			fmt.Sprintf("--values=%s/examples/exporting-controller.yaml", rootDir))
+			fmt.Sprintf("--values=%s/examples/exporting-controller.yaml", rootDir),
+			"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
+			"--set", fmt.Sprintf("image.tag=%s", testTag))
 		helmInstallCmd.Env = os.Environ()
 		helmInstallCmd.Env = append(helmInstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
 		if err := helmInstallCmd.Run(); err != nil {
@@ -188,7 +196,9 @@ func patchFederationControllers(ctx resource.Context) error {
 			fmt.Sprintf("--values=%s/examples/exporting-controller.yaml", rootDir),
 			"--set", fmt.Sprintf("federation.meshPeers.remote.discovery.addresses[0]=%s", discoveryIP),
 			"--set", fmt.Sprintf("federation.meshPeers.remote.dataPlane.addresses[0]=%s", dataPlaneIP),
-			"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
+			"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName),
+			"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
+			"--set", fmt.Sprintf("image.tag=%s", testTag))
 		helmUpgradeCmd.Env = os.Environ()
 		helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
 		if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {

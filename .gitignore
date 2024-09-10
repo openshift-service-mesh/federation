@@ -5,3 +5,5 @@ common.mk
 east.kubeconfig
 west.kubeconfig
 test/testdata/out
+test/testdata/manifests/*/*-east.yaml
+test/testdata/manifests/*/*-west.yaml
