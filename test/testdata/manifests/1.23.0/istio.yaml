@@ -17593,11 +17593,11 @@ metadata:
   namespace: istio-system
 spec:
   ports:
-  - name: grpc-fds
+  - name: discovery
     port: 15020
     protocol: TCP
     targetPort: 15020
-  - name: tls-auto-passthrough
+  - name: data-plane
     port: 15443
     protocol: TCP
     targetPort: 15443

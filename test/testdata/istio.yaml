@@ -33,9 +33,9 @@ spec:
           value: clusterNamePlaceholder-network
         service:
           ports:
-          - name: grpc-fds
+          - name: discovery
             port: 15020
             targetPort: 15020
-          - name: tls-auto-passthrough
+          - name: data-plane
             port: 15443
             targetPort: 15443
