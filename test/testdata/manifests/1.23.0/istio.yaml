@@ -14359,7 +14359,7 @@ metadata:
     istio.io/rev: default
     operator.istio.io/component: IngressGateways
     release: istio
-    topology.istio.io/network: west-network
+    topology.istio.io/network: clusterNamePlaceholder-network
   name: istio-eastwestgateway-service-account
   namespace: istio-system
 
@@ -14834,7 +14834,7 @@ data:
     - address: xds://federation-controller.istio-system.svc.cluster.local:15010
     defaultConfig:
       discoveryAddress: istiod.istio-system.svc:15012
-      meshId: west-mesh
+      meshId: clusterNamePlaceholder-mesh
       proxyMetadata:
         ISTIO_META_DNS_AUTO_ALLOCATE: "true"
         ISTIO_META_DNS_CAPTURE: "true"
@@ -16736,15 +16736,15 @@ data:
         "logging": {
           "level": "default:info"
         },
-        "meshID": "west-mesh",
+        "meshID": "clusterNamePlaceholder-mesh",
         "meshNetworks": {},
         "mountMtlsCerts": false,
         "multiCluster": {
-          "clusterName": "west-cluster",
+          "clusterName": "clusterNamePlaceholder-cluster",
           "enabled": false
         },
         "namespace": "istio-system",
-        "network": "west-network",
+        "network": "clusterNamePlaceholder-network",
         "omitSidecarInjectorConfigMap": false,
         "operatorManageWebhooks": false,
         "pilotCertProvider": "istiod",
@@ -16996,7 +16996,7 @@ metadata:
     istio.io/rev: default
     operator.istio.io/component: IngressGateways
     release: istio
-    topology.istio.io/network: west-network
+    topology.istio.io/network: clusterNamePlaceholder-network
   name: istio-eastwestgateway
   namespace: istio-system
 spec:
@@ -17004,7 +17004,7 @@ spec:
     matchLabels:
       app: istio-eastwestgateway
       istio: eastwestgateway
-      topology.istio.io/network: west-network
+      topology.istio.io/network: clusterNamePlaceholder-network
   strategy:
     rollingUpdate:
       maxSurge: 100%
@@ -17029,7 +17029,7 @@ spec:
         service.istio.io/canonical-name: istio-eastwestgateway
         service.istio.io/canonical-revision: latest
         sidecar.istio.io/inject: "false"
-        topology.istio.io/network: west-network
+        topology.istio.io/network: clusterNamePlaceholder-network
     spec:
       affinity:
         nodeAffinity:
@@ -17046,7 +17046,7 @@ spec:
         - --log_output_level=default:info
         env:
         - name: ISTIO_META_REQUESTED_NETWORK_VIEW
-          value: west-network
+          value: clusterNamePlaceholder-network
         - name: PILOT_CERT_PROVIDER
           value: istiod
         - name: CA_ADDR
@@ -17089,7 +17089,7 @@ spec:
         - name: ISTIO_META_OWNER
           value: kubernetes://apis/apps/v1/namespaces/istio-system/deployments/istio-eastwestgateway
         - name: ISTIO_META_MESH_ID
-          value: west-mesh
+          value: clusterNamePlaceholder-mesh
         - name: TRUST_DOMAIN
           value: cluster.local
         - name: ISTIO_META_UNPRIVILEGED_POD
@@ -17099,9 +17099,9 @@ spec:
         - name: ISTIO_META_DNS_CAPTURE
           value: "true"
         - name: ISTIO_META_NETWORK
-          value: west-network
+          value: clusterNamePlaceholder-network
         - name: ISTIO_META_CLUSTER_ID
-          value: west-cluster
+          value: clusterNamePlaceholder-cluster
         - name: ISTIO_META_NODE_NAME
           valueFrom:
             fieldRef:
@@ -17288,7 +17288,7 @@ spec:
         - name: PILOT_ENABLE_ANALYSIS
           value: "false"
         - name: CLUSTER_ID
-          value: west-cluster
+          value: clusterNamePlaceholder-cluster
         - name: GOMEMLIMIT
           valueFrom:
             resourceFieldRef:
@@ -17388,7 +17388,7 @@ metadata:
     istio.io/rev: default
     operator.istio.io/component: IngressGateways
     release: istio
-    topology.istio.io/network: west-network
+    topology.istio.io/network: clusterNamePlaceholder-network
   name: istio-eastwestgateway
   namespace: istio-system
 spec:
@@ -17397,7 +17397,7 @@ spec:
     matchLabels:
       app: istio-eastwestgateway
       istio: eastwestgateway
-      topology.istio.io/network: west-network
+      topology.istio.io/network: clusterNamePlaceholder-network
 
 ---
 apiVersion: policy/v1
@@ -17531,7 +17531,7 @@ metadata:
     istio.io/rev: default
     operator.istio.io/component: IngressGateways
     release: istio
-    topology.istio.io/network: west-network
+    topology.istio.io/network: clusterNamePlaceholder-network
   name: istio-eastwestgateway
   namespace: istio-system
 spec:
@@ -17588,7 +17588,7 @@ metadata:
     istio.io/rev: default
     operator.istio.io/component: IngressGateways
     release: istio
-    topology.istio.io/network: west-network
+    topology.istio.io/network: clusterNamePlaceholder-network
   name: istio-eastwestgateway
   namespace: istio-system
 spec:
@@ -17604,7 +17604,7 @@ spec:
   selector:
     app: istio-eastwestgateway
     istio: eastwestgateway
-    topology.istio.io/network: west-network
+    topology.istio.io/network: clusterNamePlaceholder-network
   type: LoadBalancer
 
 ---

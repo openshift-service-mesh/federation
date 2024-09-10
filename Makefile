@@ -27,7 +27,7 @@ gen-istio-manifests:
 	bash test/scripts/generate_istio_manifests.sh $(ISTIO_VERSION)
 
 kind-clusters:
-	bash test/scripts/kind_provisioner.sh
+	bash test/scripts/kind_provisioner.sh $(ISTIO_VERSION)
 
 e2e-test:
 	go test -tags=integ -run TestTraffic ./test/e2e \

@@ -15,11 +15,6 @@ fi
 curl -L https://istio.io/downloadIstio | ISTIO_VERSION="$istio_version" sh -
 chmod u+x $ROOT/istio-$istio_version/bin/istioctl
 
-for region in east west
-do
-  mkdir -p "$ROOT/test/testdata/manifests/$istio_version"
-  sed "s/{{.clusterName}}/$region/g" "$ROOT/test/testdata/istio.yaml" > "$ROOT/test/testdata/manifests/$istio_version/istio-operator-$region.yaml"
-  $ROOT/istio-$istio_version/bin/istioctl manifest generate -f "$ROOT/test/testdata/manifests/$istio_version/istio-operator-$region.yaml" > "$ROOT/test/testdata/manifests/$istio_version/istio-$region.yaml"
-  rm "$ROOT/test/testdata/manifests/$istio_version/istio-operator-$region.yaml"
-done
+mkdir -p "$ROOT/test/testdata/manifests/$istio_version"
+$ROOT/istio-$istio_version/bin/istioctl manifest generate -f "$ROOT/test/testdata/istio.yaml" > "$ROOT/test/testdata/manifests/$istio_version/istio.yaml"
 rm -rf $ROOT/istio-$istio_version

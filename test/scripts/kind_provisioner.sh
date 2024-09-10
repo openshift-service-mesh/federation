@@ -11,6 +11,8 @@ WD=$(dirname "$0")
 WD=$(cd "$WD"; pwd)
 ROOT=$(dirname "$WD")
 
+istio_version=$1
+
 source "$ROOT/scripts/lib.sh"
 
 kind create cluster --name east --config=<<EOF
@@ -34,3 +36,8 @@ kind get kubeconfig --name east > $ROOT/east.kubeconfig
 
 install_metallb_retry west
 install_metallb_retry east
+
+for region in east west
+do
+  sed "s/clusterNamePlaceholder/$region/g" "$ROOT/testdata/manifests/$istio_version/istio.yaml" > "$ROOT/testdata/manifests/$istio_version/istio-$region.yaml"
+done
