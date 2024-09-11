@@ -1,4 +1,9 @@
 out
+
+# IDE configs
+.idea/
+.vscode/
+
 # demo output
 Makefile.selfsigned.mk
 common.mk
