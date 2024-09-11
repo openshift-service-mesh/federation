@@ -1,6 +1,7 @@
 OUT := $(shell pwd)
 
-.PHONY: build test
+.PHONY: default
+default: build test
 
 export TAG ?= latest
 export HUB ?= quay.io/jewertow
