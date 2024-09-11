@@ -13,7 +13,7 @@ build:
 	go build -C cmd/federation-controller -o "${OUT}/out/"
 
 .PHONY: test
-test:
+test: build
 	go test ./...
 
 .PHONY: docker
