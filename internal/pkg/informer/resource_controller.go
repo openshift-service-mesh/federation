@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -38,7 +37,6 @@ type Event struct {
 
 // Controller object
 type Controller struct {
-	clientset           kubernetes.Interface
 	queue               workqueue.RateLimitingInterface
 	informer            cache.SharedIndexInformer
 	handlerRegistration cache.ResourceEventHandlerRegistration
@@ -50,7 +48,7 @@ func objName(obj interface{}) string {
 	return reflect.TypeOf(obj).Name()
 }
 
-func NewResourceController(client kubernetes.Interface, informer cache.SharedIndexInformer, resourceType interface{}, eventHandlers []Handler) (*Controller, error) {
+func NewResourceController(informer cache.SharedIndexInformer, resourceType interface{}, eventHandlers ...Handler) (*Controller, error) {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 	var newEvent Event
 	var err error
@@ -93,7 +91,6 @@ func NewResourceController(client kubernetes.Interface, informer cache.SharedInd
 	}
 
 	return &Controller{
-		clientset:           client,
 		informer:            informer,
 		handlerRegistration: handlerRegistration,
 		queue:               queue,
@@ -136,14 +133,6 @@ func (c *Controller) HasSynced() bool {
 // LastSyncResourceVersion is required for the cache.Controller interface.
 func (c *Controller) LastSyncResourceVersion() string {
 	return c.informer.LastSyncResourceVersion()
-}
-
-func (c *Controller) Client() kubernetes.Interface {
-	return c.clientset
-}
-
-func (c *Controller) ServiceInformer() cache.SharedIndexInformer {
-	return c.informer
 }
 
 func (c *Controller) runWorker() {

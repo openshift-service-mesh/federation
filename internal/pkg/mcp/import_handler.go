@@ -1,8 +1,8 @@
 package mcp
 
 import (
-	"context"
 	"fmt"
+
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/xds"
@@ -12,28 +12,24 @@ import (
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	istioconfig "istio.io/istio/pkg/config"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	corev1 "k8s.io/client-go/listers/core/v1"
 )
 
 var (
 	_ adsc.ResponseHandler = (*ImportedServiceHandler)(nil)
-
-	httpProtocols = []string{"HTTP", "HTTP2", "HTTP_PROXY", "GRPC", "GRPC-Web"}
-	tlsProtocols  = []string{"HTTPS", "TLS"}
 )
 
 type ImportedServiceHandler struct {
-	cfg          *config.Federation
-	kubeClient   kubernetes.Interface
-	pushRequests chan<- xds.PushRequest
+	cfg           *config.Federation
+	serviceLister corev1.ServiceLister
+	pushRequests  chan<- xds.PushRequest
 }
 
-func NewImportedServiceHandler(cfg *config.Federation, kubeClient kubernetes.Interface, pushRequests chan<- xds.PushRequest) *ImportedServiceHandler {
+func NewImportedServiceHandler(cfg *config.Federation, serviceLister corev1.ServiceLister, pushRequests chan<- xds.PushRequest) *ImportedServiceHandler {
 	return &ImportedServiceHandler{
-		cfg:          cfg,
-		kubeClient:   kubeClient,
-		pushRequests: pushRequests,
+		cfg:           cfg,
+		serviceLister: serviceLister,
+		pushRequests:  pushRequests,
 	}
 }
 
@@ -57,7 +53,7 @@ func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
 		// enable Istio mTLS
 		importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
 
-		_, err := h.kubeClient.CoreV1().Services(importedSvc.Namespace).Get(context.TODO(), importedSvc.Name, v1.GetOptions{})
+		_, err := h.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)

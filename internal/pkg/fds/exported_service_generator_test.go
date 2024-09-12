@@ -132,7 +132,7 @@ func TestNewExportedServicesGenerator(t *testing.T) {
 				}
 			}
 
-			serviceController, err := informer.NewResourceController(client, serviceInformer, corev1.Service{}, []informer.Handler{})
+			serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{})
 			if err != nil {
 				t.Fatalf("error creating serviceController: %v", err)
 			}

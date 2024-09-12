@@ -242,6 +242,7 @@ func TestHandle(t *testing.T) {
 			client := fake.NewSimpleClientset()
 			informerFactory := informers.NewSharedInformerFactory(client, 0)
 			serviceInformer := informerFactory.Core().V1().Services().Informer()
+			serviceLister := informerFactory.Core().V1().Services().Lister()
 
 			for _, svc := range tc.existingServices {
 				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.TODO(), svc, v1.CreateOptions{}); err != nil {
@@ -249,7 +250,7 @@ func TestHandle(t *testing.T) {
 				}
 			}
 
-			serviceController, err := informer.NewResourceController(client, serviceInformer, corev1.Service{}, []informer.Handler{})
+			serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{})
 			if err != nil {
 				t.Fatalf("error creating serviceController: %v", err)
 			}
@@ -260,7 +261,7 @@ func TestHandle(t *testing.T) {
 			informersInitGroup.Wait()
 
 			mcpPushRequests := make(chan xds.PushRequest)
-			handler := NewImportedServiceHandler(&defaultConfig, serviceController.Client(), mcpPushRequests)
+			handler := NewImportedServiceHandler(&defaultConfig, serviceLister, mcpPushRequests)
 
 			// Handle must be called in a goroutine, because mcpPushRequests is an unbuffered channel,
 			// so it's blocked until another goroutine reads from the channel

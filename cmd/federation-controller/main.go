@@ -100,23 +100,14 @@ func parse() (*config.Federation, error) {
 }
 
 // Start all k8s controllers and wait for informers to be synchronized
-func startControllers(
-	ctx context.Context, client kubernetes.Interface, cfg *config.Federation,
-	informerFactory informers.SharedInformerFactory, fdsPushRequests, mcpPushRequests chan<- xds.PushRequest,
-) *informer.Controller {
+func startControllers(ctx context.Context, controllers ...*informer.Controller) {
 	var informersInitGroup sync.WaitGroup
-	informersInitGroup.Add(1)
-	serviceInformer := informerFactory.Core().V1().Services().Informer()
-	serviceController, err := informer.NewResourceController(client, serviceInformer, corev1.Service{},
-		[]informer.Handler{informer.NewServiceExportEventHandler(*cfg, fdsPushRequests, mcpPushRequests)})
-	if err != nil {
-		log.Fatalf("Error while creating service informer: %v", err)
+	for _, controller := range controllers {
+		informersInitGroup.Add(1)
+		go controller.Run(ctx.Done(), &informersInitGroup)
 	}
-	go serviceController.Run(ctx.Done(), &informersInitGroup)
-
 	informersInitGroup.Wait()
 	log.Info("All controllers have been synchronized")
-	return serviceController
 }
 
 func main() {
@@ -153,7 +144,15 @@ func main() {
 	mcpPushRequests := make(chan xds.PushRequest)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	serviceController := startControllers(ctx, clientset, cfg, informerFactory, fdsPushRequests, mcpPushRequests)
+	serviceInformer := informerFactory.Core().V1().Services().Informer()
+	serviceLister := informerFactory.Core().V1().Services().Lister()
+
+	serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{},
+		informer.NewServiceExportEventHandler(*cfg, fdsPushRequests, mcpPushRequests))
+	if err != nil {
+		log.Fatalf("failed to create service informer: %v", err)
+	}
+	startControllers(context.Background(), serviceController)
 
 	triggerFDSPushOnNewSubscription := func() {
 		fdsPushRequests <- xds.PushRequest{
@@ -164,7 +163,7 @@ func main() {
 		&adss.ServerOpts{Port: 15020, ServerID: "fds"},
 		fdsPushRequests,
 		triggerFDSPushOnNewSubscription,
-		fds.NewExportedServicesGenerator(*cfg, serviceController.ServiceInformer()),
+		fds.NewExportedServicesGenerator(*cfg, serviceInformer),
 	)
 	go func() {
 		if err := federationServer.Run(ctx); err != nil {
@@ -180,7 +179,7 @@ func main() {
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
 			Handlers: map[string]adsc.ResponseHandler{
-				xds.ExportedServiceTypeUrl: mcp.NewImportedServiceHandler(cfg, serviceController.Client(), mcpPushRequests),
+				xds.ExportedServiceTypeUrl: mcp.NewImportedServiceHandler(cfg, serviceLister, mcpPushRequests),
 			},
 		})
 		if err != nil {
@@ -199,7 +198,7 @@ func main() {
 		&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
 		mcpPushRequests,
 		onNewMCPSubscription,
-		mcp.NewGatewayResourceGenerator(*cfg, serviceController.ServiceInformer()),
+		mcp.NewGatewayResourceGenerator(*cfg, serviceLister),
 	)
 	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatalf("Error running XDS server: %v", err)
