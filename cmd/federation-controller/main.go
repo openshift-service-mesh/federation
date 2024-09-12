@@ -19,6 +19,7 @@ import (
 	"github.com/jewertow/federation/internal/pkg/xds/adsc"
 	"github.com/jewertow/federation/internal/pkg/xds/adss"
 	"github.com/spf13/cobra"
+	"istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
@@ -139,6 +140,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create Kubernetes clientset: %v", err.Error())
 	}
+	istioClient, err := kube.NewClient(kube.NewClientConfigForRestConfig(kubeConfig), "")
+	if err != nil {
+		log.Fatalf("failed to create Istio client: %v", err.Error())
+	}
 
 	fdsPushRequests := make(chan xds.PushRequest)
 	mcpPushRequests := make(chan xds.PushRequest)
@@ -147,8 +152,9 @@ func main() {
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
 	serviceLister := informerFactory.Core().V1().Services().Lister()
 
+	gatewayUpdater := controller.NewGatewayUpdater(*cfg, istioClient, serviceLister)
 	serviceController, err := controller.NewResourceController(serviceInformer, corev1.Service{},
-		controller.NewServiceExportEventHandler(*cfg, fdsPushRequests, mcpPushRequests))
+		controller.NewServiceExportEventHandler(*cfg, gatewayUpdater, fdsPushRequests))
 	if err != nil {
 		log.Fatalf("failed to create service informer: %v", err)
 	}
