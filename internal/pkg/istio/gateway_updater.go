@@ -1,4 +1,4 @@
-package controller
+package istio
 
 import (
 	"context"

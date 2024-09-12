@@ -14,6 +14,7 @@ import (
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/controller"
 	"github.com/jewertow/federation/internal/pkg/fds"
+	"github.com/jewertow/federation/internal/pkg/istio"
 	"github.com/jewertow/federation/internal/pkg/mcp"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adsc"
@@ -152,7 +153,7 @@ func main() {
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
 	serviceLister := informerFactory.Core().V1().Services().Lister()
 
-	gatewayUpdater := controller.NewGatewayUpdater(*cfg, istioClient, serviceLister)
+	gatewayUpdater := istio.NewGatewayUpdater(*cfg, istioClient, serviceLister)
 	serviceController, err := controller.NewResourceController(serviceInformer, corev1.Service{},
 		controller.NewServiceExportEventHandler(*cfg, gatewayUpdater, fdsPushRequests))
 	if err != nil {

@@ -3,6 +3,7 @@ package controller
 import (
 	"github.com/jewertow/federation/internal/pkg/common"
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/istio"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -13,13 +14,13 @@ var _ Handler = (*ServiceExportEventHandler)(nil)
 // ServiceExportEventHandler processes Service events and triggers proper FDS/MCP pushes if an event matches export rules.
 type ServiceExportEventHandler struct {
 	cfg             config.Federation
-	gatewayUpdater  *GatewayUpdater
+	gatewayUpdater  *istio.GatewayUpdater
 	fdsPushRequests chan<- xds.PushRequest
 }
 
 func NewServiceExportEventHandler(
 	cfg config.Federation,
-	gatewayUpdater *GatewayUpdater,
+	gatewayUpdater *istio.GatewayUpdater,
 	fdsPushRequests chan<- xds.PushRequest,
 ) *ServiceExportEventHandler {
 	return &ServiceExportEventHandler{
