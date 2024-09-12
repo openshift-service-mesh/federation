@@ -108,6 +108,7 @@ func TestGatewayGenerator(t *testing.T) {
 			client := fake.NewSimpleClientset()
 			informerFactory := informers.NewSharedInformerFactory(client, 0)
 			serviceInformer := informerFactory.Core().V1().Services().Informer()
+			serviceLister := informerFactory.Core().V1().Services().Lister()
 
 			for _, svc := range tc.existingServices {
 				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.TODO(), svc, v1.CreateOptions{}); err != nil {
@@ -115,7 +116,7 @@ func TestGatewayGenerator(t *testing.T) {
 				}
 			}
 
-			serviceController, err := informer.NewResourceController(client, serviceInformer, corev1.Service{}, []informer.Handler{})
+			serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{})
 			if err != nil {
 				t.Fatalf("error creating serviceController: %v", err)
 			}
@@ -125,7 +126,7 @@ func TestGatewayGenerator(t *testing.T) {
 			go serviceController.Run(stopCh, &informersInitGroup)
 			informersInitGroup.Wait()
 
-			generator := NewGatewayResourceGenerator(federationConfig, serviceInformer)
+			generator := NewGatewayResourceGenerator(federationConfig, serviceLister)
 
 			resources, err := generator.GenerateResponse()
 			if err != nil {

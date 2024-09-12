@@ -4,29 +4,28 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/jewertow/federation/internal/pkg/common"
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adss"
 	"google.golang.org/protobuf/types/known/anypb"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	istiocfg "istio.io/istio/pkg/config"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/cache"
+	"k8s.io/apimachinery/pkg/labels"
+	v1 "k8s.io/client-go/listers/core/v1"
 )
 
 var _ adss.RequestHandler = (*GatewayResourceGenerator)(nil)
 
 // GatewayResourceGenerator generates Istio Gateway for all Services matching export rules.
 type GatewayResourceGenerator struct {
-	cfg             config.Federation
-	serviceInformer cache.SharedIndexInformer
+	cfg           config.Federation
+	serviceLister v1.ServiceLister
 }
 
-func NewGatewayResourceGenerator(cfg config.Federation, serviceInformer cache.SharedIndexInformer) *GatewayResourceGenerator {
+func NewGatewayResourceGenerator(cfg config.Federation, serviceLister v1.ServiceLister) *GatewayResourceGenerator {
 	return &GatewayResourceGenerator{
-		cfg:             cfg,
-		serviceInformer: serviceInformer,
+		cfg:           cfg,
+		serviceLister: serviceLister,
 	}
 }
 
@@ -36,16 +35,20 @@ func (g *GatewayResourceGenerator) GetTypeUrl() string {
 
 func (g *GatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
 	var hosts []string
-	for _, obj := range g.serviceInformer.GetStore().List() {
-		svc := obj.(*corev1.Service)
-		if common.MatchExportRules(svc, g.cfg.ExportedServiceSet.GetLabelSelectors()) {
+	for _, exportLabelSelector := range g.cfg.ExportedServiceSet.GetLabelSelectors() {
+		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
+		services, err := g.serviceLister.List(matchLabels)
+		if err != nil {
+			return nil, fmt.Errorf("error listing services (selector=%s): %v", matchLabels, err)
+		}
+		for _, svc := range services {
 			hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace))
 		}
 	}
 	if len(hosts) == 0 {
 		return nil, nil
 	}
-	// ServiceInformer.GetStore.List is not idempotent, so to avoid redundant XDS push from Istio to proxies,
+	// ServiceLister.List is not idempotent, so to avoid redundant XDS push from Istio to proxies,
 	// we must return hostnames in the same order.
 	sort.Strings(hosts)
 
