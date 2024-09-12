@@ -178,11 +178,11 @@ func patchFederationControllers(ctx resource.Context) error {
 		var dataPlaneIP string
 		var discoveryIP string
 		var remoteClusterName string
-		for _, remoteCluster := range ctx.Clusters() {
+		for idx, remoteCluster := range ctx.Clusters() {
 			if localCluster.Name() == remoteCluster.Name() {
 				continue
 			}
-			remoteClusterName = remoteCluster.Name()
+			remoteClusterName = clusterNames[idx]
 			var err error
 			dataPlaneIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
 			discoveryIP, err = findLoadBalancerIP(remoteCluster, "federation-controller-lb", "istio-system")
@@ -204,7 +204,6 @@ func patchFederationControllers(ctx resource.Context) error {
 		if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("failed to upgrade federation controller: %v, %v", string(out), err)
 		}
-		return nil
 	}
 	return nil
 }
