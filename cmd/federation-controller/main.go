@@ -15,7 +15,6 @@ import (
 	"github.com/jewertow/federation/internal/pkg/controller"
 	"github.com/jewertow/federation/internal/pkg/fds"
 	"github.com/jewertow/federation/internal/pkg/istio"
-	"github.com/jewertow/federation/internal/pkg/mcp"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adsc"
 	"github.com/jewertow/federation/internal/pkg/xds/adss"
@@ -147,7 +146,6 @@ func main() {
 	}
 
 	fdsPushRequests := make(chan xds.PushRequest)
-	mcpPushRequests := make(chan xds.PushRequest)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
@@ -161,24 +159,6 @@ func main() {
 	}
 	startControllers(context.Background(), serviceController)
 
-	triggerFDSPushOnNewSubscription := func() {
-		fdsPushRequests <- xds.PushRequest{
-			TypeUrl: xds.ExportedServiceTypeUrl,
-		}
-	}
-	federationServer := adss.NewServer(
-		&adss.ServerOpts{Port: 15020, ServerID: "fds"},
-		fdsPushRequests,
-		triggerFDSPushOnNewSubscription,
-		fds.NewExportedServicesGenerator(*cfg, serviceInformer),
-	)
-	go func() {
-		if err := federationServer.Run(ctx); err != nil {
-			log.Fatalf("failed to start FDS server: %v", err)
-		}
-	}()
-
-	var onNewMCPSubscription func()
 	if len(cfg.MeshPeers.Remote.Discovery.Addresses) > 0 {
 		federationClient, err := adsc.New(&adsc.ADSCConfig{
 			DiscoveryAddr: fmt.Sprintf("%s:15020", cfg.MeshPeers.Remote.Discovery.Addresses[0]),
@@ -186,29 +166,34 @@ func main() {
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
 			Handlers: map[string]adsc.ResponseHandler{
-				xds.ExportedServiceTypeUrl: mcp.NewImportedServiceHandler(cfg, serviceLister, mcpPushRequests),
+				xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(
+					istio.NewServiceEntryUpdater(*cfg, istioClient, serviceLister),
+				),
 			},
 		})
 		if err != nil {
 			log.Fatalf("failed to creates FDS client: %v", err)
 		}
-		onNewMCPSubscription = func() {
-			go func() {
-				if err := federationClient.Run(); err != nil {
-					log.Fatalf("failed to start FDS client: %v", err)
-				}
-			}()
-		}
+		go func() {
+			if err := federationClient.Run(); err != nil {
+				log.Fatalf("failed to start FDS client: %v", err)
+			}
+		}()
 	}
 
-	mcpServer := adss.NewServer(
-		&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
-		mcpPushRequests,
-		onNewMCPSubscription,
-		mcp.NewGatewayResourceGenerator(*cfg, serviceLister),
+	//triggerFDSPushOnNewSubscription := func() {
+	//	fdsPushRequests <- xds.PushRequest{
+	//		TypeUrl: xds.ExportedServiceTypeUrl,
+	//	}
+	//}
+	federationServer := adss.NewServer(
+		&adss.ServerOpts{Port: 15020, ServerID: "fds"},
+		fdsPushRequests,
+		nil,
+		fds.NewExportedServicesGenerator(*cfg, serviceInformer),
 	)
-	if err := mcpServer.Run(ctx); err != nil {
-		log.Fatalf("Error running XDS server: %v", err)
+	if err := federationServer.Run(ctx); err != nil {
+		log.Fatalf("failed to start FDS server: %v", err)
 	}
 
 	os.Exit(0)

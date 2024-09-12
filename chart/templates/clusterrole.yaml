@@ -7,5 +7,5 @@ rules:
   resources: ["services"]
   verbs: ["get", "watch", "list"]
 - apiGroups: ["networking.istio.io"]
-  resources: ["gateways"]
-  verbs: ["create", "update"]
+  resources: ["gateways", "serviceentries", "workloadentries"]
+  verbs: ["get", "create", "update"]

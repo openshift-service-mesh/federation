@@ -69,12 +69,23 @@ func (g *GatewayUpdater) Update() error {
 		},
 	}
 
-	_, err := g.client.Istio().NetworkingV1alpha3().Gateways(gateway.Namespace).Update(context.Background(), &gateway, metav1.UpdateOptions{})
+	// TODO: replace with GatewayLister
+	currentGateway, err := g.client.Istio().NetworkingV1alpha3().Gateways(gateway.Namespace).
+		Get(context.Background(), "federation-ingress-gateway", metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			_, err := g.client.Istio().NetworkingV1alpha3().Gateways(gateway.Namespace).Create(context.Background(), &gateway, metav1.CreateOptions{})
-			return err
+			if err != nil {
+				return fmt.Errorf("error creating gateway: %v", err)
+			}
+			return nil
 		}
+		return fmt.Errorf("error getting gateway %s/federation-ingress-gateway: %v", gateway.Namespace, err)
+	}
+
+	gateway.SetResourceVersion(currentGateway.GetResourceVersion())
+	_, err = g.client.Istio().NetworkingV1alpha3().Gateways(gateway.Namespace).Update(context.Background(), &gateway, metav1.UpdateOptions{})
+	if err != nil {
 		return fmt.Errorf("error updating gateway: %v", err)
 	}
 	return nil

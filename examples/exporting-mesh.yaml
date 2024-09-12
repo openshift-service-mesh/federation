@@ -8,9 +8,6 @@ spec:
       proxyMetadata:
         ISTIO_META_DNS_CAPTURE: "true"
         ISTIO_META_DNS_AUTO_ALLOCATE: "true"
-    configSources:
-    - address: k8s://
-    - address: xds://federation-controller.istio-system.svc.cluster.local:15010
     outboundTrafficPolicy:
       mode: REGISTRY_ONLY
   values:

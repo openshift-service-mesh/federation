@@ -1,8 +1,11 @@
+image:
+  tag: create-istio-resources-in-k8s
+
 federation:
   meshPeers:
     local:
       controlPlane:
-        namespace: "istio-system"
+        namespace: istio-system
       gateways:
         dataPlane:
           selector:
