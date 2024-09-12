@@ -1,4 +1,4 @@
-package informer
+package controller
 
 import (
 	"github.com/jewertow/federation/internal/pkg/common"

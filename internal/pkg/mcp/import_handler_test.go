@@ -10,7 +10,7 @@ import (
 
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/informer"
+	"github.com/jewertow/federation/internal/pkg/controller"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"golang.org/x/net/context"
 	"google.golang.org/protobuf/proto"
@@ -250,7 +250,7 @@ func TestHandle(t *testing.T) {
 				}
 			}
 
-			serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{})
+			serviceController, err := controller.NewResourceController(serviceInformer, corev1.Service{})
 			if err != nil {
 				t.Fatalf("error creating serviceController: %v", err)
 			}

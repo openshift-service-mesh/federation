@@ -12,8 +12,8 @@ import (
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/controller"
 	"github.com/jewertow/federation/internal/pkg/fds"
-	"github.com/jewertow/federation/internal/pkg/informer"
 	"github.com/jewertow/federation/internal/pkg/mcp"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adsc"
@@ -100,7 +100,7 @@ func parse() (*config.Federation, error) {
 }
 
 // Start all k8s controllers and wait for informers to be synchronized
-func startControllers(ctx context.Context, controllers ...*informer.Controller) {
+func startControllers(ctx context.Context, controllers ...*controller.Controller) {
 	var informersInitGroup sync.WaitGroup
 	for _, controller := range controllers {
 		informersInitGroup.Add(1)
@@ -147,8 +147,8 @@ func main() {
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
 	serviceLister := informerFactory.Core().V1().Services().Lister()
 
-	serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{},
-		informer.NewServiceExportEventHandler(*cfg, fdsPushRequests, mcpPushRequests))
+	serviceController, err := controller.NewResourceController(serviceInformer, corev1.Service{},
+		controller.NewServiceExportEventHandler(*cfg, fdsPushRequests, mcpPushRequests))
 	if err != nil {
 		log.Fatalf("failed to create service informer: %v", err)
 	}

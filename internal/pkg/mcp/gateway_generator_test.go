@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/informer"
+	"github.com/jewertow/federation/internal/pkg/controller"
 	"golang.org/x/net/context"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	istiocfg "istio.io/istio/pkg/config"
@@ -116,7 +116,7 @@ func TestGatewayGenerator(t *testing.T) {
 				}
 			}
 
-			serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{})
+			serviceController, err := controller.NewResourceController(serviceInformer, corev1.Service{})
 			if err != nil {
 				t.Fatalf("error creating serviceController: %v", err)
 			}
