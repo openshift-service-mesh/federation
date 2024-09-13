@@ -4,7 +4,7 @@ federation:
       controlPlane:
         namespace: "istio-system"
       gateways:
-        dataPlane:
+        ingress:
           selector:
             istio: eastwestgateway
   exportedServiceSet:

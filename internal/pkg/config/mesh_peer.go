@@ -21,10 +21,10 @@ type ControlPlane struct {
 }
 
 type Gateways struct {
-	DataPlane *LocalDataPlaneGateway `yaml:"dataPlane"`
+	Ingress *LocalGateway `yaml:"ingress"`
 }
 
-type LocalDataPlaneGateway struct {
+type LocalGateway struct {
 	Namespace string            `yaml:"namespace"`
 	Port      uint32            `yaml:"port"`
 	Selector  map[string]string `yaml:"selector"`

@@ -13,6 +13,7 @@ import (
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/fds"
 	"github.com/jewertow/federation/internal/pkg/informer"
+	"github.com/jewertow/federation/internal/pkg/istio"
 	"github.com/jewertow/federation/internal/pkg/mcp"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adsc"
@@ -141,6 +142,8 @@ func main() {
 	}
 	serviceController.RunAndWait(ctx.Done())
 
+	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister)
+
 	triggerFDSPushOnNewSubscription := func() {
 		fdsPushRequests <- xds.PushRequest{
 			TypeUrl: xds.ExportedServiceTypeUrl,
@@ -185,7 +188,7 @@ func main() {
 		&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
 		mcpPushRequests,
 		onNewMCPSubscription,
-		mcp.NewGatewayResourceGenerator(*cfg, serviceLister),
+		mcp.NewGatewayResourceGenerator(istioConfigFactory),
 	)
 	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatalf("Error running XDS server: %v", err)

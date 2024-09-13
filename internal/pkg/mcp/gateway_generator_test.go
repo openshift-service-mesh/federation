@@ -4,8 +4,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/informer"
 	"golang.org/x/net/context"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	istiocfg "istio.io/istio/pkg/config"
@@ -13,6 +11,10 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/informer"
+	"github.com/jewertow/federation/internal/pkg/istio"
 )
 
 var (
@@ -23,7 +25,7 @@ var (
 					Namespace: "istio-system",
 				},
 				Gateways: &config.Gateways{
-					DataPlane: &config.LocalDataPlaneGateway{
+					Ingress: &config.LocalGateway{
 						Namespace: "federation-system",
 						Port:      16443,
 						Selector:  map[string]string{"app": "federation-ingress-gateway"},
@@ -80,7 +82,7 @@ func TestGatewayGenerator(t *testing.T) {
 		}},
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
-				Name:      "mcp-federation-ingress-gateway",
+				Name:      "federation-ingress-gateway",
 				Namespace: "federation-system",
 			},
 			Spec: &istionetv1alpha3.Gateway{
@@ -101,6 +103,15 @@ func TestGatewayGenerator(t *testing.T) {
 				}},
 			},
 		}},
+	}, {
+		name: "no gateway expected if none service matches configured label selector",
+		existingServices: []*corev1.Service{{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      "a",
+				Namespace: "ns1",
+			},
+		}},
+		expectedIstioConfigs: []*istiocfg.Config{},
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -123,7 +134,7 @@ func TestGatewayGenerator(t *testing.T) {
 			}
 			serviceController.RunAndWait(stopCh)
 
-			generator := NewGatewayResourceGenerator(federationConfig, serviceLister)
+			generator := NewGatewayResourceGenerator(istio.NewConfigFactory(federationConfig, serviceLister))
 
 			resources, err := generator.GenerateResponse()
 			if err != nil {
