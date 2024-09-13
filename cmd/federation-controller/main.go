@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
@@ -99,33 +98,20 @@ func parse() (*config.Federation, error) {
 	}, nil
 }
 
-// Start all k8s controllers and wait for informers to be synchronized
-func startControllers(ctx context.Context, controllers ...*informer.Controller) {
-	var informersInitGroup sync.WaitGroup
-	for _, controller := range controllers {
-		informersInitGroup.Add(1)
-		go controller.Run(ctx.Done(), &informersInitGroup)
-	}
-	informersInitGroup.Wait()
-	log.Info("All controllers have been synchronized")
-}
-
 func main() {
 	rootCmd := NewRootCommand()
 	if err := rootCmd.Execute(); err != nil {
-		log.Error(err)
-		os.Exit(1)
+		log.Fatalf("failed to execute root command: %v", err)
 	}
 
 	cfg, err := parse()
 	if err != nil {
-		log.Error(err)
-		os.Exit(1)
+		log.Fatalf("failed to parse configuration passed to the program arguments: %v", err)
 	}
 	log.Infof("Configuration: %v", cfg)
 
 	if err := istiolog.Configure(loggingOptions); err != nil {
-		log.Errorf("failed to configure logging options: %v", err)
+		log.Fatalf("failed to configure logging options: %v", err)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -146,13 +132,14 @@ func main() {
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
 	serviceLister := informerFactory.Core().V1().Services().Lister()
+	informerFactory.Start(ctx.Done())
 
 	serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{},
 		informer.NewServiceExportEventHandler(*cfg, fdsPushRequests, mcpPushRequests))
 	if err != nil {
 		log.Fatalf("failed to create service informer: %v", err)
 	}
-	startControllers(context.Background(), serviceController)
+	serviceController.RunAndWait(ctx.Done())
 
 	triggerFDSPushOnNewSubscription := func() {
 		fdsPushRequests <- xds.PushRequest{
