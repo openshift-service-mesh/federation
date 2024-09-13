@@ -5,27 +5,26 @@ import (
 	"strings"
 
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
-	"github.com/jewertow/federation/internal/pkg/common"
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"github.com/jewertow/federation/internal/pkg/xds/adss"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/cache"
+	"k8s.io/apimachinery/pkg/labels"
+	v1 "k8s.io/client-go/listers/core/v1"
 )
 
 var _ adss.RequestHandler = (*ExportedServicesGenerator)(nil)
 
 type ExportedServicesGenerator struct {
-	cfg             config.Federation
-	serviceInformer cache.SharedIndexInformer
+	cfg           config.Federation
+	serviceLister v1.ServiceLister
 }
 
-func NewExportedServicesGenerator(cfg config.Federation, serviceInformer cache.SharedIndexInformer) *ExportedServicesGenerator {
+func NewExportedServicesGenerator(cfg config.Federation, serviceLister v1.ServiceLister) *ExportedServicesGenerator {
 	return &ExportedServicesGenerator{
-		cfg:             cfg,
-		serviceInformer: serviceInformer,
+		cfg:           cfg,
+		serviceLister: serviceLister,
 	}
 }
 
@@ -35,30 +34,33 @@ func (g *ExportedServicesGenerator) GetTypeUrl() string {
 
 func (g *ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 	var exportedServices []*v1alpha1.ExportedService
-	for _, obj := range g.serviceInformer.GetStore().List() {
-		svc := obj.(*corev1.Service)
-		if !common.MatchExportRules(svc, g.cfg.ExportedServiceSet.GetLabelSelectors()) {
-			continue
+	for _, exportLabelSelector := range g.cfg.ExportedServiceSet.GetLabelSelectors() {
+		matchExported := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
+		services, err := g.serviceLister.List(matchExported)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list services: %v", err)
 		}
-		var ports []*v1alpha1.ServicePort
-		for _, port := range svc.Spec.Ports {
-			servicePort := &v1alpha1.ServicePort{
-				Name:   port.Name,
-				Number: uint32(port.Port),
+		for _, svc := range services {
+			var ports []*v1alpha1.ServicePort
+			for _, port := range svc.Spec.Ports {
+				servicePort := &v1alpha1.ServicePort{
+					Name:   port.Name,
+					Number: uint32(port.Port),
+				}
+				if port.TargetPort.IntVal != 0 {
+					servicePort.TargetPort = uint32(port.TargetPort.IntVal)
+				}
+				servicePort.Protocol = detectProtocol(port.Name)
+				ports = append(ports, servicePort)
 			}
-			if port.TargetPort.IntVal != 0 {
-				servicePort.TargetPort = uint32(port.TargetPort.IntVal)
+			exportedService := &v1alpha1.ExportedService{
+				Name:      svc.Name,
+				Namespace: svc.Namespace,
+				Ports:     ports,
+				Labels:    svc.Labels,
 			}
-			servicePort.Protocol = detectProtocol(port.Name)
-			ports = append(ports, servicePort)
+			exportedServices = append(exportedServices, exportedService)
 		}
-		exportedService := &v1alpha1.ExportedService{
-			Name:      svc.Name,
-			Namespace: svc.Namespace,
-			Ports:     ports,
-			Labels:    svc.Labels,
-		}
-		exportedServices = append(exportedServices, exportedService)
 	}
 	return serialize(exportedServices)
 }

@@ -163,7 +163,7 @@ func main() {
 		&adss.ServerOpts{Port: 15020, ServerID: "fds"},
 		fdsPushRequests,
 		triggerFDSPushOnNewSubscription,
-		fds.NewExportedServicesGenerator(*cfg, serviceInformer),
+		fds.NewExportedServicesGenerator(*cfg, serviceLister),
 	)
 	go func() {
 		if err := federationServer.Run(ctx); err != nil {
