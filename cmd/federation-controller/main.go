@@ -169,7 +169,7 @@ func main() {
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
 			Handlers: map[string]adsc.ResponseHandler{
-				xds.ExportedServiceTypeUrl: mcp.NewImportedServiceHandler(cfg, serviceLister, mcpPushRequests),
+				xds.ExportedServiceTypeUrl: mcp.NewImportedServiceHandler(istioConfigFactory, mcpPushRequests),
 			},
 		})
 		if err != nil {
