@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"reflect"
-	"sync"
 	"testing"
 
 	"github.com/jewertow/federation/internal/pkg/config"
@@ -109,6 +108,8 @@ func TestGatewayGenerator(t *testing.T) {
 			informerFactory := informers.NewSharedInformerFactory(client, 0)
 			serviceInformer := informerFactory.Core().V1().Services().Informer()
 			serviceLister := informerFactory.Core().V1().Services().Lister()
+			stopCh := make(chan struct{})
+			informerFactory.Start(stopCh)
 
 			for _, svc := range tc.existingServices {
 				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.TODO(), svc, v1.CreateOptions{}); err != nil {
@@ -120,11 +121,7 @@ func TestGatewayGenerator(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error creating serviceController: %v", err)
 			}
-			stopCh := make(chan struct{})
-			var informersInitGroup sync.WaitGroup
-			informersInitGroup.Add(1)
-			go serviceController.Run(stopCh, &informersInitGroup)
-			informersInitGroup.Wait()
+			serviceController.RunAndWait(stopCh)
 
 			generator := NewGatewayResourceGenerator(federationConfig, serviceLister)
 

@@ -1,9 +1,7 @@
 package informer
 
 import (
-	"fmt"
 	"reflect"
-	"sync"
 	"time"
 
 	istiolog "istio.io/istio/pkg/log"
@@ -35,17 +33,14 @@ type Event struct {
 	oldObj       runtime.Object
 }
 
-// Controller object
+var _ cache.Controller = (*Controller)(nil)
+
 type Controller struct {
 	queue               workqueue.RateLimitingInterface
 	informer            cache.SharedIndexInformer
 	handlerRegistration cache.ResourceEventHandlerRegistration
 	resourceType        string
 	eventHandlers       []Handler
-}
-
-func objName(obj interface{}) string {
-	return reflect.TypeOf(obj).Name()
 }
 
 func NewResourceController(informer cache.SharedIndexInformer, resourceType interface{}, eventHandlers ...Handler) (*Controller, error) {
@@ -99,28 +94,28 @@ func NewResourceController(informer cache.SharedIndexInformer, resourceType inte
 	}, nil
 }
 
-// Run starts the controller
-func (c *Controller) Run(stopCh <-chan struct{}, informersInitGroup *sync.WaitGroup) {
+func (c *Controller) RunAndWait(stopCh <-chan struct{}) {
+	go c.Run(stopCh)
+	if !cache.WaitForCacheSync(stopCh, c.HasSynced) {
+		log.Fatalf("timed out waiting for %s controller caches to sync", c.resourceType)
+	}
+}
+
+// Run waits for informer to be synced and starts processing queue
+func (c *Controller) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	log.Infof("starting %s controller", c.resourceType)
-
-	go c.informer.Run(stopCh)
-
 	if !cache.WaitForCacheSync(stopCh, c.HasSynced) {
-		utilruntime.HandleError(fmt.Errorf("timed out waiting for %s controller caches to sync", c.resourceType))
-		return
+		log.Fatalf("timed out waiting for %s controller caches to sync", c.resourceType)
 	}
-
 	log.Infof("%s controller synced and ready", c.resourceType)
 
-	informersInitGroup.Done()
-
 	for _, handler := range c.eventHandlers {
-		handler.Init()
+		if err := handler.Init(); err != nil {
+			log.Errorf("failed to init event handler: %v", err)
+		}
 	}
-
 	wait.Until(c.runWorker, time.Second, stopCh)
 }
 
@@ -182,4 +177,8 @@ func (c *Controller) processItem(newEvent Event) error {
 		}
 	}
 	return nil
+}
+
+func objName(obj interface{}) string {
+	return reflect.TypeOf(obj).Name()
 }
