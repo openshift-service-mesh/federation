@@ -125,6 +125,7 @@ func TestNewExportedServicesGenerator(t *testing.T) {
 			client := fake.NewSimpleClientset()
 			informerFactory := informers.NewSharedInformerFactory(client, 0)
 			serviceInformer := informerFactory.Core().V1().Services().Informer()
+			serviceLister := informerFactory.Core().V1().Services().Lister()
 
 			for _, svc := range tc.existingServices {
 				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.TODO(), svc, v1.CreateOptions{}); err != nil {
@@ -142,7 +143,7 @@ func TestNewExportedServicesGenerator(t *testing.T) {
 			go serviceController.Run(stopCh, &informersInitGroup)
 			informersInitGroup.Wait()
 
-			generator := NewExportedServicesGenerator(federationConfig, serviceInformer)
+			generator := NewExportedServicesGenerator(federationConfig, serviceLister)
 
 			resources, err := generator.GenerateResponse()
 			if err != nil {
