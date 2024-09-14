@@ -10,6 +10,7 @@ import (
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
 	"github.com/jewertow/federation/internal/pkg/informer"
+	"github.com/jewertow/federation/internal/pkg/istio"
 	"github.com/jewertow/federation/internal/pkg/xds"
 	"golang.org/x/net/context"
 	"google.golang.org/protobuf/proto"
@@ -258,7 +259,7 @@ func TestHandle(t *testing.T) {
 			serviceController.RunAndWait(stopCh)
 
 			mcpPushRequests := make(chan xds.PushRequest)
-			handler := NewImportedServiceHandler(&defaultConfig, serviceLister, mcpPushRequests)
+			handler := NewImportedServiceHandler(istio.NewConfigFactory(defaultConfig, serviceLister), mcpPushRequests)
 
 			// Handle must be called in a goroutine, because mcpPushRequests is an unbuffered channel,
 			// so it's blocked until another goroutine reads from the channel
