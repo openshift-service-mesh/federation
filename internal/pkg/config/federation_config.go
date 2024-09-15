@@ -13,11 +13,18 @@ func (f *Federation) GetLocalIngressGatewayNamespace() string {
 	return f.MeshPeers.Local.Gateways.Ingress.Namespace
 }
 
-func (f *Federation) GetLocalIngressGatewayPort() uint32 {
-	if f.MeshPeers.Local.Gateways.Ingress.Port == 0 {
+func (f *Federation) GetLocalDataPlanePort() uint32 {
+	if f.MeshPeers.Local.Gateways.Ingress.Ports.DataPlane == 0 {
 		return defaultDataPlanePort
 	}
-	return f.MeshPeers.Local.Gateways.Ingress.Port
+	return f.MeshPeers.Local.Gateways.Ingress.Ports.DataPlane
+}
+
+func (f *Federation) GetLocalDiscoveryPort() uint32 {
+	if f.MeshPeers.Local.Gateways.Ingress.Ports.Discovery == 0 {
+		return defaultDiscoveryPort
+	}
+	return f.MeshPeers.Local.Gateways.Ingress.Ports.Discovery
 }
 
 func (f *Federation) GetRemoteDataPlaneGatewayPort() uint32 {

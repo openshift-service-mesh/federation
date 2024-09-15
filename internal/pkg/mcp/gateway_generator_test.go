@@ -27,8 +27,11 @@ var (
 				Gateways: &config.Gateways{
 					Ingress: &config.LocalGateway{
 						Namespace: "federation-system",
-						Port:      16443,
 						Selector:  map[string]string{"app": "federation-ingress-gateway"},
+						Ports: &config.LocalGatewayPorts{
+							DataPlane: 16443,
+							Discovery: 17443,
+						},
 					},
 				},
 			},
@@ -88,13 +91,23 @@ func TestGatewayGenerator(t *testing.T) {
 			Spec: &istionetv1alpha3.Gateway{
 				Selector: map[string]string{"app": "federation-ingress-gateway"},
 				Servers: []*istionetv1alpha3.Server{{
+					Hosts: []string{"*"},
+					Port: &istionetv1alpha3.Port{
+						Number:   17443,
+						Name:     "discovery",
+						Protocol: "TLS",
+					},
+					Tls: &istionetv1alpha3.ServerTLSSettings{
+						Mode: istionetv1alpha3.ServerTLSSettings_ISTIO_MUTUAL,
+					},
+				}, {
 					Hosts: []string{
 						"a.ns2.svc.cluster.local",
 						"b.ns1.svc.cluster.local",
 					},
 					Port: &istionetv1alpha3.Port{
 						Number:   16443,
-						Name:     "tls",
+						Name:     "data-plane",
 						Protocol: "TLS",
 					},
 					Tls: &istionetv1alpha3.ServerTLSSettings{

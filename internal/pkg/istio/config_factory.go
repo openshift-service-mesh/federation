@@ -54,10 +54,20 @@ func (cf *ConfigFactory) GenerateIngressGateway() (*v1alpha3.Gateway, error) {
 		Spec: istionetv1alpha3.Gateway{
 			Selector: cf.cfg.MeshPeers.Local.Gateways.Ingress.Selector,
 			Servers: []*istionetv1alpha3.Server{{
+				Hosts: []string{"*"},
+				Port: &istionetv1alpha3.Port{
+					Number:   cf.cfg.GetLocalDiscoveryPort(),
+					Name:     "discovery",
+					Protocol: "TLS",
+				},
+				Tls: &istionetv1alpha3.ServerTLSSettings{
+					Mode: istionetv1alpha3.ServerTLSSettings_ISTIO_MUTUAL,
+				},
+			}, {
 				Hosts: hosts,
 				Port: &istionetv1alpha3.Port{
-					Number:   cf.cfg.GetLocalIngressGatewayPort(),
-					Name:     "tls",
+					Number:   cf.cfg.GetLocalDataPlanePort(),
+					Name:     "data-plane",
 					Protocol: "TLS",
 				},
 				Tls: &istionetv1alpha3.ServerTLSSettings{

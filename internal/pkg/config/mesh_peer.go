@@ -25,9 +25,14 @@ type Gateways struct {
 }
 
 type LocalGateway struct {
-	Namespace string            `yaml:"namespace"`
-	Port      uint32            `yaml:"port"`
-	Selector  map[string]string `yaml:"selector"`
+	Namespace string             `yaml:"namespace"`
+	Selector  map[string]string  `yaml:"selector"`
+	Ports     *LocalGatewayPorts `yaml:"ports"`
+}
+
+type LocalGatewayPorts struct {
+	DataPlane uint32 `yaml:"dataPlane"`
+	Discovery uint32 `yaml:"discovery"`
 }
 
 type Remote struct {
