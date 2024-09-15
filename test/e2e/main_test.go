@@ -175,8 +175,7 @@ func deployFederationControllers(ctx resource.Context) error {
 
 func patchFederationControllers(ctx resource.Context) error {
 	for idx, localCluster := range ctx.Clusters() {
-		var dataPlaneIP string
-		var discoveryIP string
+		var gatewayIP string
 		var remoteClusterName string
 		for idx, remoteCluster := range ctx.Clusters() {
 			if localCluster.Name() == remoteCluster.Name() {
@@ -184,8 +183,7 @@ func patchFederationControllers(ctx resource.Context) error {
 			}
 			remoteClusterName = clusterNames[idx]
 			var err error
-			dataPlaneIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
-			discoveryIP, err = findLoadBalancerIP(remoteCluster, "federation-controller-lb", "istio-system")
+			gatewayIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
 			if err != nil {
 				return fmt.Errorf("could not get IPs from remote federation-controller: %v", err)
 			}
@@ -194,8 +192,7 @@ func patchFederationControllers(ctx resource.Context) error {
 			fmt.Sprintf("%s-federation-controller", clusterNames[idx]),
 			fmt.Sprintf("%s/chart", rootDir),
 			fmt.Sprintf("--values=%s/examples/exporting-controller.yaml", rootDir),
-			"--set", fmt.Sprintf("federation.meshPeers.remote.discovery.addresses[0]=%s", discoveryIP),
-			"--set", fmt.Sprintf("federation.meshPeers.remote.dataPlane.addresses[0]=%s", dataPlaneIP),
+			"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
 			"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName),
 			"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
 			"--set", fmt.Sprintf("image.tag=%s", testTag))

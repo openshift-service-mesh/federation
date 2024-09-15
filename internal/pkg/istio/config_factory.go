@@ -141,7 +141,7 @@ func (cf *ConfigFactory) GenerateServiceAndWorkloadEntries(importedServices []*v
 
 func (cf *ConfigFactory) GenerateServiceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
 	var endpoints []*istionetv1alpha3.WorkloadEntry
-	for _, remoteAddr := range cf.cfg.MeshPeers.Remote.Discovery.Addresses {
+	for _, remoteAddr := range cf.cfg.MeshPeers.Remote.Addresses {
 		endpoints = append(endpoints, &istionetv1alpha3.WorkloadEntry{Address: remoteAddr})
 	}
 	// TODO: this object could be created once on instantiating ConfigFactory
@@ -192,7 +192,7 @@ func (cf *ConfigFactory) GenerateVirtualServiceForIngressGateway() *v1alpha3.Vir
 
 func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
 	var workloadEntries []*istionetv1alpha3.WorkloadEntry
-	for _, addr := range cf.cfg.MeshPeers.Remote.DataPlane.Addresses {
+	for _, addr := range cf.cfg.MeshPeers.Remote.Addresses {
 		we := &istionetv1alpha3.WorkloadEntry{
 			Address: addr,
 			Network: cf.cfg.MeshPeers.Remote.Network,
@@ -200,7 +200,7 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 			Ports:   make(map[string]uint32, len(ports)),
 		}
 		for _, p := range ports {
-			we.Ports[p.Name] = cf.cfg.GetRemoteDataPlaneGatewayPort()
+			we.Ports[p.Name] = cf.cfg.GetRemoteGatewayDataPlanePort()
 		}
 		workloadEntries = append(workloadEntries, we)
 	}

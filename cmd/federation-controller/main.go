@@ -167,9 +167,9 @@ func main() {
 	}()
 
 	var onNewMCPSubscription func()
-	if len(cfg.MeshPeers.Remote.Discovery.Addresses) > 0 {
+	if len(cfg.MeshPeers.Remote.Addresses) > 0 {
 		federationClient, err := adsc.New(&adsc.ADSCConfig{
-			DiscoveryAddr: fmt.Sprintf("%s:15080", cfg.MeshPeers.Remote.Discovery.Addresses[0]),
+			DiscoveryAddr: fmt.Sprintf("%s:15080", cfg.MeshPeers.Remote.Addresses[0]),
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},

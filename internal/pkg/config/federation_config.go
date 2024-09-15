@@ -20,9 +20,9 @@ func (f *Federation) GetLocalDiscoveryPort() uint32 {
 	return f.MeshPeers.Local.Gateways.Ingress.Ports.Discovery
 }
 
-func (f *Federation) GetRemoteDataPlaneGatewayPort() uint32 {
-	if f.MeshPeers.Remote.DataPlane.Port == 0 {
+func (f *Federation) GetRemoteGatewayDataPlanePort() uint32 {
+	if f.MeshPeers.Remote.Ports == nil || f.MeshPeers.Remote.Ports.DataPlane == 0 {
 		return defaultDataPlanePort
 	}
-	return f.MeshPeers.Remote.DataPlane.Port
+	return f.MeshPeers.Remote.Ports.DataPlane
 }

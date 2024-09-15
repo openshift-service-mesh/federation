@@ -8,16 +8,13 @@ federation:
 #    # and Gateway for exported Services should be created in the local mesh.
 #    local:
 #      controlPlane:
-#        namespace: "istio-system"
+#        namespace: istio-system
 #    remote:
-#      dataPlane:
-#        addresses:
-#        - "192.168.0.1"
-#        port: 15443
-#      discovery:
-#        addresses:
-#        - "192.168.0.2"
-#        port: 15080
+#      addresses:
+#      - "192.168.0.1"
+#      ports:
+#        dataPlane: 15443 # default
+#        discovery: 15080 # default
 #      # Unique network name ensures that importing and exporting the same services will not result
 #      # in routing requests to the cluster where the requests come from.
 #      network: west-network

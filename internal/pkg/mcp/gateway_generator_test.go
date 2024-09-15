@@ -31,7 +31,7 @@ var (
 				Gateways: &config.Gateways{
 					Ingress: &config.LocalGateway{
 						Selector: map[string]string{"app": "federation-ingress-gateway"},
-						Ports: &config.LocalGatewayPorts{
+						Ports: &config.GatewayPorts{
 							DataPlane: 16443,
 							Discovery: 17443,
 						},

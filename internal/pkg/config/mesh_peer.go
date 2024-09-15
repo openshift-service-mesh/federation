@@ -25,36 +25,17 @@ type Gateways struct {
 }
 
 type LocalGateway struct {
-	Selector map[string]string  `yaml:"selector"`
-	Ports    *LocalGatewayPorts `yaml:"ports"`
+	Selector map[string]string `yaml:"selector"`
+	Ports    *GatewayPorts     `yaml:"ports"`
 }
 
-type LocalGatewayPorts struct {
+type GatewayPorts struct {
 	DataPlane uint32 `yaml:"dataPlane"`
 	Discovery uint32 `yaml:"discovery"`
 }
 
-// TODO: remote gateway should have the same address for discovery and data plane
 type Remote struct {
-	DataPlane DataPlane `yaml:"dataPlane"`
-	Discovery Discovery `yaml:"discovery"`
-	Network   string    `yaml:"network"`
-}
-
-// TODO: unify DataPlane and Discovery
-type DataPlane struct {
-	Addresses []string `yaml:"addresses"`
-	Port      uint32   `yaml:"port"`
-}
-
-type Discovery struct {
-	Addresses []string `yaml:"addresses"`
-	Port      *uint32  `yaml:"port"`
-}
-
-func (d *Discovery) GetPort() uint32 {
-	if d.Port != nil {
-		return *d.Port
-	}
-	return defaultDiscoveryPort
+	Addresses []string      `yaml:"addresses"`
+	Ports     *GatewayPorts `yaml:"ports"`
+	Network   string        `yaml:"network"`
 }

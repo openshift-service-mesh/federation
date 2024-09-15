@@ -34,13 +34,8 @@ var (
 				},
 			},
 			Remote: config.Remote{
-				DataPlane: config.DataPlane{
-					Addresses: []string{"192.168.0.1", "192.168.0.2"},
-				},
-				Discovery: config.Discovery{
-					Addresses: []string{"192.168.0.1", "192.168.0.2"},
-				},
-				Network: "west-network",
+				Addresses: []string{"192.168.0.1", "192.168.0.2"},
+				Network:   "west-network",
 			},
 		},
 	}
