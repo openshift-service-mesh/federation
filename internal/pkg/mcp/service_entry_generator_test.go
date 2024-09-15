@@ -4,17 +4,14 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/fds"
 	"github.com/jewertow/federation/internal/pkg/informer"
 	"github.com/jewertow/federation/internal/pkg/istio"
-	"github.com/jewertow/federation/internal/pkg/xds"
 	"golang.org/x/net/context"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	mcp "istio.io/api/mcp/v1alpha1"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
@@ -107,13 +104,13 @@ var (
 
 func TestHandle(t *testing.T) {
 	testCases := []struct {
-		name             string
-		exportedServices []*v1alpha1.ExportedService
-		existingServices []*corev1.Service
-		expectedPushes   map[string][]*istiocfg.Config
+		name                 string
+		importedServices     []*v1alpha1.ExportedService
+		existingServices     []*corev1.Service
+		expectedIstioConfigs []*istiocfg.Config
 	}{{
 		name: "received exported services do not exist locally - ServiceEntry expected",
-		exportedServices: []*v1alpha1.ExportedService{{
+		importedServices: []*v1alpha1.ExportedService{{
 			Name:      "a",
 			Namespace: "ns1",
 			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort},
@@ -124,46 +121,44 @@ func TestHandle(t *testing.T) {
 			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort},
 			Labels:    map[string]string{"app": "a"},
 		}},
-		expectedPushes: map[string][]*istiocfg.Config{
-			xds.ServiceEntryTypeUrl: {
-				{
-					Meta: istiocfg.Meta{
-						Name:      "import_a_ns1",
-						Namespace: "istio-system",
-					},
-					Spec: &istionetv1alpha3.ServiceEntry{
-						Hosts: []string{"a.ns1.svc.cluster.local"},
-						Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort},
-						Endpoints: []*istionetv1alpha3.WorkloadEntry{
-							buildWorkloadEntry("192.168.0.1"),
-							buildWorkloadEntry("192.168.0.2"),
-						},
-						Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
-						Resolution: istionetv1alpha3.ServiceEntry_STATIC,
-					},
+		expectedIstioConfigs: []*istiocfg.Config{
+			{
+				Meta: istiocfg.Meta{
+					Name:      "import_a_ns1",
+					Namespace: "istio-system",
 				},
-				{
-					Meta: istiocfg.Meta{
-						Name:      "import_a_ns2",
-						Namespace: "istio-system",
+				Spec: &istionetv1alpha3.ServiceEntry{
+					Hosts: []string{"a.ns1.svc.cluster.local"},
+					Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort},
+					Endpoints: []*istionetv1alpha3.WorkloadEntry{
+						buildWorkloadEntry("192.168.0.1"),
+						buildWorkloadEntry("192.168.0.2"),
 					},
-					Spec: &istionetv1alpha3.ServiceEntry{
-						Hosts: []string{"a.ns2.svc.cluster.local"},
-						Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort},
-						Endpoints: []*istionetv1alpha3.WorkloadEntry{
-							buildWorkloadEntry("192.168.0.1"),
-							buildWorkloadEntry("192.168.0.2"),
-						},
-						Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
-						Resolution: istionetv1alpha3.ServiceEntry_STATIC,
-					},
+					Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
+					Resolution: istionetv1alpha3.ServiceEntry_STATIC,
 				},
-				remoteFederationControllerServiceEntry,
 			},
+			{
+				Meta: istiocfg.Meta{
+					Name:      "import_a_ns2",
+					Namespace: "istio-system",
+				},
+				Spec: &istionetv1alpha3.ServiceEntry{
+					Hosts: []string{"a.ns2.svc.cluster.local"},
+					Ports: []*istionetv1alpha3.ServicePort{istioHttpPort, istioHttpsPort},
+					Endpoints: []*istionetv1alpha3.WorkloadEntry{
+						buildWorkloadEntry("192.168.0.1"),
+						buildWorkloadEntry("192.168.0.2"),
+					},
+					Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
+					Resolution: istionetv1alpha3.ServiceEntry_STATIC,
+				},
+			},
+			remoteFederationControllerServiceEntry,
 		},
 	}, {
 		name: "received exported service do not exist locally - WorkloadEntry expected",
-		exportedServices: []*v1alpha1.ExportedService{{
+		importedServices: []*v1alpha1.ExportedService{{
 			Name:      "a",
 			Namespace: "ns1",
 			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort},
@@ -184,49 +179,48 @@ func TestHandle(t *testing.T) {
 				Namespace: "ns2",
 			},
 		}},
-		expectedPushes: map[string][]*istiocfg.Config{
-			xds.WorkloadEntryTypeUrl: {
-				{
-					Meta: istiocfg.Meta{
-						Name:      "import_a_0",
-						Namespace: "ns1",
-					},
-					Spec: buildWorkloadEntry("192.168.0.1"),
-				},
-				{
-					Meta: istiocfg.Meta{
-						Name:      "import_a_1",
-						Namespace: "ns1",
-					},
-					Spec: buildWorkloadEntry("192.168.0.2"),
-				},
-				{
-					Meta: istiocfg.Meta{
-						Name:      "import_a_0",
-						Namespace: "ns2",
-					},
-					Spec: buildWorkloadEntry("192.168.0.1"),
-				},
-				{
-					Meta: istiocfg.Meta{
-						Name:      "import_a_1",
-						Namespace: "ns2",
-					},
-					Spec: buildWorkloadEntry("192.168.0.2"),
-				},
-			},
-			xds.ServiceEntryTypeUrl: {remoteFederationControllerServiceEntry},
-		},
+		expectedIstioConfigs: []*istiocfg.Config{remoteFederationControllerServiceEntry},
+		// TODO: Move to workload_entry_generator_test
+		//expectedIstioConfigs: []*istiocfg.Config{
+		//	{
+		//		Meta: istiocfg.Meta{
+		//			Name:      "import_a_0",
+		//			Namespace: "ns1",
+		//		},
+		//		Spec: buildWorkloadEntry("192.168.0.1"),
+		//	},
+		//	{
+		//		Meta: istiocfg.Meta{
+		//			Name:      "import_a_1",
+		//			Namespace: "ns1",
+		//		},
+		//		Spec: buildWorkloadEntry("192.168.0.2"),
+		//	},
+		//	{
+		//		Meta: istiocfg.Meta{
+		//			Name:      "import_a_0",
+		//			Namespace: "ns2",
+		//		},
+		//		Spec: buildWorkloadEntry("192.168.0.1"),
+		//	},
+		//	{
+		//		Meta: istiocfg.Meta{
+		//			Name:      "import_a_1",
+		//			Namespace: "ns2",
+		//		},
+		//		Spec: buildWorkloadEntry("192.168.0.2"),
+		//	},
+		//},
 	}, {
 		name: "received exported services with TCP port - ServiceEntry with single hostname expected",
-		exportedServices: []*v1alpha1.ExportedService{{
+		importedServices: []*v1alpha1.ExportedService{{
 			Name:      "a",
 			Namespace: "ns1",
 			Ports:     []*v1alpha1.ServicePort{httpPort, httpsPort, tcpPort},
 			Labels:    map[string]string{"app": "a"},
 		}},
-		expectedPushes: map[string][]*istiocfg.Config{
-			xds.ServiceEntryTypeUrl: {{
+		expectedIstioConfigs: []*istiocfg.Config{
+			{
 				Meta: istiocfg.Meta{
 					Name:      "import_a_ns1",
 					Namespace: "istio-system",
@@ -263,8 +257,8 @@ func TestHandle(t *testing.T) {
 					Resolution: istionetv1alpha3.ServiceEntry_STATIC,
 				},
 			},
-				remoteFederationControllerServiceEntry,
-			}},
+			remoteFederationControllerServiceEntry,
+		},
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -287,60 +281,27 @@ func TestHandle(t *testing.T) {
 			}
 			serviceController.RunAndWait(stopCh)
 
-			mcpPushRequests := make(chan xds.PushRequest)
-			handler := NewImportedServiceHandler(istio.NewConfigFactory(defaultConfig, serviceLister, controllerServiceFQDN), mcpPushRequests)
+			importedServiceStore := &fds.ImportedServiceStore{}
+			importedServiceStore.Update(tc.importedServices)
 
-			// Handle must be called in a goroutine, because mcpPushRequests is an unbuffered channel,
-			// so it's blocked until another goroutine reads from the channel
-			go func() {
-				if err := handler.Handle(serializeExportedServices(t, tc.exportedServices)); err != nil {
-					t.Errorf("error handling request: %v", err)
-					return
-				}
-			}()
+			istioConfigFactory := istio.NewConfigFactory(defaultConfig, serviceLister, importedServiceStore, controllerServiceFQDN)
+			generator := NewServiceEntryGenerator(istioConfigFactory)
 
-			var wg sync.WaitGroup
-			for expectedResourceType, expectedConfigs := range tc.expectedPushes {
-				wg.Add(1)
-				go func(resourceType string, configs []*istiocfg.Config) {
-					defer wg.Done()
-					timeout := time.After(1 * time.Second)
-					select {
-					case req := <-mcpPushRequests:
-						if req.TypeUrl != expectedResourceType {
-							t.Errorf("expected %s, but got %s", expectedResourceType, req.TypeUrl)
-						}
-						istioConfigs := deserializeIstioConfigs(t, req.Resources)
-						if len(istioConfigs) != len(expectedConfigs) {
-							t.Errorf("expected %d Istio configs but got %d", len(expectedConfigs), len(istioConfigs))
-						}
-						for idx, cfg := range istioConfigs {
-							if !reflect.DeepEqual(cfg.DeepCopy(), expectedConfigs[idx].DeepCopy()) {
-								t.Errorf("expected object: \n[%v], \nbut got: \n[%v]", cfg, expectedConfigs[idx])
-							}
-						}
-					case <-timeout:
-						t.Error("Test timed out waiting for value to arrive on channel")
-						return
-					}
-				}(expectedResourceType, expectedConfigs)
+			resources, err := generator.GenerateResponse()
+			if err != nil {
+				t.Fatalf("error generating response: %v", err)
 			}
-			wg.Wait()
+			istioConfigs := deserializeIstioConfigs(t, resources)
+			if len(istioConfigs) != len(tc.expectedIstioConfigs) {
+				t.Errorf("expected %d Istio configs but got %d", len(tc.expectedIstioConfigs), len(istioConfigs))
+			}
+			for idx, cfg := range istioConfigs {
+				if !reflect.DeepEqual(cfg.DeepCopy(), tc.expectedIstioConfigs[idx].DeepCopy()) {
+					t.Errorf("expected object: \n[%v], \nbut got: \n[%v]", cfg, tc.expectedIstioConfigs[idx])
+				}
+			}
 		})
 	}
-}
-
-func serializeExportedServices(t *testing.T, exportedServices []*v1alpha1.ExportedService) []*anypb.Any {
-	t.Helper()
-	var out []*anypb.Any
-	for _, s := range exportedServices {
-		serializedExportedService := &anypb.Any{}
-		if err := anypb.MarshalFrom(serializedExportedService, s, proto.MarshalOptions{}); err != nil {
-			t.Errorf("failed to serialize ExportedService to protobuf message: %v", err)
-		}
-		out = append(out, serializedExportedService)
-	}
-	return out
 }
 
 func deserializeIstioConfigs(t *testing.T, resources []*anypb.Any) []*istiocfg.Config {

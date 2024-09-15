@@ -13,6 +13,7 @@ import (
 
 	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
 	"github.com/jewertow/federation/internal/pkg/config"
+	"github.com/jewertow/federation/internal/pkg/fds"
 )
 
 const (
@@ -22,13 +23,15 @@ const (
 type ConfigFactory struct {
 	cfg                   config.Federation
 	serviceLister         v1.ServiceLister
+	importedServiceStore  *fds.ImportedServiceStore
 	controllerServiceFQDN string
 }
 
-func NewConfigFactory(cfg config.Federation, serviceLister v1.ServiceLister, controllerServiceFQDN string) *ConfigFactory {
+func NewConfigFactory(cfg config.Federation, serviceLister v1.ServiceLister, importedServiceStore *fds.ImportedServiceStore, controllerServiceFQDN string) *ConfigFactory {
 	return &ConfigFactory{
 		cfg:                   cfg,
 		serviceLister:         serviceLister,
+		importedServiceStore:  importedServiceStore,
 		controllerServiceFQDN: controllerServiceFQDN,
 	}
 }
@@ -103,17 +106,16 @@ func (cf *ConfigFactory) GenerateIngressGateway() (*v1alpha3.Gateway, error) {
 	return gateway, nil
 }
 
-func (cf *ConfigFactory) GenerateServiceAndWorkloadEntriesForImportedServices(importedServices []*v1alpha1.ExportedService) ([]*v1alpha3.ServiceEntry, []*v1alpha3.WorkloadEntry, error) {
+func (cf *ConfigFactory) GenerateServiceEntriesForImportedServices() ([]*v1alpha3.ServiceEntry, error) {
 	var serviceEntries []*v1alpha3.ServiceEntry
-	var workloadEntries []*v1alpha3.WorkloadEntry
-	for _, importedSvc := range importedServices {
+	for _, importedSvc := range cf.importedServiceStore.GetAll() {
 		// enable Istio mTLS
 		importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
 
 		_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return nil, nil, fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)
+				return nil, fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)
 			}
 			// Service doesn't exist - create ServiceEntry.
 			var ports []*istionetv1alpha3.ServicePort
@@ -139,6 +141,22 @@ func (cf *ConfigFactory) GenerateServiceAndWorkloadEntriesForImportedServices(im
 					Resolution: istionetv1alpha3.ServiceEntry_STATIC,
 				},
 			})
+		}
+	}
+	return serviceEntries, nil
+}
+
+func (cf *ConfigFactory) GenerateWorkloadEntriesForImportedServices() ([]*v1alpha3.WorkloadEntry, error) {
+	var workloadEntries []*v1alpha3.WorkloadEntry
+	for _, importedSvc := range cf.importedServiceStore.GetAll() {
+		// enable Istio mTLS
+		importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
+
+		_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return nil, fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)
+			}
 		} else {
 			// Service already exists - create WorkloadEntries.
 			workloadEntrySpecs := cf.makeWorkloadEntrySpecs(importedSvc.Ports, importedSvc.Labels)
@@ -153,7 +171,7 @@ func (cf *ConfigFactory) GenerateServiceAndWorkloadEntriesForImportedServices(im
 			}
 		}
 	}
-	return serviceEntries, workloadEntries, nil
+	return workloadEntries, nil
 }
 
 func (cf *ConfigFactory) GenerateServiceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {

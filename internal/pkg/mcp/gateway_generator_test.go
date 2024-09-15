@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"github.com/jewertow/federation/internal/pkg/fds"
 	"reflect"
 	"testing"
 
@@ -150,7 +151,7 @@ func TestGatewayGenerator(t *testing.T) {
 			}
 			serviceController.RunAndWait(stopCh)
 
-			generator := NewGatewayResourceGenerator(istio.NewConfigFactory(federationConfig, serviceLister, controllerServiceFQDN))
+			generator := NewGatewayResourceGenerator(istio.NewConfigFactory(federationConfig, serviceLister, fds.NewImportedServiceStore(), controllerServiceFQDN))
 
 			resources, err := generator.GenerateResponse()
 			if err != nil {

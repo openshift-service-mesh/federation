@@ -143,11 +143,13 @@ func main() {
 	}
 	serviceController.RunAndWait(ctx.Done())
 
+	importedServiceStore := fds.NewImportedServiceStore()
+
 	var controllerServiceFQDN string
 	if controllerServiceFQDN = env.GetString("CONTROLLER_SERVICE_FQDN", ""); controllerServiceFQDN == "" {
 		log.Fatalf("did not find environment variable CONTROLLER_SERVICE_FQDN")
 	}
-	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, controllerServiceFQDN)
+	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, controllerServiceFQDN)
 
 	triggerFDSPushOnNewSubscription := func() {
 		fdsPushRequests <- xds.PushRequest{
@@ -174,7 +176,7 @@ func main() {
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
 			Handlers: map[string]adsc.ResponseHandler{
-				xds.ExportedServiceTypeUrl: mcp.NewImportedServiceHandler(istioConfigFactory, mcpPushRequests),
+				xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, mcpPushRequests),
 			},
 		})
 		if err != nil {
@@ -194,6 +196,7 @@ func main() {
 		mcpPushRequests,
 		onNewMCPSubscription,
 		mcp.NewGatewayResourceGenerator(istioConfigFactory),
+		mcp.NewServiceEntryGenerator(istioConfigFactory),
 		mcp.NewVirtualServiceResourceGenerator(istioConfigFactory),
 		mcp.NewDestinationRuleResourceGenerator(istioConfigFactory),
 	)
