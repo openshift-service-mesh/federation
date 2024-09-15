@@ -2,7 +2,7 @@ package config
 
 const (
 	defaultDataPlanePort = 15443
-	defaultDiscoveryPort = 15020
+	defaultDiscoveryPort = 15080
 )
 
 type MeshPeers struct {

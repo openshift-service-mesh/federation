@@ -12,7 +12,7 @@ spec:
       targetPort: grpc-mcp
       protocol: TCP
     - name: grpc-fds
-      port: 15020
+      port: 15080
       targetPort: grpc-fds
       protocol: TCP
   selector:
@@ -28,7 +28,7 @@ metadata:
 spec:
   ports:
   - name: grpc-fds
-    port: 15020
+    port: 15080
     targetPort: grpc-fds
     protocol: TCP
     appProtocol: grpc
