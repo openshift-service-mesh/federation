@@ -33,6 +33,23 @@ func NewConfigFactory(cfg config.Federation, serviceLister v1.ServiceLister, con
 	}
 }
 
+func (cf *ConfigFactory) GenerateDestinationRuleForRemoteControllerTLSOrigination() *v1alpha3.DestinationRule {
+	return &v1alpha3.DestinationRule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "originate-istio-mtls-to-remote-federation-controller",
+			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+		},
+		Spec: istionetv1alpha3.DestinationRule{
+			Host: fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace),
+			TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
+				Tls: &istionetv1alpha3.ClientTLSSettings{
+					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
+				},
+			},
+		},
+	}
+}
+
 func (cf *ConfigFactory) GenerateIngressGateway() (*v1alpha3.Gateway, error) {
 	var hosts []string
 	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
@@ -86,7 +103,7 @@ func (cf *ConfigFactory) GenerateIngressGateway() (*v1alpha3.Gateway, error) {
 	return gateway, nil
 }
 
-func (cf *ConfigFactory) GenerateServiceAndWorkloadEntries(importedServices []*v1alpha1.ExportedService) ([]*v1alpha3.ServiceEntry, []*v1alpha3.WorkloadEntry, error) {
+func (cf *ConfigFactory) GenerateServiceAndWorkloadEntriesForImportedServices(importedServices []*v1alpha1.ExportedService) ([]*v1alpha3.ServiceEntry, []*v1alpha3.WorkloadEntry, error) {
 	var serviceEntries []*v1alpha3.ServiceEntry
 	var workloadEntries []*v1alpha3.WorkloadEntry
 	for _, importedSvc := range importedServices {

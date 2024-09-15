@@ -43,7 +43,7 @@ func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
 		importedServices = append(importedServices, exportedService)
 	}
 
-	serviceEntries, workloadEntries, err := h.istioConfigFactory.GenerateServiceAndWorkloadEntries(importedServices)
+	serviceEntries, workloadEntries, err := h.istioConfigFactory.GenerateServiceAndWorkloadEntriesForImportedServices(importedServices)
 	if err != nil {
 		return fmt.Errorf("failed to generate service and workload entries: %v", err)
 	}

@@ -195,6 +195,7 @@ func main() {
 		onNewMCPSubscription,
 		mcp.NewGatewayResourceGenerator(istioConfigFactory),
 		mcp.NewVirtualServiceResourceGenerator(istioConfigFactory),
+		mcp.NewDestinationRuleResourceGenerator(istioConfigFactory),
 	)
 	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatalf("Error running XDS server: %v", err)
