@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/env"
 )
 
 // Global variable to store the parsed commandline arguments
@@ -142,7 +143,11 @@ func main() {
 	}
 	serviceController.RunAndWait(ctx.Done())
 
-	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister)
+	var controllerServiceFQDN string
+	if controllerServiceFQDN = env.GetString("CONTROLLER_SERVICE_FQDN", ""); controllerServiceFQDN == "" {
+		log.Fatalf("did not find environment variable CONTROLLER_SERVICE_FQDN")
+	}
+	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, controllerServiceFQDN)
 
 	triggerFDSPushOnNewSubscription := func() {
 		fdsPushRequests <- xds.PushRequest{
@@ -189,6 +194,7 @@ func main() {
 		mcpPushRequests,
 		onNewMCPSubscription,
 		mcp.NewGatewayResourceGenerator(istioConfigFactory),
+		mcp.NewVirtualServiceResourceGenerator(istioConfigFactory),
 	)
 	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatalf("Error running XDS server: %v", err)

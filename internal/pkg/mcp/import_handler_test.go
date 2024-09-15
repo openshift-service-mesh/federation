@@ -259,7 +259,7 @@ func TestHandle(t *testing.T) {
 			serviceController.RunAndWait(stopCh)
 
 			mcpPushRequests := make(chan xds.PushRequest)
-			handler := NewImportedServiceHandler(istio.NewConfigFactory(defaultConfig, serviceLister), mcpPushRequests)
+			handler := NewImportedServiceHandler(istio.NewConfigFactory(defaultConfig, serviceLister, controllerServiceFQDN), mcpPushRequests)
 
 			// Handle must be called in a goroutine, because mcpPushRequests is an unbuffered channel,
 			// so it's blocked until another goroutine reads from the channel

@@ -5,4 +5,5 @@ const (
 	GatewayTypeUrl         = "networking.istio.io/v1alpha3/Gateway"
 	ServiceEntryTypeUrl    = "networking.istio.io/v1alpha3/ServiceEntry"
 	WorkloadEntryTypeUrl   = "networking.istio.io/v1alpha3/WorkloadEntry"
+	VirtualServiceTypeUrl  = "networking.istio.io/v1alpha3/VirtualService"
 )

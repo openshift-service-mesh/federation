@@ -17,6 +17,10 @@ import (
 	"github.com/jewertow/federation/internal/pkg/istio"
 )
 
+const (
+	controllerServiceFQDN = "federation-controller.istio-system.svc.cluster.local"
+)
+
 var (
 	federationConfig = config.Federation{
 		MeshPeers: config.MeshPeers{
@@ -26,8 +30,7 @@ var (
 				},
 				Gateways: &config.Gateways{
 					Ingress: &config.LocalGateway{
-						Namespace: "federation-system",
-						Selector:  map[string]string{"app": "federation-ingress-gateway"},
+						Selector: map[string]string{"app": "federation-ingress-gateway"},
 						Ports: &config.LocalGatewayPorts{
 							DataPlane: 16443,
 							Discovery: 17443,
@@ -86,7 +89,7 @@ func TestGatewayGenerator(t *testing.T) {
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
 				Name:      "federation-ingress-gateway",
-				Namespace: "federation-system",
+				Namespace: "istio-system",
 			},
 			Spec: &istionetv1alpha3.Gateway{
 				Selector: map[string]string{"app": "federation-ingress-gateway"},
@@ -147,7 +150,7 @@ func TestGatewayGenerator(t *testing.T) {
 			}
 			serviceController.RunAndWait(stopCh)
 
-			generator := NewGatewayResourceGenerator(istio.NewConfigFactory(federationConfig, serviceLister))
+			generator := NewGatewayResourceGenerator(istio.NewConfigFactory(federationConfig, serviceLister, controllerServiceFQDN))
 
 			resources, err := generator.GenerateResponse()
 			if err != nil {

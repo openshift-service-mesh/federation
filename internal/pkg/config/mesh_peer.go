@@ -25,9 +25,8 @@ type Gateways struct {
 }
 
 type LocalGateway struct {
-	Namespace string             `yaml:"namespace"`
-	Selector  map[string]string  `yaml:"selector"`
-	Ports     *LocalGatewayPorts `yaml:"ports"`
+	Selector map[string]string  `yaml:"selector"`
+	Ports    *LocalGatewayPorts `yaml:"ports"`
 }
 
 type LocalGatewayPorts struct {

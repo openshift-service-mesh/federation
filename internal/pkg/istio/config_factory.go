@@ -15,15 +15,21 @@ import (
 	"github.com/jewertow/federation/internal/pkg/config"
 )
 
+const (
+	federationIngressGatewayName = "federation-ingress-gateway"
+)
+
 type ConfigFactory struct {
-	cfg           config.Federation
-	serviceLister v1.ServiceLister
+	cfg                   config.Federation
+	serviceLister         v1.ServiceLister
+	controllerServiceFQDN string
 }
 
-func NewConfigFactory(cfg config.Federation, serviceLister v1.ServiceLister) *ConfigFactory {
+func NewConfigFactory(cfg config.Federation, serviceLister v1.ServiceLister, controllerServiceFQDN string) *ConfigFactory {
 	return &ConfigFactory{
-		cfg:           cfg,
-		serviceLister: serviceLister,
+		cfg:                   cfg,
+		serviceLister:         serviceLister,
+		controllerServiceFQDN: controllerServiceFQDN,
 	}
 }
 
@@ -48,8 +54,8 @@ func (cf *ConfigFactory) GenerateIngressGateway() (*v1alpha3.Gateway, error) {
 
 	gateway := &v1alpha3.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "federation-ingress-gateway",
-			Namespace: cf.cfg.GetLocalIngressGatewayNamespace(),
+			Name:      federationIngressGatewayName,
+			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
 		},
 		Spec: istionetv1alpha3.Gateway{
 			Selector: cf.cfg.MeshPeers.Local.Gateways.Ingress.Selector,
@@ -131,6 +137,32 @@ func (cf *ConfigFactory) GenerateServiceAndWorkloadEntries(importedServices []*v
 		}
 	}
 	return serviceEntries, workloadEntries, nil
+}
+
+func (cf *ConfigFactory) GenerateVirtualServiceForIngressGateway() *v1alpha3.VirtualService {
+	return &v1alpha3.VirtualService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      federationIngressGatewayName,
+			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+		},
+		Spec: istionetv1alpha3.VirtualService{
+			Hosts:    []string{"*"},
+			Gateways: []string{federationIngressGatewayName},
+			Tcp: []*istionetv1alpha3.TCPRoute{{
+				Match: []*istionetv1alpha3.L4MatchAttributes{{
+					Port: cf.cfg.GetLocalDiscoveryPort(),
+				}},
+				Route: []*istionetv1alpha3.RouteDestination{{
+					Destination: &istionetv1alpha3.Destination{
+						Host: cf.controllerServiceFQDN,
+						Port: &istionetv1alpha3.PortSelector{
+							Number: 15080,
+						},
+					},
+				}},
+			}},
+		},
+	}
 }
 
 func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
