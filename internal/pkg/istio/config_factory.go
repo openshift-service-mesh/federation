@@ -139,6 +139,31 @@ func (cf *ConfigFactory) GenerateServiceAndWorkloadEntries(importedServices []*v
 	return serviceEntries, workloadEntries, nil
 }
 
+func (cf *ConfigFactory) GenerateServiceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
+	var endpoints []*istionetv1alpha3.WorkloadEntry
+	for _, remoteAddr := range cf.cfg.MeshPeers.Remote.Discovery.Addresses {
+		endpoints = append(endpoints, &istionetv1alpha3.WorkloadEntry{Address: remoteAddr})
+	}
+	// TODO: this object could be created once on instantiating ConfigFactory
+	return &v1alpha3.ServiceEntry{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "remote-federation-controller",
+			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+		},
+		Spec: istionetv1alpha3.ServiceEntry{
+			Hosts: []string{fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace)},
+			Ports: []*istionetv1alpha3.ServicePort{{
+				Name:     "discovery",
+				Number:   15080,
+				Protocol: "GRPC",
+			}},
+			Location:   istionetv1alpha3.ServiceEntry_MESH_EXTERNAL,
+			Resolution: istionetv1alpha3.ServiceEntry_STATIC,
+			Endpoints:  endpoints,
+		},
+	}
+}
+
 func (cf *ConfigFactory) GenerateVirtualServiceForIngressGateway() *v1alpha3.VirtualService {
 	return &v1alpha3.VirtualService{
 		ObjectMeta: metav1.ObjectMeta{

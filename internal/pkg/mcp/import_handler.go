@@ -43,10 +43,11 @@ func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
 		importedServices = append(importedServices, exportedService)
 	}
 
-	serviceEntries, workloadEnties, err := h.istioConfigFactory.GenerateServiceAndWorkloadEntries(importedServices)
+	serviceEntries, workloadEntries, err := h.istioConfigFactory.GenerateServiceAndWorkloadEntries(importedServices)
 	if err != nil {
 		return fmt.Errorf("failed to generate service and workload entries: %v", err)
 	}
+	serviceEntries = append(serviceEntries, h.istioConfigFactory.GenerateServiceEntryForRemoteFederationController())
 
 	var serviceEntryConfigs []*istioconfig.Config
 	var workloadEntryConfigs []*istioconfig.Config
@@ -59,7 +60,7 @@ func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
 			Spec: &se.Spec,
 		})
 	}
-	for _, we := range workloadEnties {
+	for _, we := range workloadEntries {
 		workloadEntryConfigs = append(workloadEntryConfigs, &istioconfig.Config{
 			Meta: istioconfig.Meta{
 				Name:      we.Name,

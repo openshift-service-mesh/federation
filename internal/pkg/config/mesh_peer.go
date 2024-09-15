@@ -34,6 +34,7 @@ type LocalGatewayPorts struct {
 	Discovery uint32 `yaml:"discovery"`
 }
 
+// TODO: remote gateway should have the same address for discovery and data plane
 type Remote struct {
 	DataPlane DataPlane `yaml:"dataPlane"`
 	Discovery Discovery `yaml:"discovery"`
