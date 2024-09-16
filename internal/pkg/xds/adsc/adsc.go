@@ -3,6 +3,7 @@ package adsc
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"math"
 	"time"
@@ -18,6 +19,7 @@ const (
 	defaultClientMaxReceiveMessageSize = math.MaxInt32
 	defaultInitialConnWindowSize       = 1024 * 1024 // default gRPC InitialWindowSize
 	defaultInitialWindowSize           = 1024 * 1024 // default gRPC ConnWindowSize
+	reconnectDelay                     = 5 * time.Second
 )
 
 var log = istiolog.RegisterScope("adsc", "Aggregated Discovery Service Client")
@@ -71,6 +73,9 @@ func (a *ADSC) send(req *discovery.DiscoveryRequest) error {
 }
 
 func (a *ADSC) dial() error {
+	backoffConfig := backoff.DefaultConfig
+	backoffConfig.MaxDelay = reconnectDelay
+
 	var err error
 	a.conn, err = grpc.NewClient(
 		a.cfg.DiscoveryAddr,
@@ -80,11 +85,11 @@ func (a *ADSC) dial() error {
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(defaultClientMaxReceiveMessageSize)),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff:           backoff.DefaultConfig,
-			MinConnectTimeout: 5 * time.Second,
+			MinConnectTimeout: reconnectDelay,
 		}),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to establish connection to the ADS server %s: %v", a.cfg.DiscoveryAddr, err)
 	}
 	return nil
 }
@@ -94,18 +99,26 @@ func (a *ADSC) handleRecv() {
 		var err error
 		msg, err := a.stream.Recv()
 		if err != nil {
-			log.Infof("connection closed with err: %v", err)
+			log.Errorf("connection closed with err: %v", err)
+			time.AfterFunc(reconnectDelay, a.reconnect)
 			return
 		}
-		log.Infof("received response of type %s", msg.TypeUrl)
-		log.Infof("received response body %v", msg.Resources)
+		log.Infof("received response for %s: %v", msg.TypeUrl, msg.Resources)
 		if handler, found := a.cfg.Handlers[msg.TypeUrl]; found {
-			log.Infof("ResponseHandler found for type %s", msg.TypeUrl)
 			if err := handler.Handle(msg.Resources); err != nil {
 				log.Infof("error handling resource %s: %v", msg.TypeUrl, err)
 			}
 		} else {
 			log.Infof("no handler found for type: %s", msg.TypeUrl)
 		}
+	}
+}
+
+func (a *ADSC) reconnect() {
+	log.Infof("reconnecting to ADS server %s", a.cfg.DiscoveryAddr)
+	err := a.Run()
+	if err != nil {
+		log.Errorf("failed to reconnect to ADS server %s: %v", a.cfg.DiscoveryAddr, err)
+		time.AfterFunc(reconnectDelay, a.reconnect)
 	}
 }
