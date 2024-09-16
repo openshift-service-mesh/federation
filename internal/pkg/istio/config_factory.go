@@ -56,24 +56,6 @@ func (cf *ConfigFactory) GenerateDestinationRuleForRemoteControllerTLSOriginatio
 }
 
 func (cf *ConfigFactory) GenerateIngressGateway() (*v1alpha3.Gateway, error) {
-	var hosts []string
-	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
-		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
-		services, err := cf.serviceLister.List(matchLabels)
-		if err != nil {
-			return nil, fmt.Errorf("error listing services (selector=%s): %v", matchLabels, err)
-		}
-		for _, svc := range services {
-			hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace))
-		}
-	}
-	if len(hosts) == 0 {
-		return nil, nil
-	}
-	// ServiceLister.List is not idempotent, so to avoid redundant XDS push from Istio to proxies,
-	// we must return hostnames in the same order.
-	sort.Strings(hosts)
-
 	gateway := &v1alpha3.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      federationIngressGatewayName,
@@ -91,20 +73,39 @@ func (cf *ConfigFactory) GenerateIngressGateway() (*v1alpha3.Gateway, error) {
 				Tls: &istionetv1alpha3.ServerTLSSettings{
 					Mode: istionetv1alpha3.ServerTLSSettings_ISTIO_MUTUAL,
 				},
-			}, {
-				Hosts: hosts,
-				Port: &istionetv1alpha3.Port{
-					Number:   cf.cfg.GetLocalDataPlanePort(),
-					Name:     "data-plane",
-					Protocol: "TLS",
-				},
-				Tls: &istionetv1alpha3.ServerTLSSettings{
-					Mode: istionetv1alpha3.ServerTLSSettings_AUTO_PASSTHROUGH,
-				},
 			}},
 		},
 	}
 
+	var hosts []string
+	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
+		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
+		services, err := cf.serviceLister.List(matchLabels)
+		if err != nil {
+			return nil, fmt.Errorf("error listing services (selector=%s): %v", matchLabels, err)
+		}
+		for _, svc := range services {
+			hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace))
+		}
+	}
+	if len(hosts) == 0 {
+		return gateway, nil
+	}
+	// ServiceLister.List is not idempotent, so to avoid redundant XDS push from Istio to proxies,
+	// we must return hostnames in the same order.
+	sort.Strings(hosts)
+
+	gateway.Spec.Servers = append(gateway.Spec.Servers, &istionetv1alpha3.Server{
+		Hosts: hosts,
+		Port: &istionetv1alpha3.Port{
+			Number:   cf.cfg.GetLocalDataPlanePort(),
+			Name:     "data-plane",
+			Protocol: "TLS",
+		},
+		Tls: &istionetv1alpha3.ServerTLSSettings{
+			Mode: istionetv1alpha3.ServerTLSSettings_AUTO_PASSTHROUGH,
+		},
+	})
 	return gateway, nil
 }
 

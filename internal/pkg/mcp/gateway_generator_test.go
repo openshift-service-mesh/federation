@@ -121,14 +121,33 @@ func TestGatewayGenerator(t *testing.T) {
 			},
 		}},
 	}, {
-		name: "no gateway expected if none service matches configured label selector",
+		name: "federation-ingress-gateway is expected if none service matches configured label selector",
 		existingServices: []*corev1.Service{{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "a",
 				Namespace: "ns1",
 			},
 		}},
-		expectedIstioConfigs: []*istiocfg.Config{},
+		expectedIstioConfigs: []*istiocfg.Config{{
+			Meta: istiocfg.Meta{
+				Name:      "federation-ingress-gateway",
+				Namespace: "istio-system",
+			},
+			Spec: &istionetv1alpha3.Gateway{
+				Selector: map[string]string{"app": "federation-ingress-gateway"},
+				Servers: []*istionetv1alpha3.Server{{
+					Hosts: []string{"*"},
+					Port: &istionetv1alpha3.Port{
+						Number:   17443,
+						Name:     "discovery",
+						Protocol: "TLS",
+					},
+					Tls: &istionetv1alpha3.ServerTLSSettings{
+						Mode: istionetv1alpha3.ServerTLSSettings_ISTIO_MUTUAL,
+					},
+				}},
+			},
+		}},
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
