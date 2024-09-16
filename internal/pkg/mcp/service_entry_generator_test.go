@@ -102,14 +102,14 @@ var (
 	}
 )
 
-func TestHandle(t *testing.T) {
+func TestServiceEntryGenerator(t *testing.T) {
 	testCases := []struct {
 		name                 string
 		importedServices     []*v1alpha1.ExportedService
 		existingServices     []*corev1.Service
 		expectedIstioConfigs []*istiocfg.Config
 	}{{
-		name: "received exported services do not exist locally - ServiceEntry expected",
+		name: "received exported services that do not exist locally - ServiceEntry expected",
 		importedServices: []*v1alpha1.ExportedService{{
 			Name:      "a",
 			Namespace: "ns1",
@@ -157,7 +157,7 @@ func TestHandle(t *testing.T) {
 			remoteFederationControllerServiceEntry,
 		},
 	}, {
-		name: "received exported service do not exist locally - WorkloadEntry expected",
+		name: "received exported service that exists locally - only default service entries expected",
 		importedServices: []*v1alpha1.ExportedService{{
 			Name:      "a",
 			Namespace: "ns1",
@@ -180,37 +180,6 @@ func TestHandle(t *testing.T) {
 			},
 		}},
 		expectedIstioConfigs: []*istiocfg.Config{remoteFederationControllerServiceEntry},
-		// TODO: Move to workload_entry_generator_test
-		//expectedIstioConfigs: []*istiocfg.Config{
-		//	{
-		//		Meta: istiocfg.Meta{
-		//			Name:      "import_a_0",
-		//			Namespace: "ns1",
-		//		},
-		//		Spec: buildWorkloadEntry("192.168.0.1"),
-		//	},
-		//	{
-		//		Meta: istiocfg.Meta{
-		//			Name:      "import_a_1",
-		//			Namespace: "ns1",
-		//		},
-		//		Spec: buildWorkloadEntry("192.168.0.2"),
-		//	},
-		//	{
-		//		Meta: istiocfg.Meta{
-		//			Name:      "import_a_0",
-		//			Namespace: "ns2",
-		//		},
-		//		Spec: buildWorkloadEntry("192.168.0.1"),
-		//	},
-		//	{
-		//		Meta: istiocfg.Meta{
-		//			Name:      "import_a_1",
-		//			Namespace: "ns2",
-		//		},
-		//		Spec: buildWorkloadEntry("192.168.0.2"),
-		//	},
-		//},
 	}, {
 		name: "received exported services with TCP port - ServiceEntry with single hostname expected",
 		importedServices: []*v1alpha1.ExportedService{{

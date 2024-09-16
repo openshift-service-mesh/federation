@@ -197,6 +197,7 @@ func main() {
 		onNewMCPSubscription,
 		mcp.NewGatewayResourceGenerator(istioConfigFactory),
 		mcp.NewServiceEntryGenerator(istioConfigFactory),
+		mcp.NewWorkloadEntryGenerator(istioConfigFactory),
 		mcp.NewVirtualServiceResourceGenerator(istioConfigFactory),
 		mcp.NewDestinationRuleResourceGenerator(istioConfigFactory),
 	)

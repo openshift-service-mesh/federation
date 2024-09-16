@@ -26,7 +26,6 @@ func (s *ServiceEntryGenerator) GetTypeUrl() string {
 
 func (s *ServiceEntryGenerator) GenerateResponse() ([]*anypb.Any, error) {
 	serviceEntries, err := s.istioConfigFactory.GenerateServiceEntriesForImportedServices()
-	fmt.Println(serviceEntries)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate service entries: %v", err)
 	}
