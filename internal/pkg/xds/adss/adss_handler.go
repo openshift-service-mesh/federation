@@ -98,7 +98,7 @@ func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
 				// because that may cause unintentional removal of the subscribed resources.
 				log.Errorf("[%s] failed to generate resources of type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
 			}
-			log.Infof("[%s] Sending initial config snapshot for type %s", adss.serverID, discoveryRequest.GetTypeUrl())
+			log.Infof("[%s] Sending initial config snapshot for type %s: %s", adss.serverID, discoveryRequest.GetTypeUrl(), resources)
 			if err := sendToStream(downstream, discoveryRequest.GetTypeUrl(), resources, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
 				log.Errorf("[%s] failed to send initial config snapshot for type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
 			}

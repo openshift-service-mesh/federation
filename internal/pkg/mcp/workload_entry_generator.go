@@ -21,7 +21,7 @@ func NewWorkloadEntryGenerator(istioConfigFactory *istio.ConfigFactory) *Workloa
 }
 
 func (s *WorkloadEntryGenerator) GetTypeUrl() string {
-	return xds.ServiceEntryTypeUrl
+	return xds.WorkloadEntryTypeUrl
 }
 
 func (s *WorkloadEntryGenerator) GenerateResponse() ([]*anypb.Any, error) {

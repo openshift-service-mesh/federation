@@ -47,6 +47,8 @@ func (cf *ConfigFactory) GenerateDestinationRuleForRemoteControllerTLSOriginatio
 			TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
 				Tls: &istionetv1alpha3.ClientTLSSettings{
 					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
+					// SNI must come from the configured identity
+					Sni: fmt.Sprintf("federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace),
 				},
 			},
 		},
@@ -174,7 +176,12 @@ func (cf *ConfigFactory) GenerateWorkloadEntriesForImportedServices() ([]*v1alph
 	return workloadEntries, nil
 }
 
+// TODO: Generate only if remote peers are defined
 func (cf *ConfigFactory) GenerateServiceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
+	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
+		return nil
+	}
+
 	var endpoints []*istionetv1alpha3.WorkloadEntry
 	for _, remoteAddr := range cf.cfg.MeshPeers.Remote.Addresses {
 		endpoints = append(endpoints, &istionetv1alpha3.WorkloadEntry{Address: remoteAddr})

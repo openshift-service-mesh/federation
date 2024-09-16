@@ -19,6 +19,9 @@ spec:
       multiCluster:
         clusterName: west-cluster
       network: west-network
+    pilot:
+      env:
+        ENABLE_NATIVE_SIDECARS: "true"
   components:
     ingressGateways:
     - name: istio-eastwestgateway

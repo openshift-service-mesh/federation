@@ -29,7 +29,9 @@ func (s *ServiceEntryGenerator) GenerateResponse() ([]*anypb.Any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate service entries: %v", err)
 	}
-	serviceEntries = append(serviceEntries, s.istioConfigFactory.GenerateServiceEntryForRemoteFederationController())
+	if remoteControllerSE := s.istioConfigFactory.GenerateServiceEntryForRemoteFederationController(); remoteControllerSE != nil {
+		serviceEntries = append(serviceEntries, remoteControllerSE)
+	}
 
 	var serviceEntryConfigs []*istioconfig.Config
 	for _, se := range serviceEntries {
