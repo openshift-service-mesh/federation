@@ -25,7 +25,7 @@ func (s *WorkloadEntryGenerator) GetTypeUrl() string {
 }
 
 func (s *WorkloadEntryGenerator) GenerateResponse() ([]*anypb.Any, error) {
-	workloadEntries, err := s.istioConfigFactory.GenerateWorkloadEntriesForImportedServices()
+	workloadEntries, err := s.istioConfigFactory.GetWorkloadEntries()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate workload entries: %v", err)
 	}

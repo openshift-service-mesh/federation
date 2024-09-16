@@ -23,7 +23,7 @@ func (v *VirtualServiceResourceGenerator) GetTypeUrl() string {
 }
 
 func (v *VirtualServiceResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
-	vs := v.cf.GenerateVirtualServiceForIngressGateway()
+	vs := v.cf.GetVirtualServices()
 	return serialize(&istiocfg.Config{
 		Meta: istiocfg.Meta{
 			Name:      vs.Name,

@@ -23,7 +23,10 @@ func (v *DestinationRuleResourceGenerator) GetTypeUrl() string {
 }
 
 func (v *DestinationRuleResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
-	dr := v.cf.GenerateDestinationRuleForRemoteControllerTLSOrigination()
+	dr := v.cf.GetDestinationRules()
+	if dr == nil {
+		return nil, nil
+	}
 	return serialize(&istiocfg.Config{
 		Meta: istiocfg.Meta{
 			Name:      dr.Name,

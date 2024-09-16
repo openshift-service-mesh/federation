@@ -36,7 +36,10 @@ func NewConfigFactory(cfg config.Federation, serviceLister v1.ServiceLister, imp
 	}
 }
 
-func (cf *ConfigFactory) GenerateDestinationRuleForRemoteControllerTLSOrigination() *v1alpha3.DestinationRule {
+func (cf *ConfigFactory) GetDestinationRules() *v1alpha3.DestinationRule {
+	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
+		return nil
+	}
 	return &v1alpha3.DestinationRule{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "originate-istio-mtls-to-remote-federation-controller",
@@ -55,7 +58,7 @@ func (cf *ConfigFactory) GenerateDestinationRuleForRemoteControllerTLSOriginatio
 	}
 }
 
-func (cf *ConfigFactory) GenerateIngressGateway() (*v1alpha3.Gateway, error) {
+func (cf *ConfigFactory) GetIngressGateway() (*v1alpha3.Gateway, error) {
 	gateway := &v1alpha3.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      federationIngressGatewayName,
@@ -109,7 +112,7 @@ func (cf *ConfigFactory) GenerateIngressGateway() (*v1alpha3.Gateway, error) {
 	return gateway, nil
 }
 
-func (cf *ConfigFactory) GenerateServiceEntriesForImportedServices() ([]*v1alpha3.ServiceEntry, error) {
+func (cf *ConfigFactory) GetServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 	var serviceEntries []*v1alpha3.ServiceEntry
 	for _, importedSvc := range cf.importedServiceStore.GetAll() {
 		// enable Istio mTLS
@@ -146,10 +149,13 @@ func (cf *ConfigFactory) GenerateServiceEntriesForImportedServices() ([]*v1alpha
 			})
 		}
 	}
+	if se := cf.getServiceEntryForRemoteFederationController(); se != nil {
+		serviceEntries = append(serviceEntries, se)
+	}
 	return serviceEntries, nil
 }
 
-func (cf *ConfigFactory) GenerateWorkloadEntriesForImportedServices() ([]*v1alpha3.WorkloadEntry, error) {
+func (cf *ConfigFactory) GetWorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 	var workloadEntries []*v1alpha3.WorkloadEntry
 	for _, importedSvc := range cf.importedServiceStore.GetAll() {
 		// enable Istio mTLS
@@ -177,37 +183,7 @@ func (cf *ConfigFactory) GenerateWorkloadEntriesForImportedServices() ([]*v1alph
 	return workloadEntries, nil
 }
 
-// TODO: Generate only if remote peers are defined
-func (cf *ConfigFactory) GenerateServiceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
-	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
-		return nil
-	}
-
-	var endpoints []*istionetv1alpha3.WorkloadEntry
-	for _, remoteAddr := range cf.cfg.MeshPeers.Remote.Addresses {
-		endpoints = append(endpoints, &istionetv1alpha3.WorkloadEntry{Address: remoteAddr})
-	}
-	// TODO: this object could be created once on instantiating ConfigFactory
-	return &v1alpha3.ServiceEntry{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "remote-federation-controller",
-			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-		},
-		Spec: istionetv1alpha3.ServiceEntry{
-			Hosts: []string{fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace)},
-			Ports: []*istionetv1alpha3.ServicePort{{
-				Name:     "discovery",
-				Number:   15080,
-				Protocol: "GRPC",
-			}},
-			Location:   istionetv1alpha3.ServiceEntry_MESH_EXTERNAL,
-			Resolution: istionetv1alpha3.ServiceEntry_STATIC,
-			Endpoints:  endpoints,
-		},
-	}
-}
-
-func (cf *ConfigFactory) GenerateVirtualServiceForIngressGateway() *v1alpha3.VirtualService {
+func (cf *ConfigFactory) GetVirtualServices() *v1alpha3.VirtualService {
 	return &v1alpha3.VirtualService{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      federationIngressGatewayName,
@@ -229,6 +205,34 @@ func (cf *ConfigFactory) GenerateVirtualServiceForIngressGateway() *v1alpha3.Vir
 					},
 				}},
 			}},
+		},
+	}
+}
+
+func (cf *ConfigFactory) getServiceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
+	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
+		return nil
+	}
+
+	var endpoints []*istionetv1alpha3.WorkloadEntry
+	for _, remoteAddr := range cf.cfg.MeshPeers.Remote.Addresses {
+		endpoints = append(endpoints, &istionetv1alpha3.WorkloadEntry{Address: remoteAddr})
+	}
+	return &v1alpha3.ServiceEntry{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "remote-federation-controller",
+			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+		},
+		Spec: istionetv1alpha3.ServiceEntry{
+			Hosts: []string{fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace)},
+			Ports: []*istionetv1alpha3.ServicePort{{
+				Name:     "discovery",
+				Number:   15080,
+				Protocol: "GRPC",
+			}},
+			Location:   istionetv1alpha3.ServiceEntry_MESH_EXTERNAL,
+			Resolution: istionetv1alpha3.ServiceEntry_STATIC,
+			Endpoints:  endpoints,
 		},
 	}
 }

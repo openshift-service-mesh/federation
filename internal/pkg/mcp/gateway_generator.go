@@ -28,7 +28,7 @@ func (g *GatewayResourceGenerator) GetTypeUrl() string {
 }
 
 func (g *GatewayResourceGenerator) GenerateResponse() ([]*anypb.Any, error) {
-	gw, err := g.cf.GenerateIngressGateway()
+	gw, err := g.cf.GetIngressGateway()
 	if err != nil {
 		return nil, fmt.Errorf("error generating ingress gateway: %v", err)
 	}
