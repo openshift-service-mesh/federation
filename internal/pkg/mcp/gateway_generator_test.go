@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"github.com/jewertow/federation/internal/pkg/fds"
 	"reflect"
 	"testing"
 
@@ -17,18 +18,24 @@ import (
 	"github.com/jewertow/federation/internal/pkg/istio"
 )
 
+const (
+	controllerServiceFQDN = "federation-controller.istio-system.svc.cluster.local"
+)
+
 var (
 	federationConfig = config.Federation{
 		MeshPeers: config.MeshPeers{
-			Local: &config.Local{
-				ControlPlane: &config.ControlPlane{
+			Local: config.Local{
+				ControlPlane: config.ControlPlane{
 					Namespace: "istio-system",
 				},
-				Gateways: &config.Gateways{
-					Ingress: &config.LocalGateway{
-						Namespace: "federation-system",
-						Port:      16443,
-						Selector:  map[string]string{"app": "federation-ingress-gateway"},
+				Gateways: config.Gateways{
+					Ingress: config.LocalGateway{
+						Selector: map[string]string{"app": "federation-ingress-gateway"},
+						Ports: &config.GatewayPorts{
+							DataPlane: 16443,
+							Discovery: 17443,
+						},
 					},
 				},
 			},
@@ -83,18 +90,28 @@ func TestGatewayGenerator(t *testing.T) {
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
 				Name:      "federation-ingress-gateway",
-				Namespace: "federation-system",
+				Namespace: "istio-system",
 			},
 			Spec: &istionetv1alpha3.Gateway{
 				Selector: map[string]string{"app": "federation-ingress-gateway"},
 				Servers: []*istionetv1alpha3.Server{{
+					Hosts: []string{"*"},
+					Port: &istionetv1alpha3.Port{
+						Number:   17443,
+						Name:     "discovery",
+						Protocol: "TLS",
+					},
+					Tls: &istionetv1alpha3.ServerTLSSettings{
+						Mode: istionetv1alpha3.ServerTLSSettings_ISTIO_MUTUAL,
+					},
+				}, {
 					Hosts: []string{
 						"a.ns2.svc.cluster.local",
 						"b.ns1.svc.cluster.local",
 					},
 					Port: &istionetv1alpha3.Port{
 						Number:   16443,
-						Name:     "tls",
+						Name:     "data-plane",
 						Protocol: "TLS",
 					},
 					Tls: &istionetv1alpha3.ServerTLSSettings{
@@ -104,14 +121,33 @@ func TestGatewayGenerator(t *testing.T) {
 			},
 		}},
 	}, {
-		name: "no gateway expected if none service matches configured label selector",
+		name: "federation-ingress-gateway is expected if none service matches configured label selector",
 		existingServices: []*corev1.Service{{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "a",
 				Namespace: "ns1",
 			},
 		}},
-		expectedIstioConfigs: []*istiocfg.Config{},
+		expectedIstioConfigs: []*istiocfg.Config{{
+			Meta: istiocfg.Meta{
+				Name:      "federation-ingress-gateway",
+				Namespace: "istio-system",
+			},
+			Spec: &istionetv1alpha3.Gateway{
+				Selector: map[string]string{"app": "federation-ingress-gateway"},
+				Servers: []*istionetv1alpha3.Server{{
+					Hosts: []string{"*"},
+					Port: &istionetv1alpha3.Port{
+						Number:   17443,
+						Name:     "discovery",
+						Protocol: "TLS",
+					},
+					Tls: &istionetv1alpha3.ServerTLSSettings{
+						Mode: istionetv1alpha3.ServerTLSSettings_ISTIO_MUTUAL,
+					},
+				}},
+			},
+		}},
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -134,7 +170,7 @@ func TestGatewayGenerator(t *testing.T) {
 			}
 			serviceController.RunAndWait(stopCh)
 
-			generator := NewGatewayResourceGenerator(istio.NewConfigFactory(federationConfig, serviceLister))
+			generator := NewGatewayResourceGenerator(istio.NewConfigFactory(federationConfig, serviceLister, fds.NewImportedServiceStore(), controllerServiceFQDN))
 
 			resources, err := generator.GenerateResponse()
 			if err != nil {

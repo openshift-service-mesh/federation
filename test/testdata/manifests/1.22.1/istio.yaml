@@ -15807,7 +15807,7 @@ spec:
         image: docker.io/istio/proxyv2:1.22.1
         name: istio-proxy
         ports:
-        - containerPort: 15020
+        - containerPort: 15080
           protocol: TCP
         - containerPort: 15443
           protocol: TCP
@@ -15979,6 +15979,8 @@ spec:
               fieldPath: spec.serviceAccountName
         - name: KUBECONFIG
           value: /var/run/secrets/remote/config
+        - name: ENABLE_NATIVE_SIDECARS
+          value: "true"
         - name: PILOT_TRACE_SAMPLING
           value: "1"
         - name: PILOT_ENABLE_ANALYSIS
@@ -16290,9 +16292,9 @@ metadata:
 spec:
   ports:
   - name: discovery
-    port: 15020
+    port: 15080
     protocol: TCP
-    targetPort: 15020
+    targetPort: 15080
   - name: data-plane
     port: 15443
     protocol: TCP

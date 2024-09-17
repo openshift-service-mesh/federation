@@ -2,6 +2,6 @@ federation:
   meshPeers:
     local:
       controlPlane:
-        namespace: "istio-system"
+        namespace: istio-system
     remote:
       network: west-network

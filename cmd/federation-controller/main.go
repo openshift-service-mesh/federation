@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/env"
 )
 
 // Global variable to store the parsed commandline arguments
@@ -142,7 +143,13 @@ func main() {
 	}
 	serviceController.RunAndWait(ctx.Done())
 
-	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister)
+	importedServiceStore := fds.NewImportedServiceStore()
+
+	var controllerServiceFQDN string
+	if controllerServiceFQDN = env.GetString("CONTROLLER_SERVICE_FQDN", ""); controllerServiceFQDN == "" {
+		log.Fatalf("did not find environment variable CONTROLLER_SERVICE_FQDN")
+	}
+	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, controllerServiceFQDN)
 
 	triggerFDSPushOnNewSubscription := func() {
 		fdsPushRequests <- xds.PushRequest{
@@ -150,7 +157,7 @@ func main() {
 		}
 	}
 	federationServer := adss.NewServer(
-		&adss.ServerOpts{Port: 15020, ServerID: "fds"},
+		&adss.ServerOpts{Port: 15080, ServerID: "fds"},
 		fdsPushRequests,
 		triggerFDSPushOnNewSubscription,
 		fds.NewExportedServicesGenerator(*cfg, serviceLister),
@@ -162,14 +169,14 @@ func main() {
 	}()
 
 	var onNewMCPSubscription func()
-	if len(cfg.MeshPeers.Remote.Discovery.Addresses) > 0 {
+	if len(cfg.MeshPeers.Remote.Addresses) > 0 {
 		federationClient, err := adsc.New(&adsc.ADSCConfig{
-			DiscoveryAddr: fmt.Sprintf("%s:15020", cfg.MeshPeers.Remote.Discovery.Addresses[0]),
+			DiscoveryAddr: fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local:15080", cfg.MeshPeers.Local.ControlPlane.Namespace),
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
 			Handlers: map[string]adsc.ResponseHandler{
-				xds.ExportedServiceTypeUrl: mcp.NewImportedServiceHandler(istioConfigFactory, mcpPushRequests),
+				xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, mcpPushRequests),
 			},
 		})
 		if err != nil {
@@ -189,6 +196,10 @@ func main() {
 		mcpPushRequests,
 		onNewMCPSubscription,
 		mcp.NewGatewayResourceGenerator(istioConfigFactory),
+		mcp.NewServiceEntryGenerator(istioConfigFactory),
+		mcp.NewWorkloadEntryGenerator(istioConfigFactory),
+		mcp.NewVirtualServiceResourceGenerator(istioConfigFactory),
+		mcp.NewDestinationRuleResourceGenerator(istioConfigFactory),
 	)
 	if err := mcpServer.Run(ctx); err != nil {
 		log.Fatalf("Error running XDS server: %v", err)
