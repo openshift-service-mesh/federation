@@ -45,10 +45,10 @@ type Controller struct {
 
 func NewResourceController(informer cache.SharedIndexInformer, resourceType interface{}, eventHandlers ...Handler) (*Controller, error) {
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-	var newEvent Event
-	var err error
 	handlerRegistration, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
+			var newEvent Event
+			var err error
 			newEvent.key, err = cache.MetaNamespaceKeyFunc(obj)
 			newEvent.eventType = "create"
 			newEvent.resourceType = objName(resourceType)
@@ -59,6 +59,8 @@ func NewResourceController(informer cache.SharedIndexInformer, resourceType inte
 			}
 		},
 		UpdateFunc: func(old, new interface{}) {
+			var newEvent Event
+			var err error
 			newEvent.key, err = cache.MetaNamespaceKeyFunc(old)
 			newEvent.eventType = "update"
 			newEvent.resourceType = objName(resourceType)
@@ -70,6 +72,8 @@ func NewResourceController(informer cache.SharedIndexInformer, resourceType inte
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
+			var newEvent Event
+			var err error
 			newEvent.key, err = cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 			newEvent.eventType = "delete"
 			newEvent.resourceType = objName(resourceType)
