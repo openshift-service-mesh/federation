@@ -46,3 +46,31 @@ e2e-test:
 
 .PHONY: e2e
 e2e: kind-clusters e2e-test
+
+LICENSE_FILE := /tmp/license.txt
+GO_FILES := $(shell find . -name '*.go')
+
+.PHONY: add-license
+add-license:
+	@echo "// Copyright Red Hat, Inc." > $(LICENSE_FILE)
+	@echo "//" >> $(LICENSE_FILE)
+	@echo "// Licensed under the Apache License, Version 2.0 (the "License");" >> $(LICENSE_FILE)
+	@echo "// you may not use this file except in compliance with the License." >> $(LICENSE_FILE)
+	@echo "// You may obtain a copy of the License at" >> $(LICENSE_FILE)
+	@echo "//" >> $(LICENSE_FILE)
+	@echo "//     http://www.apache.org/licenses/LICENSE-2.0" >> $(LICENSE_FILE)
+	@echo "//" >> $(LICENSE_FILE)
+	@echo "// Unless required by applicable law or agreed to in writing, software" >> $(LICENSE_FILE)
+	@echo "// distributed under the License is distributed on an "AS IS" BASIS," >> $(LICENSE_FILE)
+	@echo "// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied." >> $(LICENSE_FILE)
+	@echo "// See the License for the specific language governing permissions and" >> $(LICENSE_FILE)
+	@echo "// limitations under the License." >> $(LICENSE_FILE)
+	@echo "" >> $(LICENSE_FILE)
+
+	@for file in $(GO_FILES); do \
+		if ! grep -q "Licensed under the Apache License" $$file; then \
+			echo "Adding license to $$file"; \
+			cat $(LICENSE_FILE) $$file > temp && mv temp $$file; \
+		fi \
+	done
+	@rm -f $(LICENSE_FILE)
