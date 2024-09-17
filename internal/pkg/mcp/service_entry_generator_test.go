@@ -25,8 +25,8 @@ import (
 var (
 	defaultConfig = config.Federation{
 		MeshPeers: config.MeshPeers{
-			Local: &config.Local{
-				ControlPlane: &config.ControlPlane{
+			Local: config.Local{
+				ControlPlane: config.ControlPlane{
 					Namespace: "istio-system",
 				},
 			},

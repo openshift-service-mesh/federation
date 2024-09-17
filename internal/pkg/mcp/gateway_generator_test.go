@@ -25,12 +25,12 @@ const (
 var (
 	federationConfig = config.Federation{
 		MeshPeers: config.MeshPeers{
-			Local: &config.Local{
-				ControlPlane: &config.ControlPlane{
+			Local: config.Local{
+				ControlPlane: config.ControlPlane{
 					Namespace: "istio-system",
 				},
-				Gateways: &config.Gateways{
-					Ingress: &config.LocalGateway{
+				Gateways: config.Gateways{
+					Ingress: config.LocalGateway{
 						Selector: map[string]string{"app": "federation-ingress-gateway"},
 						Ports: &config.GatewayPorts{
 							DataPlane: 16443,

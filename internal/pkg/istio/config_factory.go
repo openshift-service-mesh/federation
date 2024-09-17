@@ -69,7 +69,7 @@ func (cf *ConfigFactory) GetIngressGateway() (*v1alpha3.Gateway, error) {
 			Servers: []*istionetv1alpha3.Server{{
 				Hosts: []string{"*"},
 				Port: &istionetv1alpha3.Port{
-					Number:   cf.cfg.GetLocalDiscoveryPort(),
+					Number:   cf.cfg.MeshPeers.Local.Gateways.Ingress.Ports.GetDiscoveryPort(),
 					Name:     "discovery",
 					Protocol: "TLS",
 				},
@@ -101,7 +101,7 @@ func (cf *ConfigFactory) GetIngressGateway() (*v1alpha3.Gateway, error) {
 	gateway.Spec.Servers = append(gateway.Spec.Servers, &istionetv1alpha3.Server{
 		Hosts: hosts,
 		Port: &istionetv1alpha3.Port{
-			Number:   cf.cfg.GetLocalDataPlanePort(),
+			Number:   cf.cfg.MeshPeers.Local.Gateways.Ingress.Ports.GetDataPlanePort(),
 			Name:     "data-plane",
 			Protocol: "TLS",
 		},
@@ -194,7 +194,7 @@ func (cf *ConfigFactory) GetVirtualServices() *v1alpha3.VirtualService {
 			Gateways: []string{federationIngressGatewayName},
 			Tcp: []*istionetv1alpha3.TCPRoute{{
 				Match: []*istionetv1alpha3.L4MatchAttributes{{
-					Port: cf.cfg.GetLocalDiscoveryPort(),
+					Port: cf.cfg.MeshPeers.Local.Gateways.Ingress.Ports.GetDiscoveryPort(),
 				}},
 				Route: []*istionetv1alpha3.RouteDestination{{
 					Destination: &istionetv1alpha3.Destination{
@@ -247,7 +247,7 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 			Ports:   make(map[string]uint32, len(ports)),
 		}
 		for _, p := range ports {
-			we.Ports[p.Name] = cf.cfg.GetRemoteGatewayDataPlanePort()
+			we.Ports[p.Name] = cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort()
 		}
 		workloadEntries = append(workloadEntries, we)
 	}
