@@ -6,7 +6,7 @@ federation:
       gateways:
         ingress:
           selector:
-            istio: eastwestgateway
+            app: federation-ingress-gateway
   exportedServiceSet:
     rules:
     - type: LabelSelector
