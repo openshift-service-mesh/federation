@@ -102,54 +102,84 @@ kwest create secret generic cacerts -n istio-system \
 #### Exporting controller
 1. Deploy federation controller:
 ```shell
-helm-west install -n istio-system west-mesh chart --values examples/exporting-controller.yaml
+helm-west install west-mesh chart -n istio-system --values examples/federation-controller.yaml
+helm-east install east-mesh chart -n istio-system --values examples/federation-controller.yaml
 ```
-2. Deploy Istio control plane and gateway:
+2. Deploy Istio control planes and gateways:
 ```shell
-istioctl --kubeconfig=west.kubeconfig install -f examples/exporting-mesh.yaml -y
+istioctl --kubeconfig=west.kubeconfig install -f examples/west-mesh.yaml -y
+istioctl --kubeconfig=east.kubeconfig install -f examples/east-mesh.yaml -y
 ```
-3. Restart federation deployment to trigger injection:
+3. Update gateway IPs and trigger injection in federation-controllers:
 ```shell
-kwest rollout restart deployment federation-controller -n istio-system
-```
-
-#### Importing controller
-```shell
-helm-east install east-mesh chart -n istio-system --values examples/importing-controller.yaml
-```
-```shell
-istioctl --kubeconfig=east.kubeconfig install -f examples/importing-mesh.yaml -y
-```
-```shell
-GATEWAY_IP=$(kwest get svc istio-eastwestgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-east upgrade east-mesh chart -n istio-system \
-  --values examples/importing-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$GATEWAY_IP"
+  --values examples/federation-controller.yaml \
+  --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP"
+EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+helm-west upgrade west-mesh chart -n istio-system \
+  --values examples/federation-controller.yaml \
+  --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP"
 ```
 
-### Import and export services
+### Deploy and export services
 
-1. Enable mTLS, deploy `sleep` the east cluster and `httpbin` in the west cluster and export `httpbin`:
+1. Enable mTLS and deploy apps:
 ```shell
 keast apply -f examples/mtls.yaml -n istio-system
-keast create namespace sleep
-keast label namespace sleep istio-injection=enabled
-keast apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/sleep/sleep.yaml -n sleep
+keast label namespace default istio-injection=enabled
+keast apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/bookinfo/platform/kube/bookinfo.yaml
+keast apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/bookinfo/networking/bookinfo-gateway.yaml
 kwest apply -f examples/mtls.yaml -n istio-system
-kwest create namespace httpbin
-kwest label namespace httpbin istio-injection=enabled
-kwest apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/httpbin/httpbin.yaml -n httpbin
-kwest label service httpbin -n httpbin export-service=true
+kwest label namespace default istio-injection=enabled
+kwest apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/bookinfo/platform/kube/bookinfo.yaml
+kwest apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/bookinfo/networking/bookinfo-gateway.yaml
 ```
 
-2. Check endpoints in sleep's istio-proxy and listeners in east-west gateway:
+2. Delete `details` from west cluster and `ratings` from east cluster:
 ```shell
-istioctl --kubeconfig=east.kubeconfig pc endpoints deploy/sleep -n sleep | grep httpbin
-istioctl --kubeconfig=west.kubeconfig pc listeners deploy/istio-eastwestgateway -n istio-system
+kwest delete svc details
+kwest delete deploy details-v1
+kwest delete sa bookinfo-details
+```
+```shell
+keast delete svc ratings
+keast delete deploy ratings-v1
+keast delete sa bookinfo-ratings
 ```
 
-3. Send a request from sleep to httpbin:
+3. Export services:
 ```shell
-SLEEP_POD_NAME=$(keast get pods -l app=sleep -n sleep -o jsonpath='{.items[0].metadata.name}')
-keast exec $SLEEP_POD_NAME -n sleep -c sleep -- curl -v httpbin.httpbin.svc.cluster.local:8000/headers
+kwest label svc productpage export-service=true
+kwest label svc reviews export-service=true
+kwest label svc ratings export-service=true
+```
+```shell
+keast label svc productpage export-service=true
+keast label svc reviews export-service=true
+keast label svc details export-service=true
+```
+
+4. Send a few requests to the west ingress gateway and check access log:
+```shell
+EAST_INGRESS_IP=$(keast get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+curl -v "http://$EAST_INGRESS_IP:80/productpage"
+```
+```shell
+keast logs deploy/istio-ingressgateway -n istio-system --tail=3 | grep "UPSTREAM_HOST"
+```
+You should see an output like this:
+```shell
+[ 2024-09-17T18:35:29.769Z ] "GET /productpage HTTP/1.1" 200 - via_upstream - "-" 0 4294 543 542 "10.244.0.1" "curl/8.2.1" "e5d1f558-adf2-4c84-b22b-dc75b482778b" "172.18.128.2" UPSTREAM_HOST="10.244.0.17:9080" outbound|9080||productpage.default.svc.cluster.local 10.244.0.9:60828 10.244.0.9:8080 10.244.0.1:47000 - -
+[ 2024-09-17T18:35:39.743Z ] "GET /productpage HTTP/1.1" 200 - via_upstream - "-" 0 5293 679 679 "10.244.0.1" "curl/8.2.1" "1eadd5f7-9c65-4485-9851-517db2f90fa1" "172.18.128.2" UPSTREAM_HOST="172.18.64.1:15443" outbound|9080||productpage.default.svc.cluster.local 10.244.0.9:42642 10.244.0.9:8080 10.244.0.1:64376 - -
+[ 2024-09-17T18:35:43.594Z ] "GET /productpage HTTP/1.1" 200 - via_upstream - "-" 0 4294 28 28 "10.244.0.1" "curl/8.2.1" "1c949a71-02f5-4b63-a62b-64dece63aa9f" "172.18.128.2" UPSTREAM_HOST="10.244.0.17:9080" outbound|9080||productpage.default.svc.cluster.local 10.244.0.9:48950 10.244.0.9:8080 10.244.0.1:2917 - -
+```
+
+Repeat for west cluster:
+```shell
+WEST_INGRESS_IP=$(kwest get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+curl -v "http://$WEST_INGRESS_IP:80/productpage"
+```
+```shell
+kwest logs deploy/istio-ingressgateway -n istio-system --tail=3 | grep "UPSTREAM_HOST"
 ```

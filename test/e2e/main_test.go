@@ -161,7 +161,7 @@ func deployFederationControllers(ctx resource.Context) error {
 		helmInstallCmd := exec.Command("helm", "install", "-n", "istio-system",
 			fmt.Sprintf("%s-federation-controller", clusterNames[idx]),
 			fmt.Sprintf("%s/chart", rootDir),
-			fmt.Sprintf("--values=%s/examples/exporting-controller.yaml", rootDir),
+			fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", rootDir),
 			"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
 			"--set", fmt.Sprintf("image.tag=%s", testTag))
 		helmInstallCmd.Env = os.Environ()
@@ -191,7 +191,7 @@ func patchFederationControllers(ctx resource.Context) error {
 		helmUpgradeCmd := exec.Command("helm", "upgrade", "-n", "istio-system",
 			fmt.Sprintf("%s-federation-controller", clusterNames[idx]),
 			fmt.Sprintf("%s/chart", rootDir),
-			fmt.Sprintf("--values=%s/examples/exporting-controller.yaml", rootDir),
+			fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", rootDir),
 			"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
 			"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName),
 			"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),

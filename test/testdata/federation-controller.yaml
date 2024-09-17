@@ -11,5 +11,5 @@ federation:
     rules:
     - type: LabelSelector
       labelSelectors:
-        - matchLabels:
-            export-service: "true"
+      - matchLabels:
+          export-service: "true"
