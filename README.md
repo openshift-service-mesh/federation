@@ -1,62 +1,26 @@
-### About the project
+# Federation
 
-`Federation` is a controller that utilizes MCP protocol to configure mesh-federation in Istio.
+A Kubernetes controller that utilizes MCP-over-XDS protocol to configure mesh-federation in Istio.
 
-### Example deployment
+The API allows to export services to remote peers using label selectors. An exported service is available 
+in the importing cluster without any additional routing configuration. Controllers use gRPC protocol to exchange
+exported services, and cross-cluster connections between controllers are secured with Istio mTLS.
 
-1. Create a KinD cluster:
-```shell
-kind create cluster --name test
-```
-2. Deploy federation controller:
-```shell
-kubectl create namespace istio-system
-kubectl apply -f examples/federation.yaml -n istio-system
-```
-3. Install Istio:
-```shell
-istioctl install -f examples/istio.yaml -y
-```
-4. Create a service:
-```shell
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Service
-metadata:
-  name: sleep
-  labels:
-    app: sleep
-    service: sleep
-    export-service: "true"
-spec:
-  ports:
-  - port: 80
-    name: http
-  selector:
-    app: sleep
-EOF
-```
-5. Check listeners applied to the federation ingress gateway:
-```shell
-istioctl pc l deploy/istio-eastwestgateway -n istio-system
-```
-It should return the following output:
-```
-ADDRESSES PORT  MATCH                                                                                                                       DESTINATION
-0.0.0.0   15021 ALL                                                                                                                         Inline Route: /healthz/ready*
-0.0.0.0   15090 ALL                                                                                                                         Inline Route: /stats/prometheus*
-0.0.0.0   15443 SNI: outbound_.80_._.sleep.default.svc.cluster.local; App: istio,istio-peer-exchange,istio-http/1.0,istio-http/1.1,istio-h2 Cluster: outbound_.80_._.sleep.default.svc.cluster.local
-```
+## Motivation
 
-### Development
+In this deployment model, independent meshes deployed in different clusters can connect services without configuring
+access to the k8s api-server in remote clusters. This allows to achieve multi-cluster connectivity for meshes managed
+by different teams in different clusters.
 
-#### Tools
-1. Go 1.22
-2. protoc 3.19.0
-3. protoc-gen-go v1.30.0
+## Development
+
+### Prerequisites
+1. Go 1.22+
+2. protoc 3.19.0+
+3. protoc-gen-go v1.30.0+
 4. protoc-get-golang-deepcopy
 
-#### Useful commands
+### Commands
 
 1. Compile controller:
 ```shell
