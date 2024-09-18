@@ -15,9 +15,9 @@
 package informer
 
 import (
-	"github.com/jewertow/federation/internal/pkg/common"
-	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/common"
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )

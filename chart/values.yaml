@@ -1,5 +1,5 @@
 image:
-  repository: quay.io/jewertow/federation-controller
+  repository: quay.io/openshift-service-mesh/federation-controller
   tag: latest
 
 federation:

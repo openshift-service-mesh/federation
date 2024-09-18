@@ -17,9 +17,9 @@ package fds
 import (
 	"fmt"
 
-	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
-	"github.com/jewertow/federation/internal/pkg/xds"
-	"github.com/jewertow/federation/internal/pkg/xds/adsc"
+	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )

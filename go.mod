@@ -1,4 +1,4 @@
-module github.com/jewertow/federation
+module github.com/openshift-service-mesh/federation
 
 go 1.22.1
 

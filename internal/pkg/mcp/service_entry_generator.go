@@ -17,9 +17,9 @@ package mcp
 import (
 	"fmt"
 
-	"github.com/jewertow/federation/internal/pkg/istio"
-	"github.com/jewertow/federation/internal/pkg/xds"
-	"github.com/jewertow/federation/internal/pkg/xds/adss"
+	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
 	"google.golang.org/protobuf/types/known/anypb"
 	istioconfig "istio.io/istio/pkg/config"
 )
