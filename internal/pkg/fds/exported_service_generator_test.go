@@ -18,15 +18,16 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
 	"golang.org/x/net/context"
 	"google.golang.org/protobuf/types/known/anypb"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
 )
 
 var (

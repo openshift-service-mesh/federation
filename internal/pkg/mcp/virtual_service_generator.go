@@ -15,11 +15,12 @@
 package mcp
 
 import (
+	"google.golang.org/protobuf/types/known/anypb"
+	istiocfg "istio.io/istio/pkg/config"
+
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
-	"google.golang.org/protobuf/types/known/anypb"
-	istiocfg "istio.io/istio/pkg/config"
 )
 
 var _ adss.RequestHandler = (*VirtualServiceResourceGenerator)(nil)

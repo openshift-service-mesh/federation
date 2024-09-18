@@ -20,11 +20,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
-	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"golang.org/x/net/context"
 	"google.golang.org/protobuf/types/known/anypb"
 	mcp "istio.io/api/mcp/v1alpha1"
@@ -34,6 +29,12 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
+	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 )
 
 var (

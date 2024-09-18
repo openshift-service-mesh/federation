@@ -4,7 +4,7 @@ OUT := $(shell pwd)
 default: build test
 
 export TAG ?= latest
-export HUB ?= quay.io/openshift-service-mesh
+export HUB ?= quay.io/jewertow
 export ISTIO_VERSION ?= 1.23.0
 
 .PHONY: build
@@ -53,6 +53,10 @@ e2e-test:
 
 .PHONY: e2e
 e2e: kind-clusters e2e-test
+
+.PHONY: fix-imports
+fix-imports:
+	goimports -local "github.com/openshift-service-mesh/federation" -w .
 
 LICENSE_FILE := /tmp/license.txt
 GO_FILES := $(shell find . -name '*.go')

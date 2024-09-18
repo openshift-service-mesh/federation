@@ -18,10 +18,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var (
