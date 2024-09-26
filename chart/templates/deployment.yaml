@@ -26,6 +26,7 @@ spec:
         args:
         - '--meshPeers={{ .Values.federation.meshPeers | toJson }}'
         - '--exportedServiceSet={{ .Values.federation.exportedServiceSet | toJson }}'
+        - '--configMode={{ .Values.federation.configMode | default "mcp" }}'
         env:
         - name: CONTROLLER_SERVICE_FQDN
           value: "{{ include "chart.name" . }}.{{ .Release.Namespace }}.svc.cluster.local"

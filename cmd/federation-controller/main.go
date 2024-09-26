@@ -42,11 +42,12 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
 )
 
-// Global variable to store the parsed commandline arguments
 var (
-	meshPeer, exportedServiceSet, importedServiceSet string
-	loggingOptions                                   = istiolog.DefaultOptions()
-	log                                              = istiolog.RegisterScope("default", "default logging scope")
+	// Global variables to store the parsed commandline arguments
+	meshPeers, exportedServiceSet, importedServiceSet, configMode string
+
+	loggingOptions = istiolog.DefaultOptions()
+	log            = istiolog.RegisterScope("default", "default logging scope")
 )
 
 // NewRootCommand returns the root cobra command of federation-controller
@@ -67,12 +68,14 @@ func NewRootCommand() *cobra.Command {
 
 func addFlags(c *cobra.Command) {
 	// Process commandline args.
-	c.PersistentFlags().StringVar(&meshPeer, "meshPeers", "",
+	c.PersistentFlags().StringVar(&meshPeers, "meshPeers", "",
 		"Mesh peers that include address ip/hostname to remote Peer, and the ports for dataplane and discovery")
 	c.PersistentFlags().StringVar(&exportedServiceSet, "exportedServiceSet", "",
 		"ExportedServiceSet that include selectors to match the services that will be exported")
 	c.PersistentFlags().StringVar(&importedServiceSet, "importedServiceSet", "",
 		"ImportedServiceSet that include selectors to match the services that will be imported")
+	c.PersistentFlags().StringVar(&configMode, "configMode", "",
+		"Specifies how the federation controller provides mesh config to istiod. Valid options include \"mcp\" and \"k8s\".")
 
 	// Attach the Istio logging options to the command.
 	loggingOptions.AttachCobraFlags(c)
@@ -96,7 +99,7 @@ func parse() (*config.Federation, error) {
 		imported config.ImportedServiceSet
 	)
 
-	if err := unmarshalJSON(meshPeer, &peers); err != nil {
+	if err := unmarshalJSON(meshPeers, &peers); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal mesh peers: %w", err)
 	}
 	if err := unmarshalJSON(exportedServiceSet, &exported); err != nil {
@@ -107,11 +110,16 @@ func parse() (*config.Federation, error) {
 			return nil, fmt.Errorf("failed to unmarshal imported services: %w", err)
 		}
 	}
+	cfgMode := config.ConfigMode(configMode)
+	if cfgMode != config.ConfigModeMCP && cfgMode != config.ConfigModeK8s {
+		return nil, fmt.Errorf("invalid ConfigMode: %s", cfgMode)
+	}
 
 	return &config.Federation{
 		MeshPeers:          peers,
 		ExportedServiceSet: exported,
 		ImportedServiceSet: imported,
+		ConfigMode:         cfgMode,
 	}, nil
 }
 
