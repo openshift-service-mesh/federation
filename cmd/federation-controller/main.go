@@ -22,9 +22,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/spf13/cobra"
+	istiokube "istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
@@ -36,6 +38,7 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
+	"github.com/openshift-service-mesh/federation/internal/pkg/kube"
 	"github.com/openshift-service-mesh/federation/internal/pkg/mcp"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
@@ -152,7 +155,7 @@ func main() {
 	}
 
 	fdsPushRequests := make(chan xds.PushRequest)
-	mcpPushRequests := make(chan xds.PushRequest)
+	meshConfigPushRequests := make(chan xds.PushRequest)
 
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
@@ -160,7 +163,7 @@ func main() {
 	informerFactory.Start(ctx.Done())
 
 	serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{},
-		informer.NewServiceExportEventHandler(*cfg, fdsPushRequests, mcpPushRequests))
+		informer.NewServiceExportEventHandler(*cfg, fdsPushRequests, meshConfigPushRequests))
 	if err != nil {
 		log.Fatalf("failed to create service informer: %v", err)
 	}
@@ -191,7 +194,7 @@ func main() {
 		}
 	}()
 
-	var onNewMCPSubscription func()
+	var startFDSClient func()
 	if len(cfg.MeshPeers.Remote.Addresses) > 0 {
 		federationClient, err := adsc.New(&adsc.ADSCConfig{
 			DiscoveryAddr: fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local:15080", cfg.MeshPeers.Local.ControlPlane.Namespace),
@@ -199,13 +202,13 @@ func main() {
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
 			Handlers: map[string]adsc.ResponseHandler{
-				xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, mcpPushRequests),
+				xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, meshConfigPushRequests),
 			},
 		})
 		if err != nil {
 			log.Fatalf("failed to creates FDS client: %v", err)
 		}
-		onNewMCPSubscription = func() {
+		startFDSClient = func() {
 			go func() {
 				if err := federationClient.Run(); err != nil {
 					log.Fatalf("failed to start FDS client: %v", err)
@@ -214,18 +217,49 @@ func main() {
 		}
 	}
 
-	mcpServer := adss.NewServer(
-		&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
-		mcpPushRequests,
-		onNewMCPSubscription,
-		mcp.NewGatewayResourceGenerator(istioConfigFactory),
-		mcp.NewServiceEntryGenerator(istioConfigFactory),
-		mcp.NewWorkloadEntryGenerator(istioConfigFactory),
-		mcp.NewVirtualServiceResourceGenerator(istioConfigFactory),
-		mcp.NewDestinationRuleResourceGenerator(istioConfigFactory),
-	)
-	if err := mcpServer.Run(ctx); err != nil {
-		log.Fatalf("Error running XDS server: %v", err)
+	if cfg.ConfigMode == config.ConfigModeMCP {
+		mcpServer := adss.NewServer(
+			&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
+			meshConfigPushRequests,
+			startFDSClient,
+			mcp.NewGatewayResourceGenerator(istioConfigFactory),
+			mcp.NewServiceEntryGenerator(istioConfigFactory),
+			mcp.NewWorkloadEntryGenerator(istioConfigFactory),
+			mcp.NewVirtualServiceResourceGenerator(istioConfigFactory),
+			mcp.NewDestinationRuleResourceGenerator(istioConfigFactory),
+		)
+		if err := mcpServer.Run(ctx); err != nil {
+			log.Fatalf("Error running XDS server: %v", err)
+		}
+	} else if cfg.ConfigMode == config.ConfigModeK8s {
+		istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "cluster-id")
+		if err != nil {
+			log.Fatalf("failed to create Istio client: %v", err)
+		}
+
+		rm := kube.NewReconcilerManager(
+			meshConfigPushRequests,
+			kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
+			kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
+			kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
+			kube.NewVirtualServiceReconciler(istioClient, istioConfigFactory),
+			kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory),
+		)
+		if err := rm.ReconcileAll(ctx); err != nil {
+			log.Fatalf("initial Istio resource reconciliation failed: %v", err)
+		}
+		go rm.Start(ctx)
+
+		// TODO: implement an appropriate wait allowing proxy to receive all initial
+		// federation config before starting FDS client.
+		time.Sleep(time.Second * 5)
+
+		if startFDSClient != nil {
+			log.Info("Starting FDS client")
+			startFDSClient()
+		}
+
+		select {}
 	}
 
 	os.Exit(0)
