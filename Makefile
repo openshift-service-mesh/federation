@@ -16,9 +16,16 @@ build:
 test: build
 	go test ./...
 
-.PHONY: docker
-docker: build
+.PHONY: docker-build
+docker-build: build
 	docker build -t $(HUB)/federation-controller:$(TAG) -f build/Dockerfile .
+
+.PHONY: docker-push
+docker-push:
+	docker push $(HUB)/federation-controller:$(TAG)
+
+.PHONY: docker
+docker: docker-build docker-push
 
 PROTO_DIR=api/proto/federation
 OUT_DIR=internal/api

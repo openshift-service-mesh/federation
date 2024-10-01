@@ -23,26 +23,30 @@ by different teams in different clusters.
 ### Commands
 
 1. Compile controller:
-```shell
-make
-```
-2. Run unit tests:
-```shell
-make test
-```
-3. Build image:
-```shell
-HUB=quay.io/jewertow TAG=test make docker
-```
-4. Run e2e tests:
-```shell
-make e2e
-```
-5. Run e2e tests with specific Istio version and custom controller image:
-```shell
-HUB=quay.io/jewertow TAG=test ISTIO_VERSION=1.23.0 make e2e
-```
-5. Re-run e2e tests without setting-up KinD clusters:
-```shell
-make e2e-test
-```
+    ```shell
+    make
+    ```
+1. Run unit tests:
+    ```shell
+    make test
+    ```
+1. Build image:
+    ```shell
+    HUB=quay.io/jewertow TAG=test make docker-build
+    ```
+1. Push image:
+    ```shell
+    HUB=quay.io/jewertow TAG=test make docker-push
+    ```
+1. Run e2e tests:
+    ```shell
+    make e2e
+    ```
+1. Run e2e tests with specific Istio version and custom controller image:
+    ```shell
+    HUB=quay.io/jewertow TAG=test ISTIO_VERSION=1.23.0 make e2e
+    ```
+1. Re-run e2e tests without setting-up KinD clusters:
+    ```shell
+    make e2e-test
+    ```
