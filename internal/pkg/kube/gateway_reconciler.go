@@ -18,11 +18,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jewertow/federation/internal/pkg/istio"
-	"github.com/jewertow/federation/internal/pkg/xds"
+	applyconfigurationv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
+	networkingv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 	"istio.io/istio/pkg/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var _ Reconciler = (*GatewayResourceReconciler)(nil)
@@ -48,11 +50,32 @@ func (r *GatewayResourceReconciler) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error generating ingress gateway: %v", err)
 	}
-	createdG, err := r.client.Istio().NetworkingV1alpha3().Gateways(gw.Namespace).Create(ctx, gw, metav1.CreateOptions{})
-	if client.IgnoreAlreadyExists(err) != nil {
-		return fmt.Errorf("failed to create ingress gateway: %v", err)
+
+	kind := "Gateway"
+	apiVersion := "networking.istio.io/v1alpha3"
+	newGW, err := r.client.Istio().NetworkingV1alpha3().Gateways(gw.GetNamespace()).Apply(ctx, &networkingv1alpha3.GatewayApplyConfiguration{
+		TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
+			Kind:       &kind,
+			APIVersion: &apiVersion,
+		},
+		ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
+			Name:      &gw.Name,
+			Namespace: &gw.Namespace,
+		},
+		Spec:   &gw.Spec,
+		Status: nil,
+	}, metav1.ApplyOptions{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       kind,
+			APIVersion: apiVersion,
+		},
+		Force:        true,
+		FieldManager: "federation-controller",
+	})
+	if err != nil {
+		return fmt.Errorf("error applying ingress gateway: %v", err)
 	}
-	log.Infof("created ingress gateway: %v", createdG)
+	log.Infof("Applied ingress gateway: %v", newGW)
 
 	return nil
 }

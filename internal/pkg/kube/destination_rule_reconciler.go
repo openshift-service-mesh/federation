@@ -18,11 +18,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jewertow/federation/internal/pkg/istio"
-	"github.com/jewertow/federation/internal/pkg/xds"
+	applyconfigurationv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
+	networkingv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 	"istio.io/istio/pkg/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var _ Reconciler = (*DestinationRuleReconciler)(nil)
@@ -45,11 +47,32 @@ func (r *DestinationRuleReconciler) GetTypeUrl() string {
 
 func (r *DestinationRuleReconciler) Reconcile(ctx context.Context) error {
 	dr := r.cf.GetDestinationRules()
-	createdDR, err := r.client.Istio().NetworkingV1alpha3().DestinationRules(dr.Namespace).Create(ctx, dr, metav1.CreateOptions{})
-	if client.IgnoreAlreadyExists(err) != nil {
-		return fmt.Errorf("failed to create destination rule: %v", err)
+
+	kind := "DestinationRule"
+	apiVersion := "networking.istio.io/v1alpha3"
+	newDR, err := r.client.Istio().NetworkingV1alpha3().DestinationRules(dr.GetNamespace()).Apply(ctx, &networkingv1alpha3.DestinationRuleApplyConfiguration{
+		TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
+			Kind:       &kind,
+			APIVersion: &apiVersion,
+		},
+		ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
+			Name:      &dr.Name,
+			Namespace: &dr.Namespace,
+		},
+		Spec:   &dr.Spec,
+		Status: nil,
+	}, metav1.ApplyOptions{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       kind,
+			APIVersion: apiVersion,
+		},
+		Force:        true,
+		FieldManager: "federation-controller",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to apply destination rule: %v", err)
 	}
-	log.Infof("created destination rule: %v", createdDR)
+	log.Infof("Applied destination rule: %v", newDR)
 
 	return nil
 }

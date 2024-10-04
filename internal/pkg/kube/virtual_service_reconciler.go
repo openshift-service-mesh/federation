@@ -18,11 +18,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jewertow/federation/internal/pkg/istio"
-	"github.com/jewertow/federation/internal/pkg/xds"
+	applyconfigurationv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
+	networkingv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 	"istio.io/istio/pkg/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var _ Reconciler = (*VirtualServiceReconciler)(nil)
@@ -45,11 +47,32 @@ func (r *VirtualServiceReconciler) GetTypeUrl() string {
 
 func (r *VirtualServiceReconciler) Reconcile(ctx context.Context) error {
 	vs := r.cf.GetVirtualServices()
-	createdVS, err := r.client.Istio().NetworkingV1alpha3().VirtualServices(vs.Namespace).Create(ctx, vs, metav1.CreateOptions{})
-	if client.IgnoreAlreadyExists(err) != nil {
-		return fmt.Errorf("failed to create virtual service: %v", err)
+
+	kind := "VirtualService"
+	apiVersion := "networking.istio.io/v1alpha3"
+	newVS, err := r.client.Istio().NetworkingV1alpha3().VirtualServices(vs.GetNamespace()).Apply(ctx, &networkingv1alpha3.VirtualServiceApplyConfiguration{
+		TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
+			Kind:       &kind,
+			APIVersion: &apiVersion,
+		},
+		ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
+			Name:      &vs.Name,
+			Namespace: &vs.Namespace,
+		},
+		Spec:   &vs.Spec,
+		Status: nil,
+	}, metav1.ApplyOptions{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       kind,
+			APIVersion: apiVersion,
+		},
+		Force:        true,
+		FieldManager: "federation-controller",
+	})
+	if err != nil {
+		return fmt.Errorf("error applying virtual service: %v", err)
 	}
-	log.Infof("created virtual service: %v", createdVS)
+	log.Infof("Applied virtual service: %v", newVS)
 
 	return nil
 }

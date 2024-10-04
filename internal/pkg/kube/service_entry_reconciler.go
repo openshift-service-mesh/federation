@@ -17,12 +17,18 @@ package kube
 import (
 	"context"
 	"fmt"
+	"reflect"
 
-	"github.com/jewertow/federation/internal/pkg/istio"
-	"github.com/jewertow/federation/internal/pkg/xds"
+	"istio.io/client-go/pkg/apis/networking/v1alpha3"
+	applyconfigurationv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
+	v1alpha4 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 	"istio.io/istio/pkg/kube"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var _ Reconciler = (*ServiceEntryReconciler)(nil)
@@ -48,13 +54,74 @@ func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error generating service entries: %v", err)
 	}
-
+	serviceEntriesMap := make(map[types.NamespacedName]*v1alpha3.ServiceEntry, len(serviceEntries))
 	for _, se := range serviceEntries {
-		createdSE, err := r.client.Istio().NetworkingV1alpha3().ServiceEntries(se.Namespace).Create(ctx, se, metav1.CreateOptions{})
-		if client.IgnoreAlreadyExists(err) != nil {
-			return fmt.Errorf("failed to create service entry: %v", err)
-		}
-		log.Infof("created service entry: %v", createdSE)
+		serviceEntriesMap[types.NamespacedName{Namespace: se.Namespace, Name: se.Name}] = se
 	}
+
+	oldServiceEntries, err := r.client.Istio().NetworkingV1alpha3().ServiceEntries(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
+		LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{
+			MatchLabels: map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+		}),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list service entries: %v", err)
+	}
+	oldServiceEntriesMap := make(map[types.NamespacedName]*v1alpha3.ServiceEntry, len(oldServiceEntries.Items))
+	for _, se := range oldServiceEntries.Items {
+		oldServiceEntriesMap[types.NamespacedName{Namespace: se.Namespace, Name: se.Name}] = se
+
+		log.Infof("******* oldSEKey: %v, oldSe: %v", oldServiceEntriesMap[types.NamespacedName{Namespace: se.Namespace, Name: se.Name}], &se.Spec)
+	}
+
+	for k, v := range serviceEntriesMap {
+		log.Infof("******* newSEKey: %v, newSe: %v", k, &v.Spec)
+	}
+
+	kind := "ServiceEntry"
+	apiVersion := "networking.istio.io/v1alpha3"
+	for k, se := range serviceEntriesMap {
+		oldSE, ok := oldServiceEntriesMap[k]
+		if !ok || !reflect.DeepEqual(&oldSE.Spec, &se.Spec) {
+			// Service entry does not currently exist or requires update
+			newSE, err := r.client.Istio().NetworkingV1alpha3().ServiceEntries(se.GetNamespace()).Apply(ctx,
+				&v1alpha4.ServiceEntryApplyConfiguration{
+					TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
+						Kind:       &kind,
+						APIVersion: &apiVersion,
+					},
+					ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
+						Name:      &se.Name,
+						Namespace: &se.Namespace,
+						Labels:    se.Labels,
+					},
+					Spec: &se.Spec,
+				},
+				metav1.ApplyOptions{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       kind,
+						APIVersion: apiVersion,
+					},
+					Force:        true,
+					FieldManager: "federation-controller",
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("failed to apply service entry: %v", err)
+			}
+			log.Infof("Applied service entry: %v", newSE)
+		}
+	}
+
+	for k, oldSE := range oldServiceEntriesMap {
+		if _, ok := serviceEntriesMap[k]; !ok {
+			err := r.client.Istio().NetworkingV1alpha3().ServiceEntries(oldSE.GetNamespace()).Delete(ctx, oldSE.GetName(), metav1.DeleteOptions{})
+			if err != nil && !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to delete old service entry: %v", err)
+			}
+			log.Infof("Deleted service entry: %v", oldSE)
+		}
+	}
+
 	return nil
 }

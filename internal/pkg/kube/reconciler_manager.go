@@ -17,8 +17,9 @@ package kube
 import (
 	"context"
 
-	"github.com/jewertow/federation/internal/pkg/xds"
 	istiolog "istio.io/istio/pkg/log"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var log = istiolog.RegisterScope("kube", "Kubernetes reconciler")
