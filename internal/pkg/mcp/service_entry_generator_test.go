@@ -139,7 +139,7 @@ func TestServiceEntryGenerator(t *testing.T) {
 		expectedIstioConfigs: []*istiocfg.Config{
 			{
 				Meta: istiocfg.Meta{
-					Name:      "import_a_ns1",
+					Name:      "import-a-ns1",
 					Namespace: "istio-system",
 				},
 				Spec: &istionetv1alpha3.ServiceEntry{
@@ -155,7 +155,7 @@ func TestServiceEntryGenerator(t *testing.T) {
 			},
 			{
 				Meta: istiocfg.Meta{
-					Name:      "import_a_ns2",
+					Name:      "import-a-ns2",
 					Namespace: "istio-system",
 				},
 				Spec: &istionetv1alpha3.ServiceEntry{
@@ -206,7 +206,7 @@ func TestServiceEntryGenerator(t *testing.T) {
 		expectedIstioConfigs: []*istiocfg.Config{
 			{
 				Meta: istiocfg.Meta{
-					Name:      "import_a_ns1",
+					Name:      "import-a-ns1",
 					Namespace: "istio-system",
 				},
 				Spec: &istionetv1alpha3.ServiceEntry{
