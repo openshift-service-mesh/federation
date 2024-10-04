@@ -13,8 +13,8 @@ function install_metallb() {
   kubectl --kubeconfig="$ROOT/$cluster.kubeconfig" apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml
   kubectl --kubeconfig="$ROOT/$cluster.kubeconfig" wait -n metallb-system pod --timeout=120s -l app=metallb --for=condition=Ready
 
-  docker_kind_subnet="$(docker inspect kind | jq '.[0].IPAM.Config[0].Subnet' -r)"
-  cidr=$(python3 "$ROOT/scripts/find_smaller_subnets.py" --network "$docker_kind_subnet" --region "$cluster")
+  docker_kind_ipv4_subnet="$(docker inspect kind | jq '.[0].IPAM.Config' -r | jq -r '.[] | select(.Subnet | test("^[0-9]+\\.")) | .Subnet')"
+  cidr=$(python3 "$ROOT/scripts/find_smaller_subnets.py" --network "$docker_kind_ipv4_subnet" --region "$cluster")
 
   echo '
 apiVersion: metallb.io/v1beta1
