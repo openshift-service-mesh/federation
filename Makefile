@@ -4,7 +4,7 @@ OUT := $(shell pwd)
 default: build test
 
 export TAG ?= latest
-export HUB ?= quay.io/openshift-service-mesh
+export HUB ?= quay.io/jewertow
 export ISTIO_VERSION ?= 1.23.0
 
 .PHONY: build

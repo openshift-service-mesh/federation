@@ -32,11 +32,11 @@ by different teams in different clusters.
     ```
 1. Build image:
     ```shell
-    HUB=quay.io/jewertow TAG=test make docker-build
+    HUB=quay.io/maistra-dev TAG=test make docker-build
     ```
 1. Push image:
     ```shell
-    HUB=quay.io/jewertow TAG=test make docker-push
+    HUB=quay.io/maistra-dev TAG=test make docker-push
     ```
 1. Run e2e tests:
     ```shell
@@ -44,7 +44,7 @@ by different teams in different clusters.
     ```
 1. Run e2e tests with specific Istio version and custom controller image:
     ```shell
-    HUB=quay.io/jewertow TAG=test ISTIO_VERSION=1.23.0 make e2e
+    HUB=quay.io/maistra-dev TAG=test ISTIO_VERSION=1.23.0 make e2e
     ```
 1. Re-run e2e tests without setting-up KinD clusters:
     ```shell
