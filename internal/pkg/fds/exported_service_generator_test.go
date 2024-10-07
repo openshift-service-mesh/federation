@@ -18,9 +18,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/jewertow/federation/internal/api/federation/v1alpha1"
-	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/informer"
+	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
 	"golang.org/x/net/context"
 	"google.golang.org/protobuf/types/known/anypb"
 	corev1 "k8s.io/api/core/v1"

@@ -15,7 +15,7 @@
 package mcp
 
 import (
-	"github.com/jewertow/federation/internal/pkg/fds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"reflect"
 	"testing"
 
@@ -27,9 +27,9 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/jewertow/federation/internal/pkg/config"
-	"github.com/jewertow/federation/internal/pkg/informer"
-	"github.com/jewertow/federation/internal/pkg/istio"
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
+	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 )
 
 const (
