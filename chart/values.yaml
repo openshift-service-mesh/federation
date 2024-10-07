@@ -1,5 +1,5 @@
 image:
-  repository: quay.io/openshift-service-mesh/federation-controller
+  repository: quay.io/maistra-dev/federation-controller
   tag: latest
 
 federation:
