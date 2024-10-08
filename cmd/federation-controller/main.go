@@ -24,6 +24,14 @@ import (
 	"syscall"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	"github.com/spf13/cobra"
+	istiolog "istio.io/istio/pkg/log"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/utils/env"
+
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
@@ -32,13 +40,6 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
-	"github.com/spf13/cobra"
-	istiolog "istio.io/istio/pkg/log"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/utils/env"
 )
 
 // Global variable to store the parsed commandline arguments

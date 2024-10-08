@@ -17,11 +17,12 @@ package mcp
 import (
 	"fmt"
 
+	"google.golang.org/protobuf/types/known/anypb"
+	istioconfig "istio.io/istio/pkg/config"
+
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
-	"google.golang.org/protobuf/types/known/anypb"
-	istioconfig "istio.io/istio/pkg/config"
 )
 
 var _ adss.RequestHandler = (*ServiceEntryGenerator)(nil)

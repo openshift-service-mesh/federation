@@ -20,9 +20,10 @@ import (
 	"net"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 type Server struct {

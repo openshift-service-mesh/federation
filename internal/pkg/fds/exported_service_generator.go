@@ -18,14 +18,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"k8s.io/apimachinery/pkg/labels"
 	v1 "k8s.io/client-go/listers/core/v1"
+
+	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
 )
 
 var _ adss.RequestHandler = (*ExportedServicesGenerator)(nil)

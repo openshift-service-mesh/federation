@@ -54,6 +54,10 @@ e2e-test:
 .PHONY: e2e
 e2e: kind-clusters e2e-test
 
+.PHONY: fix-imports
+fix-imports:
+	goimports -local "github.com/openshift-service-mesh/federation" -w .
+
 LICENSE_FILE := /tmp/license.txt
 GO_FILES := $(shell find . -name '*.go')
 

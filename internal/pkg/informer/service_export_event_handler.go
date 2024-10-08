@@ -15,11 +15,12 @@
 package informer
 
 import (
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/openshift-service-mesh/federation/internal/pkg/common"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 var _ Handler = (*ServiceExportEventHandler)(nil)

@@ -26,11 +26,12 @@ import (
 
 	envoycfgcorev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 	istiolog "istio.io/istio/pkg/log"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var log = istiolog.RegisterScope("adss", "Aggregated Discovery Service Server")

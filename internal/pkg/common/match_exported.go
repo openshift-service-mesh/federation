@@ -15,9 +15,10 @@
 package common
 
 import (
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 )
 
 func MatchExportRules(svc *corev1.Service, exportedLabelSelectors []config.LabelSelectors) bool {

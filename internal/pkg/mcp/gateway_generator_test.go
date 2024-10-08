@@ -15,9 +15,10 @@
 package mcp
 
 import (
-	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"reflect"
 	"testing"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 
 	"golang.org/x/net/context"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
