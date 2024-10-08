@@ -232,7 +232,7 @@ func main() {
 			log.Fatalf("Error running XDS server: %v", err)
 		}
 	} else if cfg.ConfigMode == config.ConfigModeK8s {
-		istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "cluster-id")
+		istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
 		if err != nil {
 			log.Fatalf("failed to create Istio client: %v", err)
 		}
