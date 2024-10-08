@@ -23,6 +23,7 @@ type Federation struct {
 	MeshPeers          MeshPeers
 	ExportedServiceSet ExportedServiceSet
 	ImportedServiceSet ImportedServiceSet
+	ConfigMode         ConfigMode
 }
 
 type MeshPeers struct {
@@ -104,3 +105,10 @@ type MatchExpressions struct {
 	Operator string   `yaml:"operator"`
 	Values   []string `yaml:"values"`
 }
+
+type ConfigMode string
+
+const (
+	ConfigModeMCP ConfigMode = "mcp"
+	ConfigModeK8s ConfigMode = "k8s"
+)

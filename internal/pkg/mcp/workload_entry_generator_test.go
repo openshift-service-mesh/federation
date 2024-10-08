@@ -76,25 +76,25 @@ func TestWorkloadEntryGenerator(t *testing.T) {
 		}},
 		expectedIstioConfigs: []*istiocfg.Config{{
 			Meta: istiocfg.Meta{
-				Name:      "import_a_0",
+				Name:      "import-a-0",
 				Namespace: "ns1",
 			},
 			Spec: buildWorkloadEntry("192.168.0.1"),
 		}, {
 			Meta: istiocfg.Meta{
-				Name:      "import_a_1",
+				Name:      "import-a-1",
 				Namespace: "ns1",
 			},
 			Spec: buildWorkloadEntry("192.168.0.2"),
 		}, {
 			Meta: istiocfg.Meta{
-				Name:      "import_a_0",
+				Name:      "import-a-0",
 				Namespace: "ns2",
 			},
 			Spec: buildWorkloadEntry("192.168.0.1"),
 		}, {
 			Meta: istiocfg.Meta{
-				Name:      "import_a_1",
+				Name:      "import-a-1",
 				Namespace: "ns2",
 			},
 			Spec: buildWorkloadEntry("192.168.0.2"),

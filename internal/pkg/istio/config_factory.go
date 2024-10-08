@@ -150,8 +150,9 @@ func (cf *ConfigFactory) GetServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 			serviceEntries = append(serviceEntries, &v1alpha3.ServiceEntry{
 				ObjectMeta: metav1.ObjectMeta{
 					// TODO: add peer name to ensure uniqueness when more than 2 peers are connected
-					Name:      fmt.Sprintf("import_%s_%s", importedSvc.Name, importedSvc.Namespace),
+					Name:      fmt.Sprintf("import-%s-%s", importedSvc.Name, importedSvc.Namespace),
 					Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+					Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 				},
 				Spec: istionetv1alpha3.ServiceEntry{
 					Hosts:      []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
@@ -186,8 +187,9 @@ func (cf *ConfigFactory) GetWorkloadEntries() ([]*v1alpha3.WorkloadEntry, error)
 			for idx, weSpec := range workloadEntrySpecs {
 				workloadEntries = append(workloadEntries, &v1alpha3.WorkloadEntry{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("import_%s_%d", importedSvc.Name, idx),
+						Name:      fmt.Sprintf("import-%s-%d", importedSvc.Name, idx),
 						Namespace: importedSvc.Namespace,
+						Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 					},
 					Spec: *weSpec.DeepCopy(),
 				})
@@ -236,6 +238,7 @@ func (cf *ConfigFactory) getServiceEntryForRemoteFederationController() *v1alpha
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "remote-federation-controller",
 			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 		},
 		Spec: istionetv1alpha3.ServiceEntry{
 			Hosts: []string{fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace)},
