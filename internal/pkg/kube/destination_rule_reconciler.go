@@ -47,6 +47,9 @@ func (r *DestinationRuleReconciler) GetTypeUrl() string {
 
 func (r *DestinationRuleReconciler) Reconcile(ctx context.Context) error {
 	dr := r.cf.GetDestinationRules()
+	if dr == nil {
+		return nil
+	}
 
 	kind := "DestinationRule"
 	apiVersion := "networking.istio.io/v1alpha3"
