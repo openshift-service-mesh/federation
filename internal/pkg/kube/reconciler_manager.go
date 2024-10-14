@@ -59,14 +59,14 @@ loop:
 			break loop
 
 		case pushRequest := <-rm.pushRequests:
-			log.Infof("[kube] Received push request: %v", pushRequest)
+			log.Infof("Received push request: %v", pushRequest)
 
 			if r, ok := rm.reconcilers[pushRequest.TypeUrl]; !ok {
-				log.Infof("[kube] No reconciler present for type: %v", pushRequest.TypeUrl)
+				log.Infof("No reconciler present for type: %v", pushRequest.TypeUrl)
 			} else {
 				err := r.Reconcile(ctx)
 				if err != nil {
-					log.Errorf("[kube] Reconcile failed: %v", err)
+					log.Errorf("Reconcile failed: %v", err)
 				}
 			}
 		}

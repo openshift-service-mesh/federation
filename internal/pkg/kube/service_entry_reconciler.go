@@ -70,12 +70,6 @@ func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
 	oldServiceEntriesMap := make(map[types.NamespacedName]*v1alpha3.ServiceEntry, len(oldServiceEntries.Items))
 	for _, se := range oldServiceEntries.Items {
 		oldServiceEntriesMap[types.NamespacedName{Namespace: se.Namespace, Name: se.Name}] = se
-
-		log.Infof("******* oldSEKey: %v, oldSe: %v", oldServiceEntriesMap[types.NamespacedName{Namespace: se.Namespace, Name: se.Name}], &se.Spec)
-	}
-
-	for k, v := range serviceEntriesMap {
-		log.Infof("******* newSEKey: %v, newSe: %v", k, &v.Spec)
 	}
 
 	kind := "ServiceEntry"
