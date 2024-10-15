@@ -6,3 +6,6 @@ rules:
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["get", "watch", "list"]
+- apiGroups: ["networking.istio.io"]
+  resources: ["gateways", "serviceentries", "workloadentries", "destinationrules", "virtualservices"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
