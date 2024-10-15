@@ -20,11 +20,13 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"istio.io/istio/pkg/test/scopes"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/cluster"
@@ -74,7 +76,25 @@ func TestMain(m *testing.M) {
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry
 		// c - service available only in west cluster - covers importing with ServiceEntry
-		Setup(deployApps(&eastApps, eastClusterName, namespace.Future(&appNs), "a", "b")).
+		Setup(func(ctx resource.Context) error {
+			go func() {
+				scopes.Framework.Infof("Debugging echo apps installation...")
+				c := ctx.Clusters().Kube().GetByName(eastClusterName)
+				for {
+					pods, err := c.Kube().CoreV1().Pods(namespace.Future(&appNs).Get().Name()).List(context.Background(), v1.ListOptions{})
+					if err != nil {
+						scopes.Framework.Errorf("Error getting pods: %v", err)
+						time.Sleep(5 * time.Second)
+						continue
+					}
+					scopes.Framework.Infof("Found %d pods", len(pods.Items))
+					for _, pod := range pods.Items {
+						scopes.Framework.Infof("Pod: %s: [%+v]", pod.Name, pod)
+					}
+				}
+			}()
+			return deployApps(&eastApps, eastClusterName, namespace.Future(&appNs), "a", "b")(ctx)
+		}).
 		Setup(deployApps(&westApps, westClusterName, namespace.Future(&appNs), "b", "c")).
 		// c must be removed from the east cluster, because we want to test importing a service
 		// that exists only in the remote cluster.
