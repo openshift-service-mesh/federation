@@ -103,19 +103,13 @@ istioctl --kubeconfig=east.kubeconfig install -f examples/k8s/east-mesh.yaml -y
 
 2. Deploy federation controller:
 ```shell
-helm-west install west-mesh chart -n istio-system --values examples/federation-controller.yaml --set "federation.configMode=k8s"
-helm-east install east-mesh chart -n istio-system --values examples/federation-controller.yaml --set "federation.configMode=k8s"
-```
-
-3. Update gateway IPs and trigger injection in federation-controllers:
-```shell
 WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-east upgrade east-mesh chart -n istio-system \
+helm-east install east-mesh chart -n istio-system \
   --values examples/federation-controller.yaml \
   --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP" \
   --set "federation.configMode=k8s"
 EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-west upgrade west-mesh chart -n istio-system \
+helm-west install west-mesh chart -n istio-system \
   --values examples/federation-controller.yaml \
   --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP" \
   --set "federation.configMode=k8s"
