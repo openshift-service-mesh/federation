@@ -1,26 +1,13 @@
+## Demo
+
 ### Setup clusters
 
-1. Create 2 KinD clusters:
+1. Create KinD clusters:
 ```shell
-kind create cluster --name east --config=<<EOF
-apiVersion: kind.x-k8s.io/v1alpha4
-kind: Cluster
-networking:
-  podSubnet: "10.10.0.0/16"
-  serviceSubnet: "10.255.10.0/24"
-EOF
-```
-```shell
-kind create cluster --name west --config=<<EOF
-apiVersion: kind.x-k8s.io/v1alpha4
-kind: Cluster
-networking:
-  podSubnet: "10.30.0.0/16"
-  serviceSubnet: "10.255.30.0/24"
-EOF
+make kind-clusters
 ```
 
-2. Setup contexts:
+2. Prepare contexts:
 ```shell
 kind get kubeconfig --name east > east.kubeconfig
 alias keast="KUBECONFIG=$(pwd)/east.kubeconfig kubectl"
@@ -30,29 +17,9 @@ alias kwest="KUBECONFIG=$(pwd)/west.kubeconfig kubectl"
 alias helm-west="KUBECONFIG=$(pwd)/west.kubeconfig helm"
 ```
 
-3. Install MetalLB on and configure IP address pools:
-```shell
-keast apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml
-kwest apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml
-```
-Before creating `IPAddressPool`, define CIDR based on kind network:
-```shell
-docker network inspect -f '{{.IPAM.Config}}' kind
-```
-Define east/west CIDRs as subnets of the `kind` network, e.g. if `kind` subnet is `172.18.0.0/16`,
-east network could be `172.18.64.0/18` and west could be `172.18.128.0/18`, which will not overlap with node IPs.
-
-CIDRs must have escaped slash before the network mask to make it usable with `sed`, e.g. `172.18.64.0\/18`.
-```shell
-export EAST_CLUSTER_CIDR="172.18.64.0\/18"
-export WEST_CLUSTER_CIDR="172.18.128.0\/18"
-```
-```shell
-sed "s/{{.cidr}}/$EAST_CLUSTER_CIDR/g" examples/ip-address-pool.tmpl.yaml | keast apply -n metallb-system -f -
-sed "s/{{.cidr}}/$WEST_CLUSTER_CIDR/g" examples/ip-address-pool.tmpl.yaml | kwest apply -n metallb-system -f -
-```
-
 ### Trust model
+
+Currently, mesh federation does not work for meshes using different root certificates, but this is on the roadmap.
 
 1. Download tools for certificate generation:
 ```shell
@@ -60,9 +27,7 @@ wget https://raw.githubusercontent.com/istio/istio/release-1.21/tools/certs/comm
 wget https://raw.githubusercontent.com/istio/istio/release-1.21/tools/certs/Makefile.selfsigned.mk -O Makefile.selfsigned.mk
 ```
 
-#### Common root
-
-1. Generate certificates for east and west clusters:
+2. Generate certificates for east and west clusters:
 ```shell
 make -f Makefile.selfsigned.mk \
   ROOTCA_CN="East Root CA" \
@@ -79,7 +44,7 @@ make -f Makefile.selfsigned.mk \
 make -f common.mk clean
 ```
 
-2. Create `cacert` secrets:
+3. Create `cacert` secrets:
 ```shell
 keast create namespace istio-system
 keast create secret generic cacerts -n istio-system \
@@ -97,19 +62,25 @@ kwest create secret generic cacerts -n istio-system \
   --from-file=cert-chain.pem=west/cert-chain.pem
 ```
 
-### Deploy control planes
+### Deploy control planes and federation controllers
 
-#### Exporting controller
+#### MCP mode - controller acts as a config source for istiod and sends resources using MCP-over-XDS protocol
+
+In this mode, federation controller must be deployed first, because istiod will not become ready until connected
+to all config sources. After installing istiod, federation controller must be restarted to trigger the injection.
+
 1. Deploy federation controller:
 ```shell
 helm-west install west-mesh chart -n istio-system --values examples/federation-controller.yaml
 helm-east install east-mesh chart -n istio-system --values examples/federation-controller.yaml
 ```
+
 2. Deploy Istio control planes and gateways:
 ```shell
-istioctl --kubeconfig=west.kubeconfig install -f examples/west-mesh.yaml -y
-istioctl --kubeconfig=east.kubeconfig install -f examples/east-mesh.yaml -y
+istioctl --kubeconfig=west.kubeconfig install -f examples/mcp/west-mesh.yaml -y
+istioctl --kubeconfig=east.kubeconfig install -f examples/mcp/east-mesh.yaml -y
 ```
+
 3. Update gateway IPs and trigger injection in federation-controllers:
 ```shell
 WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
@@ -120,6 +91,28 @@ EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o js
 helm-west upgrade west-mesh chart -n istio-system \
   --values examples/federation-controller.yaml \
   --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP"
+```
+
+#### K8S mode - controller creates Istio resources in the k8s-apiserver
+
+1. Deploy Istio control planes and gateways:
+```shell
+istioctl --kubeconfig=west.kubeconfig install -f examples/k8s/west-mesh.yaml -y
+istioctl --kubeconfig=east.kubeconfig install -f examples/k8s/east-mesh.yaml -y
+```
+
+2. Deploy federation controller:
+```shell
+WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+helm-east install east-mesh chart -n istio-system \
+  --values examples/federation-controller.yaml \
+  --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP" \
+  --set "federation.configMode=k8s"
+EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+helm-west install west-mesh chart -n istio-system \
+  --values examples/federation-controller.yaml \
+  --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP" \
+  --set "federation.configMode=k8s"
 ```
 
 ### Deploy and export services

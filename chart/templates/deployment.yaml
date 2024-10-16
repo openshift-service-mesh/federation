@@ -11,9 +11,11 @@ spec:
       {{- include "chart.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      {{- if eq .Values.federation.configMode "mcp" }}
       annotations:
         traffic.sidecar.istio.io/includeInboundPorts: "*"
         traffic.sidecar.istio.io/excludeInboundPorts: "15010"
+      {{- end }}
       labels:
         {{- include "chart.labels" . | nindent 8 }}
         sidecar.istio.io/inject: "true"
@@ -26,7 +28,7 @@ spec:
         args:
         - '--meshPeers={{ .Values.federation.meshPeers | toJson }}'
         - '--exportedServiceSet={{ .Values.federation.exportedServiceSet | toJson }}'
-        - '--configMode={{ .Values.federation.configMode | default "mcp" }}'
+        - '--configMode={{ .Values.federation.configMode }}'
         env:
         - name: CONTROLLER_SERVICE_FQDN
           value: "{{ include "chart.name" . }}.{{ .Release.Namespace }}.svc.cluster.local"
