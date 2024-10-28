@@ -69,12 +69,15 @@ func TestTraffic(t *testing.T) {
 		})
 
 		ctx.NewSubTest("requests to c should fail").Run(func(ctx framework.TestContext) {
-			a[0].CallOrFail(t, echo.CallOptions{
+			res, err := a[0].Call(echo.CallOptions{
 				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
 				Port:    ports.HTTP,
-				Check:   check.Status(503),
+				Check:   check.Error(),
 				Timeout: 1 * time.Second,
 			})
+			if err == nil || res.Responses.Len() != 0 {
+				t.Fatalf("the request did not fail and got the following response: %v", res)
+			}
 		})
 
 		if err := exportService(ctx.Clusters().GetByName(westClusterName), "b", appNs.Name()); err != nil {
