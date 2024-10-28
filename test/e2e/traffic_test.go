@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"google.golang.org/grpc/codes"
 	"istio.io/istio/pkg/test/echo/common/scheme"
@@ -72,8 +71,6 @@ func TestTraffic(t *testing.T) {
 			res, err := a[0].Call(echo.CallOptions{
 				Address: fmt.Sprintf("c.%s.svc.cluster.local", appNs.Name()),
 				Port:    ports.HTTP,
-				Check:   check.Error(),
-				Timeout: 1 * time.Second,
 			})
 			if err == nil || res.Responses.Len() != 0 {
 				t.Fatalf("the request did not fail and got the following response: %v", res)
