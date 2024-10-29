@@ -24,11 +24,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo"
 	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
 	"istio.io/istio/pkg/test/framework/components/echo/deployment"
+	"istio.io/istio/pkg/test/framework/components/istioctl"
 	"istio.io/istio/pkg/test/framework/components/namespace"
 	"istio.io/istio/pkg/test/framework/resource"
 	"istio.io/istio/pkg/test/scopes"
@@ -146,20 +148,42 @@ func setCacertKeys(dir string, data map[string][]byte) error {
 // We can't utilize standard Istio installation supported by the Istio framework,
 // because it does not allow to apply different Istio settings to different primary clusters
 // and always sets up direct access to the k8s api-server, while it's not desired in mesh federation.
-func DeployControlPlanes(ctx resource.Context) error {
-	for idx, c := range ctx.Clusters() {
-		clusterName := clusterNames[idx]
-		if err := c.Config().ApplyYAMLFiles("", fmt.Sprintf("%s/test/testdata/manifests/%s/istio-%s.yaml", rootDir, istioVersion, clusterName)); err != nil {
-			return fmt.Errorf("failed to deploy istio control plane: %v", err)
+func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn {
+	return func(ctx resource.Context) error {
+		for idx, c := range ctx.Clusters() {
+			clusterName := clusterNames[idx]
+			istioCtl, err := istioctl.New(ctx, istioctl.Config{Cluster: c})
+			if err != nil {
+				return fmt.Errorf("failed to create istioctl: %v", err)
+			}
+			stdout, _, err := istioCtl.Invoke([]string{
+				"install",
+				"-f", fmt.Sprintf("%s/test/testdata/istio/%s/%s.yaml", rootDir, federationControllerConfigMode, clusterName),
+				"--set", "hub=docker.io/istio",
+				"--set", fmt.Sprintf("tag=%s", istioVersion),
+				"-y",
+			})
+			if err != nil {
+				return fmt.Errorf("failed to deploy istio: %s, %v", stdout, err)
+			}
 		}
+		ctx.Cleanup(func() {
+			for _, c := range ctx.Clusters() {
+				istioCtl, err := istioctl.New(ctx, istioctl.Config{Cluster: c})
+				stdout, _, err := istioCtl.Invoke([]string{"uninstall", "--purge", "-y"})
+				if err != nil {
+					scopes.Framework.Errorf("failed to uninstall istio: %s, %v", stdout, err)
+				}
+			}
+		})
+		return nil
 	}
-	return nil
 }
 
 func DeployFederationControllers(ctx resource.Context) error {
 	for idx := range ctx.Clusters() {
-		helmInstallCmd := exec.Command("helm", "install", "-n", "istio-system",
-			fmt.Sprintf("%s-federation-controller", clusterNames[idx]),
+		helmInstallCmd := exec.Command("helm", "upgrade", "--install", "-n", "istio-system",
+			"federation",
 			fmt.Sprintf("%s/chart", rootDir),
 			fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", rootDir),
 			"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
@@ -170,6 +194,13 @@ func DeployFederationControllers(ctx resource.Context) error {
 			return fmt.Errorf("failed to deploy federation controller (cluster=%s): %v", clusterNames[idx], err)
 		}
 	}
+	ctx.Cleanup(func() {
+		for idx := range ctx.Clusters() {
+			helmUninstallCmd := exec.Command("helm", "uninstall", "federation", "-n", "istio-system")
+			helmUninstallCmd.Env = os.Environ()
+			helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+		}
+	})
 	return nil
 }
 
@@ -182,14 +213,19 @@ func UpgradeFederationControllers(ctx resource.Context) error {
 				continue
 			}
 			remoteClusterName = clusterNames[idx]
-			var err error
-			gatewayIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
-			if err != nil {
-				return fmt.Errorf("could not get IPs from remote federation-controller: %v", err)
+			if err := retry.UntilSuccess(func() error {
+				var err error
+				gatewayIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
+				if err != nil {
+					return fmt.Errorf("could not get IPs from remote federation-controller: %v", err)
+				}
+				return nil
+			}, retry.Timeout(5*time.Minute), retry.Delay(1*time.Second)); err != nil {
+				return fmt.Errorf("could not update federation-controller (cluster=%s): %v", remoteCluster.Name(), err)
 			}
 		}
 		helmUpgradeCmd := exec.Command("helm", "upgrade", "-n", "istio-system",
-			fmt.Sprintf("%s-federation-controller", clusterNames[idx]),
+			"federation",
 			fmt.Sprintf("%s/chart", rootDir),
 			fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", rootDir),
 			"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
@@ -199,9 +235,16 @@ func UpgradeFederationControllers(ctx resource.Context) error {
 		helmUpgradeCmd.Env = os.Environ()
 		helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
 		if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("failed to upgrade federation controller: %v, %v", string(out), err)
+			return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %v", clusterNames[idx], string(out), err)
 		}
 	}
+	ctx.Cleanup(func() {
+		for idx := range ctx.Clusters() {
+			helmUninstallCmd := exec.Command("helm", "uninstall", "federation", "-n", "istio-system")
+			helmUninstallCmd.Env = os.Environ()
+			helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+		}
+	})
 	return nil
 }
 

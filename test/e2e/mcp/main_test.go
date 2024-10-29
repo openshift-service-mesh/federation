@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 		Setup(common.CreateCACertsSecret).
 		// federation controller must be deployed first, as Istio will not become ready until it connects to all config sources
 		Setup(common.DeployFederationControllers).
-		Setup(common.DeployControlPlanes).
+		Setup(common.DeployControlPlanes("mcp")).
 		Setup(common.UpgradeFederationControllers).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
