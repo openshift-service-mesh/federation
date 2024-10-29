@@ -26,6 +26,8 @@ import (
 	"runtime"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo"
 	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
@@ -150,22 +152,30 @@ func setCacertKeys(dir string, data map[string][]byte) error {
 // and always sets up direct access to the k8s api-server, while it's not desired in mesh federation.
 func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn {
 	return func(ctx resource.Context) error {
+		var g errgroup.Group
 		for idx, c := range ctx.Clusters() {
 			clusterName := clusterNames[idx]
-			istioCtl, err := istioctl.New(ctx, istioctl.Config{Cluster: c})
-			if err != nil {
-				return fmt.Errorf("failed to create istioctl: %v", err)
-			}
-			stdout, _, err := istioCtl.Invoke([]string{
-				"install",
-				"-f", fmt.Sprintf("%s/test/testdata/istio/%s/%s.yaml", rootDir, federationControllerConfigMode, clusterName),
-				"--set", "hub=docker.io/istio",
-				"--set", fmt.Sprintf("tag=%s", istioVersion),
-				"-y",
+			c := c
+			g.Go(func() error {
+				istioCtl, err := istioctl.New(ctx, istioctl.Config{Cluster: c})
+				if err != nil {
+					return fmt.Errorf("failed to create istioctl: %v", err)
+				}
+				stdout, _, err := istioCtl.Invoke([]string{
+					"install",
+					"-f", fmt.Sprintf("%s/test/testdata/istio/%s/%s.yaml", rootDir, federationControllerConfigMode, clusterName),
+					"--set", "hub=docker.io/istio",
+					"--set", fmt.Sprintf("tag=%s", istioVersion),
+					"-y",
+				})
+				if err != nil {
+					return fmt.Errorf("failed to deploy istio: %s, %v", stdout, err)
+				}
+				return nil
 			})
-			if err != nil {
-				return fmt.Errorf("failed to deploy istio: %s, %v", stdout, err)
-			}
+		}
+		if err := g.Wait(); err != nil {
+			return err
 		}
 		ctx.Cleanup(func() {
 			for _, c := range ctx.Clusters() {
