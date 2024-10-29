@@ -34,10 +34,6 @@ OUT_DIR=internal/api
 proto:
 	protoc --proto_path=$(PROTO_DIR) --go_out=$(OUT_DIR) --go-grpc_out=$(OUT_DIR) --golang-deepcopy_out=:$(OUT_DIR) $(PROTO_DIR)/**/*.proto
 
-.PHONY: gen-istio-manifests
-gen-istio-manifests:
-	bash test/scripts/generate_istio_manifests.sh $(ISTIO_VERSION)
-
 .PHONY: kind-clusters
 kind-clusters:
 	bash test/scripts/kind_provisioner.sh $(ISTIO_VERSION)
