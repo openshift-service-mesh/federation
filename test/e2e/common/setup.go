@@ -31,6 +31,7 @@ import (
 	"istio.io/istio/pkg/test/framework/components/echo/deployment"
 	"istio.io/istio/pkg/test/framework/components/namespace"
 	"istio.io/istio/pkg/test/framework/resource"
+	"istio.io/istio/pkg/test/scopes"
 	"istio.io/istio/pkg/test/util/retry"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -92,6 +93,14 @@ func CreateControlPlaneNamespace(ctx resource.Context) error {
 			return err
 		}
 	}
+
+	ctx.Cleanup(func() {
+		for idx, c := range ctx.Clusters() {
+			if err := c.Kube().CoreV1().Namespaces().Delete(context.TODO(), "istio-system", v1.DeleteOptions{}); err != nil {
+				scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %v", clusterNames[idx], err)
+			}
+		}
+	})
 	return nil
 }
 
