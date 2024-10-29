@@ -15,7 +15,7 @@
 //go:build integ
 // +build integ
 
-package e2e
+package common
 
 import (
 	"context"
@@ -24,9 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"testing"
 
-	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo"
 	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
@@ -43,12 +41,12 @@ import (
 var (
 	clusterNames = []string{"east", "west"}
 
-	appNs    namespace.Instance
-	eastApps echo.Instances
-	westApps echo.Instances
+	AppNs    namespace.Instance
+	EastApps echo.Instances
+	WestApps echo.Instances
 
 	_, file, _, _ = runtime.Caller(0)
-	rootDir       = filepath.Join(filepath.Dir(file), "../..")
+	rootDir       = filepath.Join(filepath.Dir(file), "../../..")
 
 	testHub = env.GetString("HUB", "quay.io/jewertow")
 	testTag = env.GetString("TAG", "latest")
@@ -57,32 +55,11 @@ var (
 )
 
 const (
-	eastClusterName = "cluster-0"
-	westClusterName = "cluster-1"
+	EastClusterName = "cluster-0"
+	WestClusterName = "cluster-1"
 )
 
-func TestMain(m *testing.M) {
-	framework.
-		NewSuite(m).
-		Setup(createControlPlaneNamespace).
-		Setup(createCACertsSecret).
-		// federation controller must be deployed first, as Istio will not become ready until it connects to all config sources
-		Setup(deployFederationControllers).
-		Setup(deployControlPlanes).
-		Setup(patchFederationControllers).
-		Setup(namespace.Setup(&appNs, namespace.Config{Prefix: "app", Inject: true})).
-		// a - client
-		// b - service available in east and west clusters - covers importing with WorkloadEntry
-		// c - service available only in west cluster - covers importing with ServiceEntry
-		Setup(deployApps(&eastApps, eastClusterName, namespace.Future(&appNs), "a", "b")).
-		Setup(deployApps(&westApps, westClusterName, namespace.Future(&appNs), "b", "c")).
-		// c must be removed from the east cluster, because we want to test importing a service
-		// that exists only in the remote cluster.
-		Setup(removeServiceFromClusters("c", namespace.Future(&appNs), eastClusterName)).
-		Run()
-}
-
-func createControlPlaneNamespace(ctx resource.Context) error {
+func CreateControlPlaneNamespace(ctx resource.Context) error {
 	if len(ctx.Clusters()) > 2 {
 		return fmt.Errorf("too many clusters - expected 2, got %d", len(ctx.Clusters()))
 	}
@@ -118,7 +95,7 @@ func createControlPlaneNamespace(ctx resource.Context) error {
 	return nil
 }
 
-func createCACertsSecret(ctx resource.Context) error {
+func CreateCACertsSecret(ctx resource.Context) error {
 	for idx, c := range ctx.Clusters() {
 		clusterName := clusterNames[idx]
 		data := map[string][]byte{
@@ -156,11 +133,11 @@ func setCacertKeys(dir string, data map[string][]byte) error {
 	return nil
 }
 
-// deployControlPlanes deploys Istio using the manifest generated from IstioOperator resource.
+// DeployControlPlanes deploys Istio using the manifest generated from IstioOperator resource.
 // We can't utilize standard Istio installation supported by the Istio framework,
 // because it does not allow to apply different Istio settings to different primary clusters
 // and always sets up direct access to the k8s api-server, while it's not desired in mesh federation.
-func deployControlPlanes(ctx resource.Context) error {
+func DeployControlPlanes(ctx resource.Context) error {
 	for idx, c := range ctx.Clusters() {
 		clusterName := clusterNames[idx]
 		if err := c.Config().ApplyYAMLFiles("", fmt.Sprintf("%s/test/testdata/manifests/%s/istio-%s.yaml", rootDir, istioVersion, clusterName)); err != nil {
@@ -170,7 +147,7 @@ func deployControlPlanes(ctx resource.Context) error {
 	return nil
 }
 
-func deployFederationControllers(ctx resource.Context) error {
+func DeployFederationControllers(ctx resource.Context) error {
 	for idx := range ctx.Clusters() {
 		helmInstallCmd := exec.Command("helm", "install", "-n", "istio-system",
 			fmt.Sprintf("%s-federation-controller", clusterNames[idx]),
@@ -187,7 +164,7 @@ func deployFederationControllers(ctx resource.Context) error {
 	return nil
 }
 
-func patchFederationControllers(ctx resource.Context) error {
+func UpgradeFederationControllers(ctx resource.Context) error {
 	for idx, localCluster := range ctx.Clusters() {
 		var gatewayIP string
 		var remoteClusterName string
@@ -232,7 +209,7 @@ func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
 	return "", fmt.Errorf("no load balancer IP found for service %s/%s in cluster %s", name, ns, c.Name())
 }
 
-func deployApps(apps *echo.Instances, targetClusterName string, ns namespace.Getter, names ...string) func(t resource.Context) error {
+func DeployApps(apps *echo.Instances, targetClusterName string, ns namespace.Getter, names ...string) func(t resource.Context) error {
 	return func(ctx resource.Context) error {
 		targetCluster := ctx.Clusters().GetByName(targetClusterName)
 		for _, name := range names {
@@ -255,7 +232,7 @@ func deployApps(apps *echo.Instances, targetClusterName string, ns namespace.Get
 	}
 }
 
-func removeServiceFromClusters(name string, ns namespace.Getter, targetClusterNames ...string) func(t resource.Context) error {
+func RemoveServiceFromClusters(name string, ns namespace.Getter, targetClusterNames ...string) func(t resource.Context) error {
 	return func(ctx resource.Context) error {
 		for _, targetClusterName := range targetClusterNames {
 			targetCluster := ctx.Clusters().GetByName(targetClusterName)

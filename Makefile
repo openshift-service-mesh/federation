@@ -44,7 +44,7 @@ kind-clusters:
 
 .PHONY: e2e-test
 e2e-test:
-	go test -tags=integ -run TestTraffic ./test/e2e \
+	go test -tags=integ -run TestTraffic ./test/e2e/... \
 		--istio.test.hub=docker.io/istio\
 		--istio.test.tag=$(ISTIO_VERSION)\
 		--istio.test.kube.config=$(shell pwd)/test/east.kubeconfig,$(shell pwd)/test/west.kubeconfig\
