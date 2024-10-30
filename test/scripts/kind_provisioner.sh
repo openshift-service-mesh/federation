@@ -31,7 +31,7 @@ kind get kubeconfig --name west > $ROOT/west.kubeconfig
 metallb_pids=()
 install_metallb_retry east &
 metallb_pids[0]=$!
-install_metallb_retry west
+install_metallb_retry west &
 metallb_pids[1]=$!
 
 for pid in ${metallb_pids[*]}; do
