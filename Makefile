@@ -34,21 +34,27 @@ OUT_DIR=internal/api
 proto:
 	protoc --proto_path=$(PROTO_DIR) --go_out=$(OUT_DIR) --go-grpc_out=$(OUT_DIR) --golang-deepcopy_out=:$(OUT_DIR) $(PROTO_DIR)/**/*.proto
 
+.PHONY: e2e
+e2e: kind-clusters e2e-tests
+
 .PHONY: kind-clusters
 kind-clusters:
 	bash test/scripts/kind_provisioner.sh $(ISTIO_VERSION)
 
+.PHONY: e2e-tests
+TEST_SUITES := mcp k8s
+e2e-tests:
+	@$(foreach suite, $(TEST_SUITES), \
+		$(MAKE) e2e-test SUITE=$(suite);)
+
 .PHONY: e2e-test
 e2e-test:
-	go test -tags=integ -run TestTraffic ./test/e2e/... \
+	go test -tags=integ -run TestTraffic ./test/e2e/$(SUITE) \
 		--istio.test.hub=docker.io/istio\
 		--istio.test.tag=$(ISTIO_VERSION)\
 		--istio.test.kube.config=$(shell pwd)/test/east.kubeconfig,$(shell pwd)/test/west.kubeconfig\
 		--istio.test.kube.networkTopology=0:east-network,1:west-network\
 		--istio.test.onlyWorkloads=standard
-
-.PHONY: e2e
-e2e: kind-clusters e2e-test
 
 .PHONY: fix-imports
 fix-imports:

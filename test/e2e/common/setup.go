@@ -93,7 +93,7 @@ func CreateControlPlaneNamespace(ctx resource.Context) error {
 				return fmt.Errorf("failed to delete namespace: %v", err)
 			}
 			return createNamespace(c)
-		}); err != nil {
+		}, retry.Timeout(30*time.Second), retry.Delay(1*time.Second)); err != nil {
 			return err
 		}
 	}
@@ -169,7 +169,7 @@ func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn
 					"-y",
 				})
 				if err != nil {
-					return fmt.Errorf("failed to deploy istio: %s, %v", stdout, err)
+					return fmt.Errorf("failed to deploy istio: stdout: %s; err: %v", stdout, err)
 				}
 				return nil
 			})
@@ -190,32 +190,8 @@ func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn
 	}
 }
 
-func DeployFederationControllers(ctx resource.Context) error {
-	for idx := range ctx.Clusters() {
-		helmInstallCmd := exec.Command("helm", "upgrade", "--install", "-n", "istio-system",
-			"federation",
-			fmt.Sprintf("%s/chart", rootDir),
-			fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", rootDir),
-			"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
-			"--set", fmt.Sprintf("image.tag=%s", testTag))
-		helmInstallCmd.Env = os.Environ()
-		helmInstallCmd.Env = append(helmInstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
-		if err := helmInstallCmd.Run(); err != nil {
-			return fmt.Errorf("failed to deploy federation controller (cluster=%s): %v", clusterNames[idx], err)
-		}
-	}
-	ctx.Cleanup(func() {
-		for idx := range ctx.Clusters() {
-			helmUninstallCmd := exec.Command("helm", "uninstall", "federation", "-n", "istio-system")
-			helmUninstallCmd.Env = os.Environ()
-			helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
-		}
-	})
-	return nil
-}
-
-func UpgradeFederationControllers(ctx resource.Context) error {
-	for idx, localCluster := range ctx.Clusters() {
+func InstallFederationControllers(configureRemotePeer bool, configMode string) resource.SetupFn {
+	getRemoteNetworkAndIngressIP := func(ctx resource.Context, localCluster cluster.Cluster) (string, string, error) {
 		var gatewayIP string
 		var remoteClusterName string
 		for idx, remoteCluster := range ctx.Clusters() {
@@ -231,39 +207,60 @@ func UpgradeFederationControllers(ctx resource.Context) error {
 				}
 				return nil
 			}, retry.Timeout(5*time.Minute), retry.Delay(1*time.Second)); err != nil {
-				return fmt.Errorf("could not update federation-controller (cluster=%s): %v", remoteCluster.Name(), err)
+				return "", "", fmt.Errorf("could not update federation-controller (cluster=%s): %v", remoteCluster.Name(), err)
 			}
 		}
-		helmUpgradeCmd := exec.Command("helm", "upgrade", "-n", "istio-system",
-			"federation",
-			fmt.Sprintf("%s/chart", rootDir),
-			fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", rootDir),
-			"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
-			"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName),
-			"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
-			"--set", fmt.Sprintf("image.tag=%s", testTag))
-		helmUpgradeCmd.Env = os.Environ()
-		helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
-		if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %v", clusterNames[idx], string(out), err)
-		}
+		return gatewayIP, remoteClusterName, nil
 	}
-	ctx.Cleanup(func() {
-		for idx := range ctx.Clusters() {
-			helmUninstallCmd := exec.Command("helm", "uninstall", "federation", "-n", "istio-system")
-			helmUninstallCmd.Env = os.Environ()
-			helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+	return func(ctx resource.Context) error {
+		var g errgroup.Group
+		for idx, localCluster := range ctx.Clusters() {
+			helmUpgradeCmd := exec.Command("helm", "upgrade", "--install", "--wait",
+				"-n", "istio-system",
+				"federation",
+				fmt.Sprintf("%s/chart", rootDir),
+				fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", rootDir),
+				"--set", fmt.Sprintf("federation.configMode=%s", configMode),
+				"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
+				"--set", fmt.Sprintf("image.tag=%s", testTag))
+			if configureRemotePeer {
+				gatewayIP, remoteClusterName, err := getRemoteNetworkAndIngressIP(ctx, localCluster)
+				if err != nil {
+					return err
+				}
+				helmUpgradeCmd.Args = append(helmUpgradeCmd.Args,
+					"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
+					"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
+			}
+			helmUpgradeCmd.Env = os.Environ()
+			helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+			g.Go(func() error {
+				if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
+					return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %v", clusterNames[idx], string(out), err)
+				}
+				return nil
+			})
 		}
-	})
-	return nil
+		if err := g.Wait(); err != nil {
+			return err
+		}
+		ctx.Cleanup(func() {
+			for idx := range ctx.Clusters() {
+				helmUninstallCmd := exec.Command("helm", "uninstall", "federation", "-n", "istio-system")
+				helmUninstallCmd.Env = os.Environ()
+				helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+			}
+		})
+		return nil
+	}
 }
 
 func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
-	dataplaneGateway, err := c.Kube().CoreV1().Services(ns).Get(context.TODO(), name, v1.GetOptions{})
+	gateway, err := c.Kube().CoreV1().Services(ns).Get(context.TODO(), name, v1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to get %s/%s service from cluster %s: %v", name, ns, c.Name(), err)
 	}
-	for _, ip := range dataplaneGateway.Status.LoadBalancer.Ingress {
+	for _, ip := range gateway.Status.LoadBalancer.Ingress {
 		if ip.IP != "" {
 			return ip.IP, nil
 		}
