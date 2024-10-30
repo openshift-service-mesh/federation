@@ -48,5 +48,9 @@ by different teams in different clusters.
     ```
 1. Re-run e2e tests without setting-up KinD clusters:
     ```shell
-    make e2e-test
+    make e2e-tests
+    ```
+1. Re-run specific test suite without setting-up KinD clusters:
+    ```shell
+    make e2e-test SUITE=mcp
     ```
