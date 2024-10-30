@@ -53,7 +53,7 @@ var (
 	_, file, _, _ = runtime.Caller(0)
 	rootDir       = filepath.Join(filepath.Dir(file), "../../..")
 
-	testHub = env.GetString("HUB", "quay.io/jewertow")
+	testHub = env.GetString("HUB", "quay.io/maistra-dev")
 	testTag = env.GetString("TAG", "latest")
 
 	istioVersion = env.GetString("ISTIO_VERSION", "1.22.1")

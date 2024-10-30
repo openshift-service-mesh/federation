@@ -4,7 +4,7 @@ OUT := $(shell pwd)
 default: build test
 
 export TAG ?= latest
-export HUB ?= quay.io/jewertow
+export HUB ?= quay.io/maistra-dev
 export ISTIO_VERSION ?= 1.23.0
 
 .PHONY: build
