@@ -83,6 +83,9 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 	}
 
 	ctx.NewSubTest("requests to b should be routed to local and remote instances").Run(func(ctx framework.TestContext) {
+		reachedAllClusters := func(statusCheck echo.Checker) echo.Checker {
+			return check.And(statusCheck, check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters()))
+		}
 		for _, host := range []string{
 			fmt.Sprintf("b.%s", AppNs.Name()),
 			fmt.Sprintf("b.%s.svc", AppNs.Name()),
@@ -92,28 +95,28 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 				Address: host,
 				Port:    ports.HTTP,
 				Scheme:  scheme.HTTP,
-				Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+				Check:   reachedAllClusters(check.OK()),
 				Count:   5,
 			})
 			a[0].CallOrFail(t, echo.CallOptions{
 				Address: host,
 				Port:    ports.HTTP2,
 				Scheme:  scheme.HTTP,
-				Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+				Check:   reachedAllClusters(check.OK()),
 				Count:   5,
 			})
 			a[0].CallOrFail(t, echo.CallOptions{
 				Address: host,
 				Port:    ports.HTTPS,
 				Scheme:  scheme.HTTPS,
-				Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+				Check:   reachedAllClusters(check.OK()),
 				Count:   5,
 			})
 			a[0].CallOrFail(t, echo.CallOptions{
 				Address: host,
 				Port:    ports.GRPC,
 				Scheme:  scheme.GRPC,
-				Check:   check.And(check.GRPCStatus(codes.OK), check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters())),
+				Check:   reachedAllClusters(check.GRPCStatus(codes.OK)),
 				Count:   5,
 			})
 		}
