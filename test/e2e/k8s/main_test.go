@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 		Setup(common.CreateControlPlaneNamespace).
 		Setup(common.CreateCACertsSecret).
 		Setup(common.DeployControlPlanes("k8s")).
-		Setup(common.InstallFederationControllers(true, "k8s")).
+		Setup(common.InstallOrUpgradeFederationControllers(true, "k8s")).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry

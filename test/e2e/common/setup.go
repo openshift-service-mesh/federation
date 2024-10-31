@@ -190,7 +190,7 @@ func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn
 	}
 }
 
-func InstallFederationControllers(configureRemotePeer bool, configMode string) resource.SetupFn {
+func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode string) resource.SetupFn {
 	getRemoteNetworkAndIngressIP := func(ctx resource.Context, localCluster cluster.Cluster) (string, string, error) {
 		var gatewayIP string
 		var remoteClusterName string
