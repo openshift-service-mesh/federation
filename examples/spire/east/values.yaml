@@ -1,0 +1,33 @@
+global:
+  spire:
+    clusterName: east
+    trustDomain: east.local
+    caSubject:
+      country: US
+      organization: my-company.com
+      commonName: east.local
+spire-server:
+  service:
+    type: LoadBalancer
+  federation:
+    enabled: true
+  controllerManager:
+    identities:
+      clusterSPIFFEIDs:
+        default:
+          spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+          namespaceSelector:
+            matchLabels:
+              spiffe.io/spire-managed-identity: "true"
+          federatesWith:
+          - west.local
+        test-keys:
+          enabled: false
+spire-agent:
+  sds:
+    enabled: true
+    defaultSVIDName: default
+    defaultBundleName: null
+    defaultAllBundlesName: ROOTCA
+spiffe-oidc-discovery-provider:
+  enabled: false

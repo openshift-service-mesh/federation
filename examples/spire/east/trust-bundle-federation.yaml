@@ -8,3 +8,24 @@ spec:
   bundleEndpointProfile:
     type: https_spiffe
     endpointSPIFFEID: spiffe://west.local/spire/server
+  trustDomainBundle: |-
+    {
+      "keys": [
+        {
+          "use": "x509-svid",
+          "kty": "RSA",
+          "n": "3OcO6RJTHKn7qyp9hjWhYkqYLZzdt6Y1vAZk17-qTncPUjxjmFXz3if_0LDhqsFvqGdm3hLe0tTvX224fWZ_BaX_kUdatTZRRfhgp1m1_mzijxkcrBEZJEvU6lT9XC4PtmLEhta74zoPV25_oBUHF1bigBAu1NgM_mSa2xWAegI-mvboJvBk47o40sJ-Qk94--MgKXZnE58mrwwSkx-65ZOHdvGIM0RJGQ1loAc9SREbybcBCCcVu4JlFGjZgLsZkF2ML8KGzNGaRLwV5pZJzEPx7GJkZt3h8Yt4MXJgE2v1E08Tro2P7dQi27MB0W5-vSHkvYD1C5lTi3YelSDZWw",
+          "e": "AQAB",
+          "x5c": [
+            "MIIDxjCCAq6gAwIBAgIQfVmkW4i8/CXaBmgOpnAi7DANBgkqhkiG9w0BAQsFADBtMQswCQYDVQQGEwJVUzEXMBUGA1UEChMObXktY29tcGFueS5jb20xEzARBgNVBAMTCndlc3QubG9jYWwxMDAuBgNVBAUTJzE2NjYxODk0NzQ2MDc4MDMwMTU2ODMwMzM5NzM0MTU3NjA0NTI5MjAeFw0yNDEwMzExNjAxMjRaFw0yNDExMDExNjAxMzRaMG0xCzAJBgNVBAYTAlVTMRcwFQYDVQQKEw5teS1jb21wYW55LmNvbTETMBEGA1UEAxMKd2VzdC5sb2NhbDEwMC4GA1UEBRMnMTY2NjE4OTQ3NDYwNzgwMzAxNTY4MzAzMzk3MzQxNTc2MDQ1MjkyMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3OcO6RJTHKn7qyp9hjWhYkqYLZzdt6Y1vAZk17+qTncPUjxjmFXz3if/0LDhqsFvqGdm3hLe0tTvX224fWZ/BaX/kUdatTZRRfhgp1m1/mzijxkcrBEZJEvU6lT9XC4PtmLEhta74zoPV25/oBUHF1bigBAu1NgM/mSa2xWAegI+mvboJvBk47o40sJ+Qk94++MgKXZnE58mrwwSkx+65ZOHdvGIM0RJGQ1loAc9SREbybcBCCcVu4JlFGjZgLsZkF2ML8KGzNGaRLwV5pZJzEPx7GJkZt3h8Yt4MXJgE2v1E08Tro2P7dQi27MB0W5+vSHkvYD1C5lTi3YelSDZWwIDAQABo2IwYDAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUnRaez65y2BKbCoLHYqCEsJ7WBJcwHgYDVR0RBBcwFYYTc3BpZmZlOi8vd2VzdC5sb2NhbDANBgkqhkiG9w0BAQsFAAOCAQEANHq1QTuVNGzOhshQZ0x0m9xEZaWBYJbn59ca1QIs8Lvbaw/earAtctD089wuuJKav/qslQtCa+ipz+aURTegWYaFvUEkcoaKTfArfiKqnRElluDbo73TitF/bWwu7kDNfMEiVb0DT8Bdu82NOcPdSmLGf1fTvxGK8yo7hDaKNiSKbgZq5M2hRu0/zr1hCKm/XxPzy2FsZJilUMqLKU4OFBFR8yx6x0tgiOk4DhSB66u+AD6dT6ZWWRrtnUyBgvCIWulG8S9PbDqUGactgeNxkaWYJ519oBDs77Ej3EuM+nt1cKp7W/d8R7DXtYuGR/OqKn2jCEjvxrZjJr72Ux7zMw=="
+          ]
+        },
+        {
+          "use": "jwt-svid",
+          "kty": "RSA",
+          "kid": "TfdXb7zLyEv26frBt4VldeQk7dfZZ0W2",
+          "n": "tOQ4s67Bi0QtOleE58IHfmdTtfkIDv-5NTfXBYyNdXYsfZyIqcCuZ-F6BVAamMo501yenbjVveU2k-1TTpGgbUmXQnHOBGM3WJikTqACY0gnsawnOoLRpGa1m73Jy-JTjbERLaHcn3zTdcCD0cv_lOZRn9k02cPl6zF9nMKkbwyH2Pzopb-ndeH9DpbVtN6usFg95lUUeWhMVemkOJgYQSPHLL6QVthkcSG-cKSUQ_C70S4swsWYlQoxcx0nErB0dsVUCiBP2JaJ9niQFuNvMg88pI_kG7SKctzmq7RDP7_VMcM0xKF80-sOL5boJFD4WI4d9GVn_-TO5hofj60yxw",
+          "e": "AQAB"
+        }
+      ]
+    }
