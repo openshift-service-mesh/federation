@@ -249,6 +249,9 @@ func InstallFederationControllers(configureRemotePeer bool, configMode string) r
 				helmUninstallCmd := exec.Command("helm", "uninstall", "federation", "-n", "istio-system")
 				helmUninstallCmd.Env = os.Environ()
 				helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+				if out, err := helmUninstallCmd.CombinedOutput(); err != nil {
+					scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %v", clusterNames[idx], out, err)
+				}
 			}
 		})
 		return nil
