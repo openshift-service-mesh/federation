@@ -103,7 +103,7 @@ func CreateControlPlaneNamespace(ctx resource.Context) error {
 	ctx.Cleanup(func() {
 		for idx, c := range ctx.Clusters() {
 			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
-				scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %v", clusterNames[idx], err)
+				scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %w", clusterNames[idx], err)
 			}
 		}
 	})
@@ -187,7 +187,7 @@ func DeployControlPlanes(federationControllerConfigMode config.ConfigMode) resou
 				}
 				stdout, _, err := istioCtl.Invoke([]string{"uninstall", "--purge", "-y"})
 				if err != nil {
-					scopes.Framework.Errorf("failed to uninstall istio: %s, %v", stdout, err)
+					scopes.Framework.Errorf("failed to uninstall istio: %s, %w", stdout, err)
 				}
 			}
 		})
@@ -255,7 +255,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 				helmUninstallCmd.Env = os.Environ()
 				helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
 				if out, err := helmUninstallCmd.CombinedOutput(); err != nil {
-					scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %v", clusterNames[idx], out, err)
+					scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %w", clusterNames[idx], out, err)
 				}
 			}
 		})
