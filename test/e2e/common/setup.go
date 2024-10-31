@@ -75,7 +75,7 @@ func CreateControlPlaneNamespace(ctx resource.Context) error {
 				Name: "istio-system",
 			},
 		}, v1.CreateOptions{}); err != nil {
-			return fmt.Errorf("failed to create namespace: %v", err)
+			return fmt.Errorf("failed to create namespace: %w", err)
 		}
 		return nil
 	}
@@ -85,12 +85,12 @@ func CreateControlPlaneNamespace(ctx resource.Context) error {
 			_, err := c.Kube().CoreV1().Namespaces().Get(context.Background(), "istio-system", v1.GetOptions{})
 			if err != nil {
 				if !errors.IsNotFound(err) {
-					return fmt.Errorf("failed to get namespace: %v", err)
+					return fmt.Errorf("failed to get namespace: %w", err)
 				}
 				return createNamespace(c)
 			}
 			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
-				return fmt.Errorf("failed to delete namespace: %v", err)
+				return fmt.Errorf("failed to delete namespace: %w", err)
 			}
 			return createNamespace(c)
 		}, retry.Timeout(30*time.Second), retry.Delay(1*time.Second)); err != nil {
@@ -101,7 +101,7 @@ func CreateControlPlaneNamespace(ctx resource.Context) error {
 	ctx.Cleanup(func() {
 		for idx, c := range ctx.Clusters() {
 			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
-				scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %v", clusterNames[idx], err)
+				scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %w", clusterNames[idx], err)
 			}
 		}
 	})
@@ -118,7 +118,7 @@ func CreateCACertsSecret(ctx resource.Context) error {
 			"ca-key.pem":     {},
 		}
 		if err := setCacertKeys(fmt.Sprintf("%s/test/testdata/certs/%s", rootDir, clusterName), data); err != nil {
-			return fmt.Errorf("failed to set keys in cacerts secret (cluster=%s): %v", clusterName, err)
+			return fmt.Errorf("failed to set keys in cacerts secret (cluster=%s): %w", clusterName, err)
 		}
 		cacerts := &corev1.Secret{
 			ObjectMeta: v1.ObjectMeta{
@@ -128,7 +128,7 @@ func CreateCACertsSecret(ctx resource.Context) error {
 			Data: data,
 		}
 		if _, err := c.Kube().CoreV1().Secrets("istio-system").Create(context.Background(), cacerts, v1.CreateOptions{}); err != nil {
-			return fmt.Errorf("failed to create cacerts secret (cluster=%s): %v", clusterName, err)
+			return fmt.Errorf("failed to create cacerts secret (cluster=%s): %w", clusterName, err)
 		}
 	}
 	return nil
@@ -139,7 +139,7 @@ func setCacertKeys(dir string, data map[string][]byte) error {
 		fileName := fmt.Sprintf("%s/%s", dir, key)
 		fileData, err := os.ReadFile(fileName)
 		if err != nil {
-			return fmt.Errorf("failed to read file %s: %v", fileName, err)
+			return fmt.Errorf("failed to read file %s: %w", fileName, err)
 		}
 		data[key] = fileData
 	}
@@ -159,7 +159,7 @@ func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn
 			g.Go(func() error {
 				istioCtl, err := istioctl.New(ctx, istioctl.Config{Cluster: c})
 				if err != nil {
-					return fmt.Errorf("failed to create istioctl: %v", err)
+					return fmt.Errorf("failed to create istioctl: %w", err)
 				}
 				stdout, _, err := istioCtl.Invoke([]string{
 					"install",
@@ -169,7 +169,7 @@ func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn
 					"-y",
 				})
 				if err != nil {
-					return fmt.Errorf("failed to deploy istio: stdout: %s; err: %v", stdout, err)
+					return fmt.Errorf("failed to deploy istio: stdout: %s; err: %w", stdout, err)
 				}
 				return nil
 			})
@@ -182,7 +182,7 @@ func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn
 				istioCtl, err := istioctl.New(ctx, istioctl.Config{Cluster: c})
 				stdout, _, err := istioCtl.Invoke([]string{"uninstall", "--purge", "-y"})
 				if err != nil {
-					scopes.Framework.Errorf("failed to uninstall istio: %s, %v", stdout, err)
+					scopes.Framework.Errorf("failed to uninstall istio: %s, %w", stdout, err)
 				}
 			}
 		})
@@ -203,11 +203,11 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 				var err error
 				gatewayIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
 				if err != nil {
-					return fmt.Errorf("could not get IPs from remote federation-controller: %v", err)
+					return fmt.Errorf("could not get IPs from remote federation-controller: %w", err)
 				}
 				return nil
 			}, retry.Timeout(5*time.Minute), retry.Delay(1*time.Second)); err != nil {
-				return "", "", fmt.Errorf("could not update federation-controller (cluster=%s): %v", remoteCluster.Name(), err)
+				return "", "", fmt.Errorf("could not update federation-controller (cluster=%s): %w", remoteCluster.Name(), err)
 			}
 		}
 		return gatewayIP, remoteClusterName, nil
@@ -236,7 +236,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 			helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
 			g.Go(func() error {
 				if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
-					return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %v", clusterNames[idx], string(out), err)
+					return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %w", clusterNames[idx], string(out), err)
 				}
 				return nil
 			})
@@ -250,7 +250,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 				helmUninstallCmd.Env = os.Environ()
 				helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
 				if out, err := helmUninstallCmd.CombinedOutput(); err != nil {
-					scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %v", clusterNames[idx], out, err)
+					scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %w", clusterNames[idx], out, err)
 				}
 			}
 		})
@@ -261,7 +261,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
 	gateway, err := c.Kube().CoreV1().Services(ns).Get(context.Background(), name, v1.GetOptions{})
 	if err != nil {
-		return "", fmt.Errorf("failed to get %s/%s service from cluster %s: %v", name, ns, c.Name(), err)
+		return "", fmt.Errorf("failed to get %s/%s service from cluster %s: %w", name, ns, c.Name(), err)
 	}
 	for _, ip := range gateway.Status.LoadBalancer.Ingress {
 		if ip.IP != "" {
@@ -286,7 +286,7 @@ func DeployApps(apps *echo.Instances, targetClusterName string, ns namespace.Get
 				},
 			}).Build()
 			if err != nil {
-				return fmt.Errorf("failed to create echo: %v", err)
+				return fmt.Errorf("failed to create echo: %w", err)
 			}
 			*apps = apps.Append(newApp)
 		}
