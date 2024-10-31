@@ -187,7 +187,7 @@ func DeployControlPlanes(federationControllerConfigMode config.ConfigMode) resou
 				}
 				stdout, _, err := istioCtl.Invoke([]string{"uninstall", "--purge", "-y"})
 				if err != nil {
-					scopes.Framework.Errorf("failed to uninstall istio: %s, %w", stdout, err)
+					scopes.Framework.Errorf("failed to uninstall istio: %s, %v", stdout, err)
 				}
 			}
 		})
