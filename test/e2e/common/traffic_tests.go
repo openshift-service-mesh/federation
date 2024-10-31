@@ -126,26 +126,27 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 	// only for FQDNs, so mTLS connections to <service-name>.<namespace> or <service-name>.<namespace>.svc
 	// fail, because there are no filters matching such SNIs.
 	ctx.NewSubTest("requests to c should succeed").Run(func(ctx framework.TestContext) {
+		fqdnC := fmt.Sprintf("c.%s.svc.cluster.local", AppNs.Name())
 		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fmt.Sprintf("c.%s.svc.cluster.local", AppNs.Name()),
+			Address: fqdnC,
 			Port:    ports.HTTP,
 			Scheme:  scheme.HTTP,
 			Check:   check.OK(),
 		})
 		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fmt.Sprintf("c.%s.svc.cluster.local", AppNs.Name()),
+			Address: fqdnC,
 			Port:    ports.HTTP2,
 			Scheme:  scheme.HTTP,
 			Check:   check.OK(),
 		})
 		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fmt.Sprintf("c.%s.svc.cluster.local", AppNs.Name()),
+			Address: fqdnC,
 			Port:    ports.HTTPS,
 			Scheme:  scheme.HTTPS,
 			Check:   check.OK(),
 		})
 		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fmt.Sprintf("c.%s.svc.cluster.local", AppNs.Name()),
+			Address: fqdnC,
 			Port:    ports.GRPC,
 			Scheme:  scheme.GRPC,
 			Check:   check.GRPCStatus(codes.OK),
