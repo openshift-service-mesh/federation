@@ -82,14 +82,14 @@ func CreateControlPlaneNamespace(ctx resource.Context) error {
 
 	for _, c := range ctx.Clusters() {
 		if err := retry.UntilSuccess(func() error {
-			_, err := c.Kube().CoreV1().Namespaces().Get(context.TODO(), "istio-system", v1.GetOptions{})
+			_, err := c.Kube().CoreV1().Namespaces().Get(context.Background(), "istio-system", v1.GetOptions{})
 			if err != nil {
 				if !errors.IsNotFound(err) {
 					return fmt.Errorf("failed to get namespace: %v", err)
 				}
 				return createNamespace(c)
 			}
-			if err := c.Kube().CoreV1().Namespaces().Delete(context.TODO(), "istio-system", v1.DeleteOptions{}); err != nil {
+			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
 				return fmt.Errorf("failed to delete namespace: %v", err)
 			}
 			return createNamespace(c)
@@ -100,7 +100,7 @@ func CreateControlPlaneNamespace(ctx resource.Context) error {
 
 	ctx.Cleanup(func() {
 		for idx, c := range ctx.Clusters() {
-			if err := c.Kube().CoreV1().Namespaces().Delete(context.TODO(), "istio-system", v1.DeleteOptions{}); err != nil {
+			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
 				scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %v", clusterNames[idx], err)
 			}
 		}
@@ -127,7 +127,7 @@ func CreateCACertsSecret(ctx resource.Context) error {
 			},
 			Data: data,
 		}
-		if _, err := c.Kube().CoreV1().Secrets("istio-system").Create(context.TODO(), cacerts, v1.CreateOptions{}); err != nil {
+		if _, err := c.Kube().CoreV1().Secrets("istio-system").Create(context.Background(), cacerts, v1.CreateOptions{}); err != nil {
 			return fmt.Errorf("failed to create cacerts secret (cluster=%s): %v", clusterName, err)
 		}
 	}
@@ -259,7 +259,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 }
 
 func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
-	gateway, err := c.Kube().CoreV1().Services(ns).Get(context.TODO(), name, v1.GetOptions{})
+	gateway, err := c.Kube().CoreV1().Services(ns).Get(context.Background(), name, v1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to get %s/%s service from cluster %s: %v", name, ns, c.Name(), err)
 	}
@@ -298,7 +298,7 @@ func RemoveServiceFromClusters(name string, ns namespace.Getter, targetClusterNa
 	return func(ctx resource.Context) error {
 		for _, targetClusterName := range targetClusterNames {
 			targetCluster := ctx.Clusters().GetByName(targetClusterName)
-			if err := targetCluster.Kube().CoreV1().Services(ns.Get().Name()).Delete(context.TODO(), name, v1.DeleteOptions{}); err != nil {
+			if err := targetCluster.Kube().CoreV1().Services(ns.Get().Name()).Delete(context.Background(), name, v1.DeleteOptions{}); err != nil {
 				return fmt.Errorf("failed to delete Service %s/%s from cluster %s: %v", name, ns.Get().Name(), targetCluster.Name(), err)
 			}
 		}
