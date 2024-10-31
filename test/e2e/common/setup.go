@@ -180,9 +180,12 @@ func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn
 		ctx.Cleanup(func() {
 			for _, c := range ctx.Clusters() {
 				istioCtl, err := istioctl.New(ctx, istioctl.Config{Cluster: c})
+				if err != nil {
+					scopes.Framework.Errorf("failed to create istioctl: %v", err)
+				}
 				stdout, _, err := istioCtl.Invoke([]string{"uninstall", "--purge", "-y"})
 				if err != nil {
-					scopes.Framework.Errorf("failed to uninstall istio: %s, %w", stdout, err)
+					scopes.Framework.Errorf("failed to uninstall istio: %s, %v", stdout, err)
 				}
 			}
 		})
