@@ -9,12 +9,16 @@ helm repo add spiffe-hardened https://spiffe.github.io/helm-charts-hardened
 
 2. Install SPIRE:
 ```shell
+keast create namespace spire-mgmt
+keast label namespace spire-mgmt pod-security.kubernetes.io/enforce=restricted || true
+kwest create namespace spire-mgmt
+kwest label namespace spire-mgmt pod-security.kubernetes.io/enforce=restricted || true
 # CRDs
 helm-east upgrade --install spire-crds spiffe-hardened/spire-crds --version 0.5.0
 helm-west upgrade --install spire-crds spiffe-hardened/spire-crds --version 0.5.0
 # CSI driver, server, agent and OIDC provider
-helm-east upgrade --install spire spiffe-hardened/spire -n spire-server --create-namespace --values examples/spire/east/values.yaml --version 0.24.0
-helm-west upgrade --install spire spiffe-hardened/spire -n spire-server --create-namespace --values examples/spire/west/values.yaml --version 0.24.0
+helm-east upgrade --install spire spiffe-hardened/spire -n spire-mgmt --values examples/spire/east/values.yaml --version 0.24.0
+helm-west upgrade --install spire spiffe-hardened/spire -n spire-mgmt --values examples/spire/west/values.yaml --version 0.24.0
 ```
 
 3. Federate bundles:
@@ -27,27 +31,25 @@ sed "s/<remote_bundle_endpoint_ip>/$spire_bundle_endpoint_west/g" examples/spire
 ```
 ```shell
 spire_bundle_endpoint_east=$(keast get svc spire-server -n spire-server -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-keast exec -it -n spire-server spire-server-0 -c spire-server -- spire-server bundle show -format spiffe | kubectl exec -i -n spire-server spire-b-server-0 -c spire-server -- spire-server bundle set -format spiffe -id spiffe://a-org.local
 east_bundle=$(keast exec -c spire-server -n spire-server --stdin spire-server-0  -- /opt/spire/bin/spire-server bundle show -format spiffe -socketPath /tmp/spire-server/private/api.sock)
 indented_east_bundle=$(echo "$east_bundle" | jq -r '.' | sed 's/^/    /')
 echo -e "  trustDomainBundle: |-\n$indented_east_bundle" >> examples/spire/west/trust-bundle-federation.yaml
 sed "s/<remote_bundle_endpoint_ip>/$spire_bundle_endpoint_east/g" examples/spire/west/trust-bundle-federation.yaml | kwest apply -f -
-echo $east_bundle | kwest exec -n spire-server spire-server-0 -c spire-server -- spire-server bundle set -format spiffe -id spiffe://east.local
 ```
 
 4. Deploy Istio:
 ```shell
 keast create namespace istio-system
-keast label namespace istio-system spire-identity=true
+keast label namespace istio-system spiffe.io/spire-managed-identity=true
 kwest create namespace istio-system
-kwest label namespace istio-system spire-identity=true
+kwest label namespace istio-system spiffe.io/spire-managed-identity=true
 sed -e "s/<local_cluster_name>/east/g" -e "s/<remote_cluster_name>/west/g" examples/spire/istio.yaml | istioctl --kubeconfig=east.kubeconfig manifest generate -f - | keast apply -f -
 sed -e "s/<local_cluster_name>/west/g" -e "s/<remote_cluster_name>/east/g" examples/spire/istio.yaml | istioctl --kubeconfig=west.kubeconfig manifest generate -f - | kwest apply -f -
 ```
 Verify Spire's registry:
 ```shell
-keast exec -t spire-server-0 -n spire -c spire-server -- ./bin/spire-server entry show
-kwest exec -t spire-server-0 -n spire -c spire-server -- ./bin/spire-server entry show
+keast exec -t spire-server-0 -n spire-server -c spire-server -- spire-server entry show
+kwest exec -t spire-server-0 -n spire-server -c spire-server -- spire-server entry show
 ```
 
 5. Deploy federation controllers:
@@ -69,11 +71,11 @@ helm-west install west-mesh chart -n istio-system \
 6. Deploy and export apps:
 ```shell
 keast label namespace default istio-injection=enabled
-keast label namespace default spire-identity=true
+keast label namespace default spiffe.io/spire-managed-identity=true
 keast apply -f examples/spire/east/sleep.yaml
 keast apply -f examples/mtls.yaml -n istio-system
 kwest label namespace default istio-injection=enabled
-kwest label namespace default spire-identity=true
+kwest label namespace default spiffe.io/spire-managed-identity=true
 kwest apply -f examples/spire/west/httpbin.yaml
 kwest label service httpbin export-service=true
 kwest apply -f examples/mtls.yaml -n istio-system

@@ -1,17 +1,23 @@
 global:
   spire:
+    recommendations:
+      enabled: true
+    namespaces:
+      create: true
     clusterName: west
     trustDomain: west.local
     caSubject:
       country: US
       organization: my-company.com
       commonName: west.local
+
 spire-server:
   service:
     type: LoadBalancer
   federation:
     enabled: true
   controllerManager:
+    enabled: true
     identities:
       clusterSPIFFEIDs:
         default:
@@ -23,11 +29,15 @@ spire-server:
           - east.local
         test-keys:
           enabled: false
+
 spire-agent:
   sds:
     enabled: true
     defaultSVIDName: default
-    defaultBundleName: null
+    defaultBundleName: "null"
     defaultAllBundlesName: ROOTCA
+
 spiffe-oidc-discovery-provider:
-  enabled: false
+  tls:
+    spire:
+      enabled: false
