@@ -3,7 +3,7 @@ kind: ClusterFederatedTrustDomain
 metadata:
   name: east
 spec:
-  className: spire-mgmt-spire
+  className: spire-spire
   trustDomain: east.local
   bundleEndpointURL: https://<remote_bundle_endpoint_ip>:8443
   bundleEndpointProfile:

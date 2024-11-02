@@ -1,9 +1,5 @@
 global:
   spire:
-    recommendations:
-      enabled: true
-    namespaces:
-      create: true
     clusterName: west
     trustDomain: west.local
     caSubject:

@@ -26,7 +26,6 @@ spec:
     pilot:
       env:
         ENABLE_NATIVE_SIDECARS: "true"
-        AUTO_RELOAD_PLUGIN_CERTS: "true"
     # This is used to customize the sidecar template
     sidecarInjectorWebhook:
       templates:
