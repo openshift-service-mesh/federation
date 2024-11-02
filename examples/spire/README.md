@@ -44,8 +44,8 @@ keast create namespace istio-system
 keast label namespace istio-system spiffe.io/spire-managed-identity=true
 kwest create namespace istio-system
 kwest label namespace istio-system spiffe.io/spire-managed-identity=true
-sed -e "s/<local_cluster_name>/east/g" -e "s/<remote_cluster_name>/west/g" examples/spire/istio.yaml | istioctl --kubeconfig=east.kubeconfig manifest generate -f - | keast apply -f -
-sed -e "s/<local_cluster_name>/west/g" -e "s/<remote_cluster_name>/east/g" examples/spire/istio.yaml | istioctl --kubeconfig=west.kubeconfig manifest generate -f - | kwest apply -f -
+sed -e "s/<local_cluster_name>/east/g" -e "s/<remote_cluster_name>/west/g" examples/spire/istio.yaml | istioctl --kubeconfig=east.kubeconfig install -y -f -
+sed -e "s/<local_cluster_name>/west/g" -e "s/<remote_cluster_name>/east/g" examples/spire/istio.yaml | istioctl --kubeconfig=west.kubeconfig install -y -f -
 ```
 Verify Spire's registry:
 ```shell
@@ -58,15 +58,11 @@ kwest exec -t spire-server-0 -n spire -c spire-server -- spire-server entry show
 WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-east install east-mesh chart -n istio-system \
     --values examples/federation-controller.yaml \
-    --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP" \
-    --set "federation.configMode=k8s" \
-    --set "istio.spire.enabled=true"
+    --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP"
 EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-west install west-mesh chart -n istio-system \
     --values examples/federation-controller.yaml \
-    --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP" \
-    --set "federation.configMode=k8s" \
-    --set "istio.spire.enabled=true"
+    --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP"
 ```
 
 6. Deploy and export apps:
