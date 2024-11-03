@@ -15,7 +15,7 @@
 //go:build integ
 // +build integ
 
-package mcp
+package k8s
 
 import (
 	"testing"
