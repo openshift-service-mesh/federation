@@ -119,7 +119,7 @@ func CreateCACertsSecret(ctx resource.Context) error {
 			"ca-cert.pem":    {},
 			"ca-key.pem":     {},
 		}
-		if err := setCacertKeys(fmt.Sprintf("%s/test/testdata/certs/%s", rootDir, clusterName), data); err != nil {
+		if err := setCACertKeys(fmt.Sprintf("%s/test/testdata/certs/%s", rootDir, clusterName), data); err != nil {
 			return fmt.Errorf("failed to set keys in cacerts secret (cluster=%s): %w", clusterName, err)
 		}
 		cacerts := &corev1.Secret{
@@ -136,7 +136,7 @@ func CreateCACertsSecret(ctx resource.Context) error {
 	return nil
 }
 
-func setCacertKeys(dir string, data map[string][]byte) error {
+func setCACertKeys(dir string, data map[string][]byte) error {
 	for key := range data {
 		fileName := fmt.Sprintf("%s/%s", dir, key)
 		fileData, err := os.ReadFile(fileName)
