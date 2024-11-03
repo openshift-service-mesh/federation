@@ -20,6 +20,8 @@ package mcp
 import (
 	"testing"
 
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/namespace"
 
@@ -31,8 +33,8 @@ func TestMain(m *testing.M) {
 		NewSuite(m).
 		Setup(common.CreateControlPlaneNamespace).
 		Setup(common.CreateCACertsSecret).
-		Setup(common.DeployControlPlanes("k8s")).
-		Setup(common.InstallOrUpgradeFederationControllers(true, "k8s")).
+		Setup(common.DeployControlPlanes(config.ConfigModeK8s)).
+		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeK8s)).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry

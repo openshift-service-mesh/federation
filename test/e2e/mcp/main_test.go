@@ -20,6 +20,8 @@ package mcp
 import (
 	"testing"
 
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/namespace"
 
@@ -32,9 +34,9 @@ func TestMain(m *testing.M) {
 		Setup(common.CreateControlPlaneNamespace).
 		Setup(common.CreateCACertsSecret).
 		// federation controller must be deployed first, as Istio will not become ready until it connects to all config sources
-		Setup(common.InstallOrUpgradeFederationControllers(false, "mcp")).
-		Setup(common.DeployControlPlanes("mcp")).
-		Setup(common.InstallOrUpgradeFederationControllers(true, "mcp")).
+		Setup(common.InstallOrUpgradeFederationControllers(false, config.ConfigModeMCP)).
+		Setup(common.DeployControlPlanes(config.ConfigModeMCP)).
+		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeMCP)).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry

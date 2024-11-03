@@ -26,6 +26,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+
 	"golang.org/x/sync/errgroup"
 
 	"istio.io/istio/pkg/test/framework/components/cluster"
@@ -150,7 +152,7 @@ func setCacertKeys(dir string, data map[string][]byte) error {
 // We can't utilize standard Istio installation supported by the Istio framework,
 // because it does not allow to apply different Istio settings to different primary clusters
 // and always sets up direct access to the k8s api-server, while it's not desired in mesh federation.
-func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn {
+func DeployControlPlanes(federationControllerConfigMode config.ConfigMode) resource.SetupFn {
 	return func(ctx resource.Context) error {
 		var g errgroup.Group
 		for idx, c := range ctx.Clusters() {
@@ -193,7 +195,7 @@ func DeployControlPlanes(federationControllerConfigMode string) resource.SetupFn
 	}
 }
 
-func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode string) resource.SetupFn {
+func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode config.ConfigMode) resource.SetupFn {
 	getRemoteNetworkAndIngressIP := func(ctx resource.Context, localCluster cluster.Cluster) (string, string, error) {
 		var gatewayIP string
 		var remoteClusterName string
