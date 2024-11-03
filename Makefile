@@ -40,7 +40,7 @@ kind-clusters:
 
 .PHONY: e2e
 TEST_SUITES ?= mcp k8s
-e2e: kind-clusters # kind-clusters target should not fail when clusters already exist
+e2e: kind-clusters
 	@$(foreach suite, $(TEST_SUITES), \
 		go test -tags=integ -run TestTraffic ./test/e2e/$(suite) \
 			--istio.test.hub=docker.io/istio\
