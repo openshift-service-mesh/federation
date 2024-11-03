@@ -1,4 +1,8 @@
+istio:
+  spire:
+    enabled: true
 federation:
+  configMode: k8s
   meshPeers:
     local:
       controlPlane:
