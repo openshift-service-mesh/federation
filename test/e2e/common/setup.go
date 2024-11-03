@@ -46,14 +46,14 @@ import (
 )
 
 var (
-	clusterNames = []string{"east", "west"}
+	ClusterNames = []string{"east", "west"}
 
 	AppNs    namespace.Instance
 	EastApps echo.Instances
 	WestApps echo.Instances
 
 	_, file, _, _ = runtime.Caller(0)
-	rootDir       = filepath.Join(filepath.Dir(file), "../../..")
+	RootDir       = filepath.Join(filepath.Dir(file), "../../..")
 
 	testHub = env.GetString("HUB", "quay.io/maistra-dev")
 	testTag = env.GetString("TAG", "latest")
@@ -66,60 +66,62 @@ const (
 	WestClusterName = "cluster-1"
 )
 
-func CreateControlPlaneNamespace(ctx resource.Context) error {
-	if len(ctx.Clusters()) > 2 {
-		return fmt.Errorf("too many clusters - expected 2, got %d", len(ctx.Clusters()))
-	}
-
-	createNamespace := func(cluster cluster.Cluster) error {
-		if _, err := cluster.Kube().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
-			ObjectMeta: v1.ObjectMeta{
-				Name: "istio-system",
-			},
-		}, v1.CreateOptions{}); err != nil {
-			return fmt.Errorf("failed to create namespace: %w", err)
+func RecreateNamespace(name string) resource.SetupFn {
+	return func(ctx resource.Context) error {
+		if len(ctx.Clusters()) > 2 {
+			return fmt.Errorf("too many clusters - expected 2, got %d", len(ctx.Clusters()))
 		}
-		return nil
-	}
 
-	for _, c := range ctx.Clusters() {
-		if err := retry.UntilSuccess(func() error {
-			_, err := c.Kube().CoreV1().Namespaces().Get(context.Background(), "istio-system", v1.GetOptions{})
-			if err != nil {
-				if !errors.IsNotFound(err) {
-					return fmt.Errorf("failed to get namespace: %w", err)
+		createNamespace := func(cluster cluster.Cluster) error {
+			if _, err := cluster.Kube().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+				ObjectMeta: v1.ObjectMeta{
+					Name: name,
+				},
+			}, v1.CreateOptions{}); err != nil {
+				return fmt.Errorf("failed to create namespace: %w", err)
+			}
+			return nil
+		}
+
+		for _, c := range ctx.Clusters() {
+			if err := retry.UntilSuccess(func() error {
+				_, err := c.Kube().CoreV1().Namespaces().Get(context.Background(), name, v1.GetOptions{})
+				if err != nil {
+					if !errors.IsNotFound(err) {
+						return fmt.Errorf("failed to get namespace: %w", err)
+					}
+					return createNamespace(c)
+				}
+				if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), name, v1.DeleteOptions{}); err != nil {
+					return fmt.Errorf("failed to delete namespace: %w", err)
 				}
 				return createNamespace(c)
+			}, retry.Timeout(30*time.Second), retry.Delay(1*time.Second)); err != nil {
+				return err
 			}
-			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
-				return fmt.Errorf("failed to delete namespace: %w", err)
-			}
-			return createNamespace(c)
-		}, retry.Timeout(30*time.Second), retry.Delay(1*time.Second)); err != nil {
-			return err
 		}
-	}
 
-	ctx.Cleanup(func() {
-		for idx, c := range ctx.Clusters() {
-			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
-				scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %w", clusterNames[idx], err)
+		ctx.Cleanup(func() {
+			for idx, c := range ctx.Clusters() {
+				if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), name, v1.DeleteOptions{}); err != nil {
+					scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %v", ClusterNames[idx], err)
+				}
 			}
-		}
-	})
-	return nil
+		})
+		return nil
+	}
 }
 
 func CreateCACertsSecret(ctx resource.Context) error {
 	for idx, c := range ctx.Clusters() {
-		clusterName := clusterNames[idx]
+		clusterName := ClusterNames[idx]
 		data := map[string][]byte{
 			"root-cert.pem":  {},
 			"cert-chain.pem": {},
 			"ca-cert.pem":    {},
 			"ca-key.pem":     {},
 		}
-		if err := setCACertKeys(fmt.Sprintf("%s/test/testdata/certs/%s", rootDir, clusterName), data); err != nil {
+		if err := setCACertKeys(fmt.Sprintf("%s/test/testdata/certs/%s", RootDir, clusterName), data); err != nil {
 			return fmt.Errorf("failed to set keys in cacerts secret (cluster=%s): %w", clusterName, err)
 		}
 		cacerts := &corev1.Secret{
@@ -152,11 +154,11 @@ func setCACertKeys(dir string, data map[string][]byte) error {
 // We can't utilize standard Istio installation supported by the Istio framework,
 // because it does not allow to apply different Istio settings to different primary clusters
 // and always sets up direct access to the k8s api-server, while it's not desired in mesh federation.
-func DeployControlPlanes(federationControllerConfigMode config.ConfigMode) resource.SetupFn {
+func DeployControlPlanes(config string) resource.SetupFn {
 	return func(ctx resource.Context) error {
 		var g errgroup.Group
 		for idx, c := range ctx.Clusters() {
-			clusterName := clusterNames[idx]
+			clusterName := ClusterNames[idx]
 			c := c
 			g.Go(func() error {
 				istioCtl, err := istioctl.New(ctx, istioctl.Config{Cluster: c})
@@ -165,7 +167,7 @@ func DeployControlPlanes(federationControllerConfigMode config.ConfigMode) resou
 				}
 				stdout, _, err := istioCtl.Invoke([]string{
 					"install",
-					"-f", fmt.Sprintf("%s/test/testdata/istio/%s/%s.yaml", rootDir, federationControllerConfigMode, clusterName),
+					"-f", fmt.Sprintf("%s/test/testdata/istio/%s/%s.yaml", RootDir, config, clusterName),
 					"--set", "hub=docker.io/istio",
 					"--set", fmt.Sprintf("tag=%s", istioVersion),
 					"-y",
@@ -203,7 +205,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 			if localCluster.Name() == remoteCluster.Name() {
 				continue
 			}
-			remoteClusterName = clusterNames[idx]
+			remoteClusterName = ClusterNames[idx]
 			if err := retry.UntilSuccess(func() error {
 				var err error
 				gatewayIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
@@ -223,8 +225,8 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 			helmUpgradeCmd := exec.Command("helm", "upgrade", "--install", "--wait",
 				"-n", "istio-system",
 				"federation",
-				fmt.Sprintf("%s/chart", rootDir),
-				fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", rootDir),
+				fmt.Sprintf("%s/chart", RootDir),
+				fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", RootDir),
 				"--set", fmt.Sprintf("federation.configMode=%s", configMode),
 				"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
 				"--set", fmt.Sprintf("image.tag=%s", testTag))
@@ -238,10 +240,10 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 					"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
 			}
 			helmUpgradeCmd.Env = os.Environ()
-			helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+			helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", RootDir, ClusterNames[idx]))
 			g.Go(func() error {
 				if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
-					return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %w", clusterNames[idx], string(out), err)
+					return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %w", ClusterNames[idx], string(out), err)
 				}
 				return nil
 			})
@@ -253,9 +255,9 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 			for idx := range ctx.Clusters() {
 				helmUninstallCmd := exec.Command("helm", "uninstall", "federation", "-n", "istio-system")
 				helmUninstallCmd.Env = os.Environ()
-				helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+				helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", RootDir, ClusterNames[idx]))
 				if out, err := helmUninstallCmd.CombinedOutput(); err != nil {
-					scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %w", clusterNames[idx], out, err)
+					scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %w", ClusterNames[idx], out, err)
 				}
 			}
 		})

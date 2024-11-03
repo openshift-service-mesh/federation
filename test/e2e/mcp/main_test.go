@@ -31,7 +31,7 @@ import (
 func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
-		Setup(common.CreateControlPlaneNamespace).
+		Setup(common.RecreateNamespace("istio-system")).
 		Setup(common.CreateCACertsSecret).
 		// federation controller must be deployed first, as Istio will not become ready until it connects to all config sources
 		Setup(common.InstallOrUpgradeFederationControllers(false, config.ConfigModeMCP)).

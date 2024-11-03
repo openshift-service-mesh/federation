@@ -15,7 +15,7 @@
 //go:build integ
 // +build integ
 
-package k8s
+package spire
 
 import (
 	"testing"
@@ -31,9 +31,10 @@ import (
 func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
-		Setup(common.RecreateNamespace("istio-system")).
-		Setup(common.CreateCACertsSecret).
-		Setup(common.DeployControlPlanes(config.ConfigModeK8s)).
+		RequireMaxClusters(2).
+		Setup(installSpireCRDs).
+		Setup(installSpire).
+		Setup(common.DeployControlPlanes("spire")).
 		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeK8s)).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
