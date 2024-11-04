@@ -16,13 +16,15 @@ build:
 test: build
 	go test ./...
 
+CONTAINER_CLI ?= docker
+
 .PHONY: docker-build
 docker-build: build
-	docker build -t $(HUB)/federation-controller:$(TAG) -f build/Dockerfile .
+	$(CONTAINER_CLI) build -t $(HUB)/federation-controller:$(TAG) -f build/Dockerfile .
 
 .PHONY: docker-push
 docker-push:
-	docker push $(HUB)/federation-controller:$(TAG)
+	$(CONTAINER_CLI) push $(HUB)/federation-controller:$(TAG)
 
 .PHONY: docker
 docker: docker-build docker-push
