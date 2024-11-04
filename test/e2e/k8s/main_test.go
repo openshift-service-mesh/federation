@@ -20,21 +20,22 @@ package k8s
 import (
 	"testing"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/namespace"
 
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/test/e2e/common"
 )
 
 func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
-		Setup(common.RecreateNamespace("istio-system")).
+		RequireMinClusters(2).
+		RequireMaxClusters(2).
+		Setup(common.CreateNamespace).
 		Setup(common.CreateCACertsSecret).
-		Setup(common.DeployControlPlanes(config.ConfigModeK8s)).
-		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeK8s)).
+		Setup(common.DeployControlPlanes("k8s")).
+		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeK8s, false)).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry

@@ -16,10 +16,22 @@ spire-server:
     identities:
       clusterSPIFFEIDs:
         default:
+          enabled: false
+        istio-system:
           spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
           namespaceSelector:
+            matchExpressions:
+            - key: kubernetes.io/metadata.name
+              operator: In
+              values:
+              - istio-system
+          federatesWith:
+          - west.local
+        sidecars:
+          spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+          podSelector:
             matchLabels:
-              spiffe.io/spire-managed-identity: "true"
+              security.istio.io/tlsMode: istio
           federatesWith:
           - west.local
         test-keys:

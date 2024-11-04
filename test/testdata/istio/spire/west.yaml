@@ -3,10 +3,9 @@ kind: IstioOperator
 metadata:
   namespace: istio-system
 spec:
-  profile: default
+  profile: minimal
   meshConfig:
     accessLogFile: /dev/stdout
-    accessLogFormat: "[ %START_TIME% ] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %RESPONSE_CODE_DETAILS% %CONNECTION_TERMINATION_DETAILS% \"%UPSTREAM_TRANSPORT_FAILURE_REASON%\" %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(X-FORWARDED-FOR)%\" \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" UPSTREAM_HOST=\"%UPSTREAM_HOST%\" %UPSTREAM_CLUSTER% %UPSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_REMOTE_ADDRESS% %REQUESTED_SERVER_NAME% %ROUTE_NAME%\n"
     trustDomain: west.local
     trustDomainAliases:
     - east.local
@@ -15,8 +14,8 @@ spec:
         # Enable basic DNS proxying
         ISTIO_META_DNS_CAPTURE: "true"
         ISTIO_META_DNS_AUTO_ALLOCATE: "true"
-      outboundTrafficPolicy:
-        mode: REGISTRY_ONLY
+    outboundTrafficPolicy:
+      mode: REGISTRY_ONLY
   values:
     global:
       meshID: west-mesh

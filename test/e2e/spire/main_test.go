@@ -34,8 +34,9 @@ func TestMain(m *testing.M) {
 		RequireMaxClusters(2).
 		Setup(installSpireCRDs).
 		Setup(installSpire).
+		Setup(enableTrustDomainFederation).
 		Setup(common.DeployControlPlanes("spire")).
-		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeK8s)).
+		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeK8s, true)).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry

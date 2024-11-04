@@ -31,12 +31,12 @@ import (
 func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
-		Setup(common.RecreateNamespace("istio-system")).
+		Setup(common.CreateNamespace("istio-system", nil)).
 		Setup(common.CreateCACertsSecret).
 		// federation controller must be deployed first, as Istio will not become ready until it connects to all config sources
-		Setup(common.InstallOrUpgradeFederationControllers(false, config.ConfigModeMCP)).
-		Setup(common.DeployControlPlanes(config.ConfigModeMCP)).
-		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeMCP)).
+		Setup(common.InstallOrUpgradeFederationControllers(false, config.ConfigModeMCP, false)).
+		Setup(common.DeployControlPlanes("mcp")).
+		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeMCP, false)).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry

@@ -40,10 +40,6 @@ kwest exec -it -n spire spire-server-0 -c spire-server -- spire-server bundle li
 
 4. Deploy Istio:
 ```shell
-keast create namespace istio-system
-keast label namespace istio-system spiffe.io/spire-managed-identity=true
-kwest create namespace istio-system
-kwest label namespace istio-system spiffe.io/spire-managed-identity=true
 sed -e "s/<local_cluster_name>/east/g" -e "s/<remote_cluster_name>/west/g" examples/spire/istio.yaml | istioctl --kubeconfig=east.kubeconfig install -y -f -
 sed -e "s/<local_cluster_name>/west/g" -e "s/<remote_cluster_name>/east/g" examples/spire/istio.yaml | istioctl --kubeconfig=west.kubeconfig install -y -f -
 ```
@@ -68,11 +64,9 @@ helm-west install west-mesh chart -n istio-system \
 6. Deploy and export apps:
 ```shell
 keast label namespace default istio-injection=enabled
-keast label namespace default spiffe.io/spire-managed-identity=true
 keast apply -f examples/spire/east/sleep.yaml
 keast apply -f examples/mtls.yaml -n istio-system
 kwest label namespace default istio-injection=enabled
-kwest label namespace default spiffe.io/spire-managed-identity=true
 kwest apply -f examples/spire/west/httpbin.yaml
 kwest label service httpbin export-service=true
 kwest apply -f examples/mtls.yaml -n istio-system

@@ -20,6 +20,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,7 +41,6 @@ import (
 	"istio.io/istio/pkg/test/scopes"
 	"istio.io/istio/pkg/test/util/retry"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/env"
 )
@@ -66,54 +66,32 @@ const (
 	WestClusterName = "cluster-1"
 )
 
-func RecreateNamespace(name string) resource.SetupFn {
-	return func(ctx resource.Context) error {
-		if len(ctx.Clusters()) > 2 {
-			return fmt.Errorf("too many clusters - expected 2, got %d", len(ctx.Clusters()))
+func CreateNamespace(ctx resource.Context) error {
+	scopes.Framework.Infof("CreateNamespace: %d", len(ctx.Clusters()))
+	for idx, c := range ctx.Clusters() {
+		scopes.Framework.Infof("creating namespace (cluster=%s)", ClusterNames[idx])
+		if _, err := c.Kube().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+			ObjectMeta: v1.ObjectMeta{
+				Name: "istio-system",
+			},
+		}, v1.CreateOptions{}); err != nil {
+			return fmt.Errorf("failed to create namespace (cluster=%s): %w", ClusterNames[idx], err)
 		}
-
-		createNamespace := func(cluster cluster.Cluster) error {
-			if _, err := cluster.Kube().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
-				ObjectMeta: v1.ObjectMeta{
-					Name: name,
-				},
-			}, v1.CreateOptions{}); err != nil {
-				return fmt.Errorf("failed to create namespace: %w", err)
-			}
-			return nil
-		}
-
-		for _, c := range ctx.Clusters() {
-			if err := retry.UntilSuccess(func() error {
-				_, err := c.Kube().CoreV1().Namespaces().Get(context.Background(), name, v1.GetOptions{})
-				if err != nil {
-					if !errors.IsNotFound(err) {
-						return fmt.Errorf("failed to get namespace: %w", err)
-					}
-					return createNamespace(c)
-				}
-				if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), name, v1.DeleteOptions{}); err != nil {
-					return fmt.Errorf("failed to delete namespace: %w", err)
-				}
-				return createNamespace(c)
-			}, retry.Timeout(30*time.Second), retry.Delay(1*time.Second)); err != nil {
-				return err
-			}
-		}
-
-		ctx.Cleanup(func() {
-			for idx, c := range ctx.Clusters() {
-				if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), name, v1.DeleteOptions{}); err != nil {
-					scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %v", ClusterNames[idx], err)
-				}
-			}
-		})
-		return nil
 	}
+	ctx.Cleanup(func() {
+		for idx, c := range ctx.Clusters() {
+			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
+				scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %v", ClusterNames[idx], err)
+			}
+		}
+	})
+	return nil
 }
 
 func CreateCACertsSecret(ctx resource.Context) error {
+	scopes.Framework.Infof("CreateCACertsSecret: %d", len(ctx.Clusters()))
 	for idx, c := range ctx.Clusters() {
+		scopes.Framework.Infof("creating secret (cluster=%s)", ClusterNames[idx])
 		clusterName := ClusterNames[idx]
 		data := map[string][]byte{
 			"root-cert.pem":  {},
@@ -131,7 +109,15 @@ func CreateCACertsSecret(ctx resource.Context) error {
 			},
 			Data: data,
 		}
-		if _, err := c.Kube().CoreV1().Secrets("istio-system").Create(context.Background(), cacerts, v1.CreateOptions{}); err != nil {
+		if err := retry.UntilSuccess(func() error {
+			if _, err := c.Kube().CoreV1().Secrets("istio-system").Create(context.Background(), cacerts, v1.CreateOptions{}); err != nil {
+				if errors.IsAlreadyExists(err) {
+					return nil
+				}
+				return fmt.Errorf("failed to create cacerts secret (cluster=%s): %w", clusterName, err)
+			}
+			return nil
+		}); err != nil {
 			return fmt.Errorf("failed to create cacerts secret (cluster=%s): %w", clusterName, err)
 		}
 	}
@@ -165,6 +151,11 @@ func DeployControlPlanes(config string) resource.SetupFn {
 				if err != nil {
 					return fmt.Errorf("failed to create istioctl: %w", err)
 				}
+				//version, _, err := istioCtl.Invoke([]string{"version"})
+				//if err != nil {
+				//	return fmt.Errorf("failed to get istioctl version: %w", err)
+				//}
+				//scopes.Framework.Infof("version: %s", version)
 				stdout, _, err := istioCtl.Invoke([]string{
 					"install",
 					"-f", fmt.Sprintf("%s/test/testdata/istio/%s/%s.yaml", RootDir, config, clusterName),
@@ -197,7 +188,7 @@ func DeployControlPlanes(config string) resource.SetupFn {
 	}
 }
 
-func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode config.ConfigMode) resource.SetupFn {
+func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode config.ConfigMode, spireEnabled bool) resource.SetupFn {
 	getRemoteNetworkAndIngressIP := func(ctx resource.Context, localCluster cluster.Cluster) (string, string, error) {
 		var gatewayIP string
 		var remoteClusterName string
@@ -208,7 +199,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 			remoteClusterName = ClusterNames[idx]
 			if err := retry.UntilSuccess(func() error {
 				var err error
-				gatewayIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
+				gatewayIP, err = GetLoadBalancerIP(remoteCluster, "federation-ingress-gateway", "istio-system")
 				if err != nil {
 					return fmt.Errorf("could not get IPs from remote federation-controller: %w", err)
 				}
@@ -228,6 +219,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 				fmt.Sprintf("%s/chart", RootDir),
 				fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", RootDir),
 				"--set", fmt.Sprintf("federation.configMode=%s", configMode),
+				"--set", fmt.Sprintf("istio.spire.enabled=%t", spireEnabled),
 				"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
 				"--set", fmt.Sprintf("image.tag=%s", testTag))
 			if configureRemotePeer {
@@ -265,7 +257,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 	}
 }
 
-func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
+func GetLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
 	gateway, err := c.Kube().CoreV1().Services(ns).Get(context.Background(), name, v1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to get %s/%s service from cluster %s: %w", name, ns, c.Name(), err)
