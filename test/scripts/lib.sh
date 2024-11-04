@@ -4,6 +4,22 @@ WD=$(dirname "$0")
 WD=$(cd "$WD"; pwd)
 ROOT=$(dirname "$WD")
 
+function create_kind_cluster {
+  name=$1
+  podSubnet=$2
+  svcSubnet=$3
+
+  echo "Creating cluster '$name' in podSubnet='$podSubnet' and svcSubnet='$svcSubnet'"
+
+  kind create cluster --name "$name" --config=<<EOF
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+networking:
+  podSubnet: "$podSubnet"
+  serviceSubnet: "$svcSubnet"
+EOF
+}
+
 function install_metallb_retry {
   retry install_metallb $1
 }

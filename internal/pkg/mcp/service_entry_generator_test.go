@@ -254,7 +254,7 @@ func TestServiceEntryGenerator(t *testing.T) {
 			informerFactory.Start(stopCh)
 
 			for _, svc := range tc.existingServices {
-				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.TODO(), svc, v1.CreateOptions{}); err != nil {
+				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.Background(), svc, v1.CreateOptions{}); err != nil {
 					t.Fatalf("failed to create service %s/%s: %v", svc.Name, svc.Namespace, err)
 				}
 			}

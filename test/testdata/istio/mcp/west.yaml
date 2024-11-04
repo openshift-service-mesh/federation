@@ -15,10 +15,10 @@ spec:
       mode: REGISTRY_ONLY
   values:
     global:
-      meshID: clusterNamePlaceholder-mesh
+      meshID: west-mesh
       multiCluster:
-        clusterName: clusterNamePlaceholder-cluster
-      network: clusterNamePlaceholder-network
+        clusterName: west-cluster
+      network: west-network
     pilot:
       env:
         ENABLE_NATIVE_SIDECARS: "true"
@@ -28,12 +28,12 @@ spec:
       label:
         istio: eastwestgateway
         app: istio-eastwestgateway
-        topology.istio.io/network: clusterNamePlaceholder-network
+        topology.istio.io/network: west-network
       enabled: true
       k8s:
         env:
         - name: ISTIO_META_REQUESTED_NETWORK_VIEW
-          value: clusterNamePlaceholder-network
+          value: west-network
         service:
           ports:
           - name: discovery

@@ -46,7 +46,7 @@ by different teams in different clusters.
     ```shell
     HUB=quay.io/maistra-dev TAG=test ISTIO_VERSION=1.23.0 make e2e
     ```
-1. Re-run e2e tests without setting-up KinD clusters:
+1. Run specific test suites:
     ```shell
-    make e2e-test
+    TEST_SUITES="k8s mcp" make e2e
     ```
