@@ -15,8 +15,8 @@ spec:
         # Enable basic DNS proxying
         ISTIO_META_DNS_CAPTURE: "true"
         ISTIO_META_DNS_AUTO_ALLOCATE: "true"
-      outboundTrafficPolicy:
-        mode: REGISTRY_ONLY
+    outboundTrafficPolicy:
+      mode: REGISTRY_ONLY
   values:
     global:
       meshID: <local_cluster_name>-mesh
