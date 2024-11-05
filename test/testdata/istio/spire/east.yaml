@@ -1,7 +1,5 @@
 apiVersion: install.istio.io/v1alpha1
 kind: IstioOperator
-metadata:
-  namespace: istio-system
 spec:
   profile: minimal
   meshConfig:
@@ -11,7 +9,6 @@ spec:
     - west.local
     defaultConfig:
       proxyMetadata:
-        # Enable basic DNS proxying
         ISTIO_META_DNS_CAPTURE: "true"
         ISTIO_META_DNS_AUTO_ALLOCATE: "true"
     outboundTrafficPolicy:
