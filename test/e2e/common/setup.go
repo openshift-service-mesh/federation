@@ -168,11 +168,6 @@ func DeployControlPlanes(config string) resource.SetupFn {
 				if err != nil {
 					return fmt.Errorf("failed to create istioctl: %w", err)
 				}
-				//version, _, err := istioCtl.Invoke([]string{"version"})
-				//if err != nil {
-				//	return fmt.Errorf("failed to get istioctl version: %w", err)
-				//}
-				//scopes.Framework.Infof("version: %s", version)
 				stdout, _, err := istioCtl.Invoke([]string{
 					"install",
 					"-f", fmt.Sprintf("%s/test/testdata/istio/%s/%s.yaml", RootDir, config, clusterName),
