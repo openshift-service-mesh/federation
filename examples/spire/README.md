@@ -37,6 +37,23 @@ List bundles:
 keast exec -it -n spire spire-server-0 -c spire-server -- spire-server bundle list
 kwest exec -it -n spire spire-server-0 -c spire-server -- spire-server bundle list
 ```
+You should see an output like below:
+```
+****************************************
+* west.local
+****************************************
+-----BEGIN CERTIFICATE-----
+MIIDxDCCAqygAwIBAgIQC+oF3uz+USh9/2fAJxZWCzANBgkqhkiG9w0BAQsFADBs
+...
+-----END CERTIFICATE-----
+****************************************
+* east.local
+****************************************
+-----BEGIN CERTIFICATE-----
+MIIDxzCCAq+gAwIBAgIRAOSC+9AxMNaNqWdzd3QfbucwDQYJKoZIhvcNAQELBQAw
+...
+-----END CERTIFICATE-----
+```
 
 4. Deploy Istio:
 ```shell
@@ -47,6 +64,20 @@ Verify Spire's registry:
 ```shell
 keast exec -t spire-server-0 -n spire -c spire-server -- spire-server entry show
 kwest exec -t spire-server-0 -n spire -c spire-server -- spire-server entry show
+```
+You should see an output like below:
+```
+Found 4 entries
+Entry ID         : east.7ee41587-cb65-474f-a944-4fe09c72a5e8
+SPIFFE ID        : spiffe://east.local/ns/istio-system/sa/federation-ingress-gateway-service-account
+Parent ID        : spiffe://east.local/spire/agent/k8s_psat/east/8817df8c-1518-4587-b940-9502a9791b5c
+Revision         : 0
+X509-SVID TTL    : default
+JWT-SVID TTL     : default
+Selector         : k8s:pod-uid:125f41c6-282f-48e0-9f37-8a0c238bd6f5
+FederatesWith    : west.local
+Hint             : istio-system
+...
 ```
 
 5. Deploy federation controllers:
