@@ -53,7 +53,7 @@ func (g *ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 		matchExported := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
 		services, err := g.serviceLister.List(matchExported)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list services: %v", err)
+			return nil, fmt.Errorf("failed to list services: %w", err)
 		}
 		for _, svc := range services {
 			var ports []*v1alpha1.ServicePort

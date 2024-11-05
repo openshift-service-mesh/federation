@@ -161,16 +161,16 @@ func exportService(c cluster.Cluster, svcName, svcNs string) error {
 	if err := retry.UntilSuccess(func() error {
 		svc, err := c.Kube().CoreV1().Services(svcNs).Get(context.Background(), svcName, v1.GetOptions{})
 		if err != nil {
-			return fmt.Errorf("failed to get service %s/%s: %v", svcNs, svcName, err)
+			return fmt.Errorf("failed to get service %s/%s: %w", svcNs, svcName, err)
 		}
 		svc.Labels["export-service"] = "true"
 		_, err = c.Kube().CoreV1().Services(svcNs).Update(context.Background(), svc, v1.UpdateOptions{})
 		if err != nil {
-			return fmt.Errorf("failed to update service %s/%s: %v", svcNs, svcName, err)
+			return fmt.Errorf("failed to update service %s/%s: %w", svcNs, svcName, err)
 		}
 		return nil
 	}); err != nil {
-		return fmt.Errorf("failed to export service %s/%s: %v", svcNs, svcName, err)
+		return fmt.Errorf("failed to export service %s/%s: %w", svcNs, svcName, err)
 	}
 	return nil
 }

@@ -73,7 +73,7 @@ func (r *DestinationRuleReconciler) Reconcile(ctx context.Context) error {
 		FieldManager: "federation-controller",
 	})
 	if err != nil {
-		return fmt.Errorf("failed to apply destination rule: %v", err)
+		return fmt.Errorf("failed to apply destination rule: %w", err)
 	}
 	log.Infof("Applied destination rule: %v", newDR)
 

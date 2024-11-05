@@ -52,7 +52,7 @@ func (r *ServiceEntryReconciler) GetTypeUrl() string {
 func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
 	serviceEntries, err := r.cf.GetServiceEntries()
 	if err != nil {
-		return fmt.Errorf("error generating service entries: %v", err)
+		return fmt.Errorf("error generating service entries: %w", err)
 	}
 	serviceEntriesMap := make(map[types.NamespacedName]*v1alpha3.ServiceEntry, len(serviceEntries))
 	for _, se := range serviceEntries {
@@ -65,7 +65,7 @@ func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
 		}),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to list service entries: %v", err)
+		return fmt.Errorf("failed to list service entries: %w", err)
 	}
 	oldServiceEntriesMap := make(map[types.NamespacedName]*v1alpha3.ServiceEntry, len(oldServiceEntries.Items))
 	for _, se := range oldServiceEntries.Items {
@@ -101,7 +101,7 @@ func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
 				},
 			)
 			if err != nil {
-				return fmt.Errorf("failed to apply service entry: %v", err)
+				return fmt.Errorf("failed to apply service entry: %w", err)
 			}
 			log.Infof("Applied service entry: %v", newSE)
 		}
@@ -111,7 +111,7 @@ func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
 		if _, ok := serviceEntriesMap[k]; !ok {
 			err := r.client.Istio().NetworkingV1alpha3().ServiceEntries(oldSE.GetNamespace()).Delete(ctx, oldSE.GetName(), metav1.DeleteOptions{})
 			if err != nil && !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to delete old service entry: %v", err)
+				return fmt.Errorf("failed to delete old service entry: %w", err)
 			}
 			log.Infof("Deleted service entry: %v", oldSE)
 		}

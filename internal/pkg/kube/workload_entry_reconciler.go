@@ -52,7 +52,7 @@ func (r *WorkloadEntryReconciler) GetTypeUrl() string {
 func (r *WorkloadEntryReconciler) Reconcile(ctx context.Context) error {
 	workloadEntries, err := r.cf.GetWorkloadEntries()
 	if err != nil {
-		return fmt.Errorf("error generating workload entries: %v", err)
+		return fmt.Errorf("error generating workload entries: %w", err)
 	}
 	workloadEntriesMap := make(map[types.NamespacedName]*v1alpha3.WorkloadEntry, len(workloadEntries))
 	for _, we := range workloadEntries {
@@ -65,7 +65,7 @@ func (r *WorkloadEntryReconciler) Reconcile(ctx context.Context) error {
 		}),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to list workload entries: %v", err)
+		return fmt.Errorf("failed to list workload entries: %w", err)
 	}
 	oldWorkloadEntriesMap := make(map[types.NamespacedName]*v1alpha3.WorkloadEntry, len(oldWorkloadEntries.Items))
 	for _, we := range oldWorkloadEntries.Items {
@@ -102,7 +102,7 @@ func (r *WorkloadEntryReconciler) Reconcile(ctx context.Context) error {
 				},
 			)
 			if err != nil {
-				return fmt.Errorf("failed to apply workload entry: %v", err)
+				return fmt.Errorf("failed to apply workload entry: %w", err)
 			}
 			log.Infof("Applied workload entry: %v", newWE)
 		}
@@ -112,7 +112,7 @@ func (r *WorkloadEntryReconciler) Reconcile(ctx context.Context) error {
 		if _, ok := workloadEntriesMap[k]; !ok {
 			err := r.client.Istio().NetworkingV1alpha3().WorkloadEntries(oldWE.GetNamespace()).Delete(ctx, oldWE.GetName(), metav1.DeleteOptions{})
 			if err != nil && !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to delete old workload entry: %v", err)
+				return fmt.Errorf("failed to delete old workload entry: %w", err)
 			}
 			log.Infof("Deleted workload entry: %v", oldWE)
 		}

@@ -44,7 +44,7 @@ func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
 	for _, res := range resources {
 		exportedService := &v1alpha1.ExportedService{}
 		if err := proto.Unmarshal(res.Value, exportedService); err != nil {
-			return fmt.Errorf("unable to unmarshal exported service: %v", err)
+			return fmt.Errorf("unable to unmarshal exported service: %w", err)
 		}
 		// TODO: replace with full validation that returns an error on invalid request
 		if exportedService.Name == "" || exportedService.Namespace == "" {
