@@ -3,7 +3,6 @@ package spire
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"text/template"
@@ -44,8 +43,7 @@ func installSpireCRDs(ctx resource.Context) error {
 	for idx := range ctx.Clusters() {
 		helmUpgradeCmd := exec.Command("helm", "upgrade", "--install",
 			"spire-crds", "spire-crds", "--repo", "https://spiffe.github.io/helm-charts-hardened/", "--version", "0.5.0")
-		helmUpgradeCmd.Env = os.Environ()
-		helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", common.RootDir, common.ClusterNames[idx]))
+		common.SetEnvAndKubeConfigPath(helmUpgradeCmd, idx)
 		g.Go(func() error {
 			if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v: %w", common.ClusterNames[idx], string(out), err)
@@ -59,8 +57,7 @@ func installSpireCRDs(ctx resource.Context) error {
 	ctx.Cleanup(func() {
 		for idx := range ctx.Clusters() {
 			helmUninstallCmd := exec.Command("helm", "uninstall", "spire-crds")
-			helmUninstallCmd.Env = os.Environ()
-			helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", common.RootDir, common.ClusterNames[idx]))
+			common.SetEnvAndKubeConfigPath(helmUninstallCmd, idx)
 			if out, err := helmUninstallCmd.CombinedOutput(); err != nil {
 				scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %w", common.ClusterNames[idx], out, err)
 			}
@@ -77,8 +74,7 @@ func installSpire(ctx resource.Context) error {
 			"-n", "spire", "--create-namespace",
 			fmt.Sprintf("--values=%s/examples/spire/%s/values.yaml", common.RootDir, common.ClusterNames[idx]),
 			"--version", "0.24.0")
-		helmUpgradeCmd.Env = os.Environ()
-		helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", common.RootDir, common.ClusterNames[idx]))
+		common.SetEnvAndKubeConfigPath(helmUpgradeCmd, idx)
 		g.Go(func() error {
 			if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v: %w", common.ClusterNames[idx], string(out), err)
@@ -95,8 +91,7 @@ func installSpire(ctx resource.Context) error {
 	ctx.Cleanup(func() {
 		for idx := range ctx.Clusters() {
 			helmUninstallCmd := exec.Command("helm", "uninstall", "spire", "-n", "spire")
-			helmUninstallCmd.Env = os.Environ()
-			helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", common.RootDir, common.ClusterNames[idx]))
+			common.SetEnvAndKubeConfigPath(helmUninstallCmd, idx)
 			if out, err := helmUninstallCmd.CombinedOutput(); err != nil {
 				scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %v", common.ClusterNames[idx], out, err)
 			}
@@ -112,8 +107,7 @@ func waitUntilAllComponentsAreReady(ctx resource.Context) error {
 		g.Go(func() error {
 			for _, component := range spireComponents {
 				rolloutStatusCmd := exec.Command("kubectl", "rollout", "status", component, "-n", "spire")
-				rolloutStatusCmd.Env = os.Environ()
-				rolloutStatusCmd.Env = append(rolloutStatusCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", common.RootDir, common.ClusterNames[idx]))
+				common.SetEnvAndKubeConfigPath(rolloutStatusCmd, idx)
 				if out, err := rolloutStatusCmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("failed to wait for %s (cluster=%s): %v: %w", component, common.ClusterNames[idx], string(out), err)
 				}
@@ -161,8 +155,7 @@ func enableTrustDomainFederation(ctx resource.Context) error {
 				"--stdin", "spire-server-0", "--",
 				"spire-server", "bundle", "show", "-format", "spiffe",
 			)
-			getBundleCmd.Env = os.Environ()
-			getBundleCmd.Env = append(getBundleCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", common.RootDir, common.ClusterNames[idx]))
+			common.SetEnvAndKubeConfigPath(getBundleCmd, idx)
 			remoteTrustBundle, err := getBundleCmd.CombinedOutput()
 			if err != nil {
 				return "", fmt.Errorf("failed to get trust bundle (cluster=%s): %v: %w", common.ClusterNames[idx], string(remoteTrustBundle), err)

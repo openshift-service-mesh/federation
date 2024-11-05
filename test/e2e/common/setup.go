@@ -244,8 +244,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 					"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
 					"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
 			}
-			helmUpgradeCmd.Env = os.Environ()
-			helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", RootDir, ClusterNames[idx]))
+			SetEnvAndKubeConfigPath(helmUpgradeCmd, idx)
 			g.Go(func() error {
 				if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
 					return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %w", ClusterNames[idx], string(out), err)
@@ -259,8 +258,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 		ctx.Cleanup(func() {
 			for idx := range ctx.Clusters() {
 				helmUninstallCmd := exec.Command("helm", "uninstall", "federation", "-n", "istio-system")
-				helmUninstallCmd.Env = os.Environ()
-				helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", RootDir, ClusterNames[idx]))
+				SetEnvAndKubeConfigPath(helmUninstallCmd, idx)
 				if out, err := helmUninstallCmd.CombinedOutput(); err != nil {
 					scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %w", ClusterNames[idx], out, err)
 				}
@@ -324,4 +322,9 @@ func RemoveServiceFromClusters(name string, ns namespace.Getter, targetClusterNa
 		}
 		return nil
 	}
+}
+
+func SetEnvAndKubeConfigPath(cmd *exec.Cmd, clusterIndex int) {
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", RootDir, ClusterNames[clusterIndex]))
 }
