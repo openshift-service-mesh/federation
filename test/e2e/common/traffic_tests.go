@@ -20,6 +20,8 @@ package common
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	"google.golang.org/grpc/codes"
 	"istio.io/istio/pkg/test/echo/common/scheme"
 	"istio.io/istio/pkg/test/framework"
@@ -30,7 +32,6 @@ import (
 	"istio.io/istio/pkg/test/framework/components/echo/match"
 	"istio.io/istio/pkg/test/util/retry"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 const strictMTLS = `

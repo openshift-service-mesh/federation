@@ -3,15 +3,17 @@ package spire
 import (
 	"bytes"
 	"fmt"
-	"github.com/openshift-service-mesh/federation/test/e2e/common"
-	"golang.org/x/sync/errgroup"
-	"istio.io/istio/pkg/test/framework/components/cluster"
-	"istio.io/istio/pkg/test/framework/resource"
-	"istio.io/istio/pkg/test/scopes"
 	"os"
 	"os/exec"
 	"strings"
 	"text/template"
+
+	"golang.org/x/sync/errgroup"
+	"istio.io/istio/pkg/test/framework/components/cluster"
+	"istio.io/istio/pkg/test/framework/resource"
+	"istio.io/istio/pkg/test/scopes"
+
+	"github.com/openshift-service-mesh/federation/test/e2e/common"
 )
 
 var spireComponents = []string{

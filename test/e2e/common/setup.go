@@ -20,13 +20,14 @@ package common
 import (
 	"context"
 	"fmt"
-	"istio.io/api/annotation"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"istio.io/api/annotation"
+	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 
