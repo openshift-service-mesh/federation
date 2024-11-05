@@ -31,6 +31,7 @@ import (
 func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
+		RequireMinClusters(2).
 		RequireMaxClusters(2).
 		Setup(installSpireCRDs).
 		Setup(installSpire).
@@ -41,8 +42,8 @@ func TestMain(m *testing.M) {
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry
 		// c - service available only in west cluster - covers importing with ServiceEntry
-		Setup(common.DeployApps(&common.EastApps, common.EastClusterName, namespace.Future(&common.AppNs), "a", "b")).
-		Setup(common.DeployApps(&common.WestApps, common.WestClusterName, namespace.Future(&common.AppNs), "b", "c")).
+		Setup(common.DeployApps(&common.EastApps, common.EastClusterName, namespace.Future(&common.AppNs), true, "a", "b")).
+		Setup(common.DeployApps(&common.WestApps, common.WestClusterName, namespace.Future(&common.AppNs), true, "b", "c")).
 		// c must be removed from the east cluster, because we want to test importing a service
 		// that exists only in the remote cluster.
 		Setup(common.RemoveServiceFromClusters("c", namespace.Future(&common.AppNs), common.EastClusterName)).

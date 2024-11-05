@@ -31,7 +31,9 @@ import (
 func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
-		Setup(common.CreateNamespace("istio-system", nil)).
+		RequireMinClusters(2).
+		RequireMaxClusters(2).
+		Setup(common.RecreateControlPlaneNamespace).
 		Setup(common.CreateCACertsSecret).
 		// federation controller must be deployed first, as Istio will not become ready until it connects to all config sources
 		Setup(common.InstallOrUpgradeFederationControllers(false, config.ConfigModeMCP, false)).
@@ -41,8 +43,8 @@ func TestMain(m *testing.M) {
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry
 		// c - service available only in west cluster - covers importing with ServiceEntry
-		Setup(common.DeployApps(&common.EastApps, common.EastClusterName, namespace.Future(&common.AppNs), "a", "b")).
-		Setup(common.DeployApps(&common.WestApps, common.WestClusterName, namespace.Future(&common.AppNs), "b", "c")).
+		Setup(common.DeployApps(&common.EastApps, common.EastClusterName, namespace.Future(&common.AppNs), false, "a", "b")).
+		Setup(common.DeployApps(&common.WestApps, common.WestClusterName, namespace.Future(&common.AppNs), false, "b", "c")).
 		// c must be removed from the east cluster, because we want to test importing a service
 		// that exists only in the remote cluster.
 		Setup(common.RemoveServiceFromClusters("c", namespace.Future(&common.AppNs), common.EastClusterName)).

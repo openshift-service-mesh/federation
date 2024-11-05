@@ -20,6 +20,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"istio.io/api/annotation"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"os"
 	"os/exec"
@@ -66,18 +67,36 @@ const (
 	WestClusterName = "cluster-1"
 )
 
-func CreateNamespace(ctx resource.Context) error {
-	scopes.Framework.Infof("CreateNamespace: %d", len(ctx.Clusters()))
-	for idx, c := range ctx.Clusters() {
-		scopes.Framework.Infof("creating namespace (cluster=%s)", ClusterNames[idx])
-		if _, err := c.Kube().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+func RecreateControlPlaneNamespace(ctx resource.Context) error {
+	createNamespace := func(cluster cluster.Cluster) error {
+		if _, err := cluster.Kube().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: v1.ObjectMeta{
 				Name: "istio-system",
 			},
 		}, v1.CreateOptions{}); err != nil {
-			return fmt.Errorf("failed to create namespace (cluster=%s): %w", ClusterNames[idx], err)
+			return fmt.Errorf("failed to create namespace: %w", err)
+		}
+		return nil
+	}
+
+	for _, c := range ctx.Clusters() {
+		if err := retry.UntilSuccess(func() error {
+			_, err := c.Kube().CoreV1().Namespaces().Get(context.Background(), "istio-system", v1.GetOptions{})
+			if err != nil {
+				if !errors.IsNotFound(err) {
+					return fmt.Errorf("failed to get namespace: %w", err)
+				}
+				return createNamespace(c)
+			}
+			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
+				return fmt.Errorf("failed to delete namespace: %w", err)
+			}
+			return createNamespace(c)
+		}, retry.Timeout(30*time.Second), retry.Delay(1*time.Second)); err != nil {
+			return err
 		}
 	}
+
 	ctx.Cleanup(func() {
 		for idx, c := range ctx.Clusters() {
 			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
@@ -89,9 +108,7 @@ func CreateNamespace(ctx resource.Context) error {
 }
 
 func CreateCACertsSecret(ctx resource.Context) error {
-	scopes.Framework.Infof("CreateCACertsSecret: %d", len(ctx.Clusters()))
 	for idx, c := range ctx.Clusters() {
-		scopes.Framework.Infof("creating secret (cluster=%s)", ClusterNames[idx])
 		clusterName := ClusterNames[idx]
 		data := map[string][]byte{
 			"root-cert.pem":  {},
@@ -270,11 +287,11 @@ func GetLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
 	return "", fmt.Errorf("no load balancer IP found for service %s/%s in cluster %s", name, ns, c.Name())
 }
 
-func DeployApps(apps *echo.Instances, targetClusterName string, ns namespace.Getter, names ...string) func(t resource.Context) error {
+func DeployApps(apps *echo.Instances, targetClusterName string, ns namespace.Getter, spireEnabled bool, names ...string) func(t resource.Context) error {
 	return func(ctx resource.Context) error {
 		targetCluster := ctx.Clusters().GetByName(targetClusterName)
 		for _, name := range names {
-			newApp, err := deployment.New(ctx).WithClusters(targetCluster).WithConfig(echo.Config{
+			appConfig := echo.Config{
 				Service:   name,
 				Namespace: ns.Get(),
 				Ports: echo.Ports{
@@ -283,7 +300,15 @@ func DeployApps(apps *echo.Instances, targetClusterName string, ns namespace.Get
 					ports.HTTP2,
 					ports.HTTPS,
 				},
-			}).Build()
+			}
+			if spireEnabled {
+				appConfig.Subsets = []echo.SubsetConfig{{
+					Annotations: map[string]string{
+						annotation.InjectTemplates.Name: "sidecar,spire",
+					},
+				}}
+			}
+			newApp, err := deployment.New(ctx).WithClusters(targetCluster).WithConfig(appConfig).Build()
 			if err != nil {
 				return fmt.Errorf("failed to create echo: %w", err)
 			}
