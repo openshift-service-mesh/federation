@@ -304,7 +304,7 @@ func RemoveServiceFromClusters(name string, ns namespace.Getter, targetClusterNa
 		for _, targetClusterName := range targetClusterNames {
 			targetCluster := ctx.Clusters().GetByName(targetClusterName)
 			if err := targetCluster.Kube().CoreV1().Services(ns.Get().Name()).Delete(context.Background(), name, v1.DeleteOptions{}); err != nil {
-				return fmt.Errorf("failed to delete Service %s/%s from cluster %s: %v", name, ns.Get().Name(), targetCluster.Name(), err)
+				return fmt.Errorf("failed to delete Service %s/%s from cluster %s: %w", name, ns.Get().Name(), targetCluster.Name(), err)
 			}
 		}
 		return nil

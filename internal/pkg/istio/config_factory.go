@@ -99,7 +99,7 @@ func (cf *ConfigFactory) GetIngressGateway() (*v1alpha3.Gateway, error) {
 		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
 		services, err := cf.serviceLister.List(matchLabels)
 		if err != nil {
-			return nil, fmt.Errorf("error listing services (selector=%s): %v", matchLabels, err)
+			return nil, fmt.Errorf("error listing services (selector=%s): %w", matchLabels, err)
 		}
 		for _, svc := range services {
 			hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace))
@@ -135,7 +135,7 @@ func (cf *ConfigFactory) GetServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 		_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return nil, fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)
+				return nil, fmt.Errorf("failed to get Service %s/%s: %w", importedSvc.Name, importedSvc.Namespace, err)
 			}
 			// Service doesn't exist - create ServiceEntry.
 			var ports []*istionetv1alpha3.ServicePort
@@ -179,7 +179,7 @@ func (cf *ConfigFactory) GetWorkloadEntries() ([]*v1alpha3.WorkloadEntry, error)
 		_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return nil, fmt.Errorf("failed to get Service %s/%s: %v", importedSvc.Name, importedSvc.Namespace, err)
+				return nil, fmt.Errorf("failed to get Service %s/%s: %w", importedSvc.Name, importedSvc.Namespace, err)
 			}
 		} else {
 			// Service already exists - create WorkloadEntries.

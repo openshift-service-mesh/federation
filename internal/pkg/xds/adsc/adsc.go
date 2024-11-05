@@ -103,7 +103,7 @@ func (a *ADSC) dial() error {
 		}),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to establish connection to the ADS server %s: %v", a.cfg.DiscoveryAddr, err)
+		return fmt.Errorf("failed to establish connection to the ADS server %s: %w", a.cfg.DiscoveryAddr, err)
 	}
 	return nil
 }

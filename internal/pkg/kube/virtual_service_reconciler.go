@@ -70,7 +70,7 @@ func (r *VirtualServiceReconciler) Reconcile(ctx context.Context) error {
 		FieldManager: "federation-controller",
 	})
 	if err != nil {
-		return fmt.Errorf("error applying virtual service: %v", err)
+		return fmt.Errorf("error applying virtual service: %w", err)
 	}
 	log.Infof("Applied virtual service: %v", newVS)
 

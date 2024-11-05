@@ -48,7 +48,7 @@ func (r *GatewayResourceReconciler) GetTypeUrl() string {
 func (r *GatewayResourceReconciler) Reconcile(ctx context.Context) error {
 	gw, err := r.cf.GetIngressGateway()
 	if err != nil {
-		return fmt.Errorf("error generating ingress gateway: %v", err)
+		return fmt.Errorf("error generating ingress gateway: %w", err)
 	}
 
 	kind := "Gateway"
@@ -73,7 +73,7 @@ func (r *GatewayResourceReconciler) Reconcile(ctx context.Context) error {
 		FieldManager: "federation-controller",
 	})
 	if err != nil {
-		return fmt.Errorf("error applying ingress gateway: %v", err)
+		return fmt.Errorf("error applying ingress gateway: %w", err)
 	}
 	log.Infof("Applied ingress gateway: %v", newGW)
 
