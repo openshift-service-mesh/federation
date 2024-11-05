@@ -225,9 +225,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 				"federation",
 				fmt.Sprintf("%s/chart", rootDir),
 				fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", rootDir),
-				"--set", fmt.Sprintf("federation.configMode=%s", configMode),
-				"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
-				"--set", fmt.Sprintf("image.tag=%s", testTag))
+				"--set", fmt.Sprintf("federation.configMode=%s", configMode))
 			if configureRemotePeer {
 				gatewayIP, remoteClusterName, err := getRemoteNetworkAndIngressIP(ctx, localCluster)
 				if err != nil {

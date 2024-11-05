@@ -32,6 +32,7 @@ elif [ "$found_clusters" -ne "0" ]; then
   exit 1
 fi
 
+echo "Creating KinD clusters"
 kind_pids=()
 create_kind_cluster east 10.10.0.0/16 10.255.10.0/24 &
 kind_pids[0]=$!
@@ -45,6 +46,12 @@ done
 kind get kubeconfig --name east > $ROOT/east.kubeconfig
 kind get kubeconfig --name west > $ROOT/west.kubeconfig
 
+echo "Uploading images"
+for cluster_name in "east" "west"; do
+  kind load docker-image --nodes "${cluster_name}-control-plane" --name "$cluster_name" quay.io/maistra-dev/federation-controller:test
+done
+
+echo "Installing MetalLB"
 metallb_pids=()
 install_metallb_retry east &
 metallb_pids[0]=$!

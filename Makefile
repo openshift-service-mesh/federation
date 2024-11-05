@@ -40,9 +40,13 @@ proto:
 kind-clusters:
 	bash test/scripts/kind_provisioner.sh $(ISTIO_VERSION)
 
+.PHONY: build-test-image
+build-test-image:
+	TAG=test $(MAKE) docker-build
+
 .PHONY: e2e
 TEST_SUITES ?= mcp k8s
-e2e: kind-clusters
+e2e: build-test-image kind-clusters
 	@$(foreach suite, $(TEST_SUITES), \
 		go test -tags=integ -run TestTraffic ./test/e2e/$(suite) \
 			--istio.test.hub=docker.io/istio\
