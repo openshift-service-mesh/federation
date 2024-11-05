@@ -58,7 +58,7 @@ spec:
 func installSpireCRDs(ctx resource.Context) error {
 	var g errgroup.Group
 	for idx := range ctx.Clusters() {
-		helmUpgradeCmd := exec.Command("helm", "upgrade", "--install",
+		helmUpgradeCmd := exec.Command("helm", "upgrade", "--install", "-n", "default",
 			"spire-crds", "spire-crds", "--repo", "https://spiffe.github.io/helm-charts-hardened/", "--version", "0.5.0")
 		common.SetEnvAndKubeConfigPath(helmUpgradeCmd, idx)
 		g.Go(func() error {
@@ -73,7 +73,7 @@ func installSpireCRDs(ctx resource.Context) error {
 	}
 	ctx.Cleanup(func() {
 		for idx := range ctx.Clusters() {
-			helmUninstallCmd := exec.Command("helm", "uninstall", "spire-crds")
+			helmUninstallCmd := exec.Command("helm", "uninstall", "spire-crds", "-n", "default")
 			common.SetEnvAndKubeConfigPath(helmUninstallCmd, idx)
 			if out, err := helmUninstallCmd.CombinedOutput(); err != nil {
 				scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %w", common.ClusterNames[idx], out, err)
