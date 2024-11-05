@@ -19,8 +19,9 @@ alias helm-west="KUBECONFIG=$(pwd)/west.kubeconfig helm"
 
 ### Trust model
 
-Currently, mesh federation does not work for meshes using different root certificates, but this is on the roadmap.
-For different roots and trust domains use SPIRE and follow this [instruction](spire/README.md).
+Currently, workloads in federated meshes cannot establish mTLS connections if meshes use different root certificates.
+In such a case, use [SPIRE](https://spiffe.io/docs/latest/spire-about/) and trust domain [federation](https://spiffe.io/docs/latest/architecture/federation/readme/).
+You can follow this [guide](spire/README.md) to see how these solutions work together.
 
 Download tools for certificate generation:
 ```shell
