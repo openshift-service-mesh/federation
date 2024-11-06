@@ -38,13 +38,13 @@ proto:
 	protoc --proto_path=$(PROTO_DIR) --go_out=$(OUT_DIR) --go-grpc_out=$(OUT_DIR) --golang-deepcopy_out=:$(OUT_DIR) $(PROTO_DIR)/**/*.proto
 
 .PHONY: kind-clusters
-kind-clusters:
+kind-clusters: build-test-image
 	bash test/scripts/kind_provisioner.sh $(ISTIO_VERSION)
 
 .PHONY: build-test-image
-ifeq ($(USE_LOCAL_IMAGE),true)
 build-test-image:
-	TAG=test $(MAKE) docker-build
+ifeq ($(USE_LOCAL_IMAGE), true)
+	$(MAKE) docker-build -e TAG=test
 endif
 
 .PHONY: e2e
