@@ -3,9 +3,13 @@ OUT := $(shell pwd)
 .PHONY: default
 default: build test
 
-export TAG ?= latest
 export HUB ?= quay.io/maistra-dev
 export ISTIO_VERSION ?= 1.23.0
+export BUILD_TEST_IMAGE ?= true
+
+ifeq ($(BUILD_TEST_IMAGE),true)
+	export TAG := test
+endif
 
 .PHONY: build
 build:
@@ -41,8 +45,10 @@ kind-clusters:
 	bash test/scripts/kind_provisioner.sh $(ISTIO_VERSION)
 
 .PHONY: build-test-image
+ifeq ($(BUILD_TEST_IMAGE),true)
 build-test-image:
-	TAG=test $(MAKE) docker-build
+	$(MAKE) docker-build
+endif
 
 .PHONY: e2e
 TEST_SUITES ?= mcp k8s
