@@ -54,6 +54,17 @@ spec:
 ' | kubectl apply --kubeconfig="$ROOT/$cluster.kubeconfig" -f -
 }
 
+function upload_test_image {
+  if [ "$USE_LOCAL_IMAGE" == "true" ]; then
+    echo "Uploading images"
+    for cluster_name in "east" "west"; do
+      kind load docker-image --nodes "${cluster_name}-control-plane" --name "$cluster_name" quay.io/maistra-dev/federation-controller:test
+    done
+  else
+    echo "Skipped uploading test image"
+  fi
+}
+
 function retry {
   local n=1
   local max=5

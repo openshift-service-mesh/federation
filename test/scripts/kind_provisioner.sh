@@ -26,12 +26,14 @@ done
 
 if [ "$found_clusters" -eq "2" ]; then
   echo "All clusters were found - skipping clusters provisioning."
+  upload_test_image
   exit 0
 elif [ "$found_clusters" -ne "0" ]; then
   echo "Did not find all clusters, but some exist - cleanup environment and run script again."
   exit 1
 fi
 
+echo "Creating KinD clusters"
 kind_pids=()
 create_kind_cluster east 10.10.0.0/16 10.255.10.0/24 &
 kind_pids[0]=$!
@@ -45,6 +47,7 @@ done
 kind get kubeconfig --name east > $ROOT/east.kubeconfig
 kind get kubeconfig --name west > $ROOT/west.kubeconfig
 
+echo "Installing MetalLB"
 metallb_pids=()
 install_metallb_retry east &
 metallb_pids[0]=$!
@@ -54,3 +57,5 @@ metallb_pids[1]=$!
 for pid in ${metallb_pids[*]}; do
   wait $pid
 done
+
+upload_test_image

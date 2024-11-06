@@ -6,6 +6,7 @@ default: build test
 export TAG ?= latest
 export HUB ?= quay.io/maistra-dev
 export ISTIO_VERSION ?= 1.23.0
+export USE_LOCAL_IMAGE ?= true
 
 .PHONY: build
 build:
@@ -40,11 +41,22 @@ proto:
 kind-clusters:
 	bash test/scripts/kind_provisioner.sh $(ISTIO_VERSION)
 
+.PHONY: build-test-image
+ifeq ($(USE_LOCAL_IMAGE),true)
+build-test-image:
+	TAG=test $(MAKE) docker-build
+endif
+
 .PHONY: e2e
 TEST_SUITES ?= mcp k8s
-e2e: kind-clusters
+ifeq ($(USE_LOCAL_IMAGE),true)
+	TEST_TAG := test
+else
+	TEST_TAG := $(TAG)
+endif
+e2e: build-test-image kind-clusters
 	@$(foreach suite, $(TEST_SUITES), \
-		go test -tags=integ -run TestTraffic ./test/e2e/$(suite) \
+		TAG=$(TEST_TAG) go test -tags=integ -run TestTraffic ./test/e2e/$(suite) \
 			--istio.test.hub=docker.io/istio\
 			--istio.test.tag=$(ISTIO_VERSION)\
 			--istio.test.kube.config=$(shell pwd)/test/east.kubeconfig,$(shell pwd)/test/west.kubeconfig\
