@@ -55,7 +55,7 @@ spec:
 }
 
 function upload_test_image {
-  if [ "$BUILD_TEST_IMAGE" == "true" ]; then
+  if [ "$UPLOAD_TEST_IMAGE" == "true" ]; then
     echo "Uploading images"
     for cluster_name in "east" "west"; do
       kind load docker-image --nodes "${cluster_name}-control-plane" --name "$cluster_name" quay.io/maistra-dev/federation-controller:test

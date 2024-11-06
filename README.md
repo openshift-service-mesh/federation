@@ -50,7 +50,7 @@ by different teams in different clusters.
     ```shell
     TEST_SUITES="k8s mcp" make e2e
     ```
-1. Customize federation controller image used in tests (`TAG` is ignored if `BUILD_TEST_IMAGE=true` or not set):
+1. Customize federation controller image used in tests (`TAG` is ignored if `UPLOAD_TEST_IMAGE=true` or not set):
    ```shell
-   BUILD_TEST_IMAGE=false TAG=0.1 make e2e
+   UPLOAD_TEST_IMAGE=false HUB=quay.io/maistra-dev TAG=0.1 make e2e
    ```
