@@ -20,27 +20,28 @@ package k8s
 import (
 	"testing"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/namespace"
 
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/test/e2e/common"
 )
 
 func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
-		Setup(common.CreateControlPlaneNamespace).
+		RequireMinClusters(2).
+		RequireMaxClusters(2).
+		Setup(common.RecreateControlPlaneNamespace).
 		Setup(common.CreateCACertsSecret).
-		Setup(common.DeployControlPlanes(config.ConfigModeK8s)).
-		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeK8s)).
+		Setup(common.DeployControlPlanes("k8s")).
+		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeK8s, false)).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry
 		// c - service available only in west cluster - covers importing with ServiceEntry
-		Setup(common.DeployApps(&common.EastApps, common.EastClusterName, namespace.Future(&common.AppNs), "a", "b")).
-		Setup(common.DeployApps(&common.WestApps, common.WestClusterName, namespace.Future(&common.AppNs), "b", "c")).
+		Setup(common.DeployApps(&common.EastApps, common.EastClusterName, namespace.Future(&common.AppNs), false, "a", "b")).
+		Setup(common.DeployApps(&common.WestApps, common.WestClusterName, namespace.Future(&common.AppNs), false, "b", "c")).
 		// c must be removed from the east cluster, because we want to test importing a service
 		// that exists only in the remote cluster.
 		Setup(common.RemoveServiceFromClusters("c", namespace.Future(&common.AppNs), common.EastClusterName)).

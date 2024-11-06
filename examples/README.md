@@ -19,15 +19,19 @@ alias helm-west="KUBECONFIG=$(pwd)/west.kubeconfig helm"
 
 ### Trust model
 
-Currently, mesh federation does not work for meshes using different root certificates, but this is on the roadmap.
+Currently, workloads in federated meshes cannot establish mTLS connections if meshes use different root certificates.
+In such a case, use [SPIRE](https://spiffe.io/docs/latest/spire-about/) and trust domain [federation](https://spiffe.io/docs/latest/architecture/federation/readme/).
+You can follow this [guide](spire/README.md) to see how these solutions work together.
 
-1. Download tools for certificate generation:
+Download tools for certificate generation:
 ```shell
 wget https://raw.githubusercontent.com/istio/istio/release-1.21/tools/certs/common.mk -O common.mk
 wget https://raw.githubusercontent.com/istio/istio/release-1.21/tools/certs/Makefile.selfsigned.mk -O Makefile.selfsigned.mk
 ```
 
-2. Generate certificates for east and west clusters:
+#### Common root and trust domain
+
+1. Generate root and intermediate certificates for both clusters:
 ```shell
 make -f Makefile.selfsigned.mk \
   ROOTCA_CN="East Root CA" \
@@ -44,7 +48,7 @@ make -f Makefile.selfsigned.mk \
 make -f common.mk clean
 ```
 
-3. Create `cacert` secrets:
+2. Create `cacert` secrets:
 ```shell
 keast create namespace istio-system
 keast create secret generic cacerts -n istio-system \
@@ -52,8 +56,6 @@ keast create secret generic cacerts -n istio-system \
   --from-file=ca-cert.pem=east/ca-cert.pem \
   --from-file=ca-key.pem=east/ca-key.pem \
   --from-file=cert-chain.pem=east/cert-chain.pem
-```
-```shell
 kwest create namespace istio-system
 kwest create secret generic cacerts -n istio-system \
   --from-file=root-cert.pem=west/root-cert.pem \

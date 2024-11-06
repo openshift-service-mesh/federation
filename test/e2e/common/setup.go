@@ -26,6 +26,9 @@ import (
 	"runtime"
 	"time"
 
+	"istio.io/api/annotation"
+	"k8s.io/apimachinery/pkg/api/errors"
+
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 
 	"golang.org/x/sync/errgroup"
@@ -40,20 +43,19 @@ import (
 	"istio.io/istio/pkg/test/scopes"
 	"istio.io/istio/pkg/test/util/retry"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/env"
 )
 
 var (
-	clusterNames = []string{"east", "west"}
+	ClusterNames = []string{"east", "west"}
 
 	AppNs    namespace.Instance
 	EastApps echo.Instances
 	WestApps echo.Instances
 
 	_, file, _, _ = runtime.Caller(0)
-	rootDir       = filepath.Join(filepath.Dir(file), "../../..")
+	RootDir       = filepath.Join(filepath.Dir(file), "../../..")
 
 	testHub = env.GetString("HUB", "quay.io/maistra-dev")
 	testTag = env.GetString("TAG", "latest")
@@ -66,11 +68,7 @@ const (
 	WestClusterName = "cluster-1"
 )
 
-func CreateControlPlaneNamespace(ctx resource.Context) error {
-	if len(ctx.Clusters()) > 2 {
-		return fmt.Errorf("too many clusters - expected 2, got %d", len(ctx.Clusters()))
-	}
-
+func RecreateControlPlaneNamespace(ctx resource.Context) error {
 	createNamespace := func(cluster cluster.Cluster) error {
 		if _, err := cluster.Kube().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
 			ObjectMeta: v1.ObjectMeta{
@@ -103,7 +101,7 @@ func CreateControlPlaneNamespace(ctx resource.Context) error {
 	ctx.Cleanup(func() {
 		for idx, c := range ctx.Clusters() {
 			if err := c.Kube().CoreV1().Namespaces().Delete(context.Background(), "istio-system", v1.DeleteOptions{}); err != nil {
-				scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %v", clusterNames[idx], err)
+				scopes.Framework.Errorf("failed to delete control plane namespace (cluster=%s): %v", ClusterNames[idx], err)
 			}
 		}
 	})
@@ -112,14 +110,14 @@ func CreateControlPlaneNamespace(ctx resource.Context) error {
 
 func CreateCACertsSecret(ctx resource.Context) error {
 	for idx, c := range ctx.Clusters() {
-		clusterName := clusterNames[idx]
+		clusterName := ClusterNames[idx]
 		data := map[string][]byte{
 			"root-cert.pem":  {},
 			"cert-chain.pem": {},
 			"ca-cert.pem":    {},
 			"ca-key.pem":     {},
 		}
-		if err := setCACertKeys(fmt.Sprintf("%s/test/testdata/certs/%s", rootDir, clusterName), data); err != nil {
+		if err := setCACertKeys(fmt.Sprintf("%s/test/testdata/certs/%s", RootDir, clusterName), data); err != nil {
 			return fmt.Errorf("failed to set keys in cacerts secret (cluster=%s): %w", clusterName, err)
 		}
 		cacerts := &corev1.Secret{
@@ -129,7 +127,15 @@ func CreateCACertsSecret(ctx resource.Context) error {
 			},
 			Data: data,
 		}
-		if _, err := c.Kube().CoreV1().Secrets("istio-system").Create(context.Background(), cacerts, v1.CreateOptions{}); err != nil {
+		if err := retry.UntilSuccess(func() error {
+			if _, err := c.Kube().CoreV1().Secrets("istio-system").Create(context.Background(), cacerts, v1.CreateOptions{}); err != nil {
+				if errors.IsAlreadyExists(err) {
+					return nil
+				}
+				return fmt.Errorf("failed to create cacerts secret (cluster=%s): %w", clusterName, err)
+			}
+			return nil
+		}); err != nil {
 			return fmt.Errorf("failed to create cacerts secret (cluster=%s): %w", clusterName, err)
 		}
 	}
@@ -152,11 +158,11 @@ func setCACertKeys(dir string, data map[string][]byte) error {
 // We can't utilize standard Istio installation supported by the Istio framework,
 // because it does not allow to apply different Istio settings to different primary clusters
 // and always sets up direct access to the k8s api-server, while it's not desired in mesh federation.
-func DeployControlPlanes(federationControllerConfigMode config.ConfigMode) resource.SetupFn {
+func DeployControlPlanes(config string) resource.SetupFn {
 	return func(ctx resource.Context) error {
 		var g errgroup.Group
 		for idx, c := range ctx.Clusters() {
-			clusterName := clusterNames[idx]
+			clusterName := ClusterNames[idx]
 			c := c
 			g.Go(func() error {
 				istioCtl, err := istioctl.New(ctx, istioctl.Config{Cluster: c})
@@ -165,7 +171,7 @@ func DeployControlPlanes(federationControllerConfigMode config.ConfigMode) resou
 				}
 				stdout, _, err := istioCtl.Invoke([]string{
 					"install",
-					"-f", fmt.Sprintf("%s/test/testdata/istio/%s/%s.yaml", rootDir, federationControllerConfigMode, clusterName),
+					"-f", fmt.Sprintf("%s/test/testdata/istio/%s/%s.yaml", RootDir, config, clusterName),
 					"--set", "hub=docker.io/istio",
 					"--set", fmt.Sprintf("tag=%s", istioVersion),
 					"-y",
@@ -195,7 +201,7 @@ func DeployControlPlanes(federationControllerConfigMode config.ConfigMode) resou
 	}
 }
 
-func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode config.ConfigMode) resource.SetupFn {
+func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode config.ConfigMode, spireEnabled bool) resource.SetupFn {
 	getRemoteNetworkAndIngressIP := func(ctx resource.Context, localCluster cluster.Cluster) (string, string, error) {
 		var gatewayIP string
 		var remoteClusterName string
@@ -203,10 +209,10 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 			if localCluster.Name() == remoteCluster.Name() {
 				continue
 			}
-			remoteClusterName = clusterNames[idx]
+			remoteClusterName = ClusterNames[idx]
 			if err := retry.UntilSuccess(func() error {
 				var err error
-				gatewayIP, err = findLoadBalancerIP(remoteCluster, "istio-eastwestgateway", "istio-system")
+				gatewayIP, err = GetLoadBalancerIP(remoteCluster, "federation-ingress-gateway", "istio-system")
 				if err != nil {
 					return fmt.Errorf("could not get IPs from remote federation-controller: %w", err)
 				}
@@ -223,9 +229,10 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 			helmUpgradeCmd := exec.Command("helm", "upgrade", "--install", "--wait",
 				"-n", "istio-system",
 				"federation",
-				fmt.Sprintf("%s/chart", rootDir),
-				fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", rootDir),
+				fmt.Sprintf("%s/chart", RootDir),
+				fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", RootDir),
 				"--set", fmt.Sprintf("federation.configMode=%s", configMode),
+				"--set", fmt.Sprintf("istio.spire.enabled=%t", spireEnabled),
 				"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
 				"--set", fmt.Sprintf("image.tag=%s", testTag))
 			if configureRemotePeer {
@@ -237,11 +244,10 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 					"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
 					"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
 			}
-			helmUpgradeCmd.Env = os.Environ()
-			helmUpgradeCmd.Env = append(helmUpgradeCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+			SetEnvAndKubeConfigPath(helmUpgradeCmd, idx)
 			g.Go(func() error {
 				if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
-					return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %w", clusterNames[idx], string(out), err)
+					return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %w", ClusterNames[idx], string(out), err)
 				}
 				return nil
 			})
@@ -252,10 +258,9 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 		ctx.Cleanup(func() {
 			for idx := range ctx.Clusters() {
 				helmUninstallCmd := exec.Command("helm", "uninstall", "federation", "-n", "istio-system")
-				helmUninstallCmd.Env = os.Environ()
-				helmUninstallCmd.Env = append(helmUninstallCmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", rootDir, clusterNames[idx]))
+				SetEnvAndKubeConfigPath(helmUninstallCmd, idx)
 				if out, err := helmUninstallCmd.CombinedOutput(); err != nil {
-					scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %v", clusterNames[idx], out, err)
+					scopes.Framework.Errorf("failed to uninstall federation controller (cluster=%s): %s: %w", ClusterNames[idx], out, err)
 				}
 			}
 		})
@@ -263,7 +268,7 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 	}
 }
 
-func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
+func GetLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
 	gateway, err := c.Kube().CoreV1().Services(ns).Get(context.Background(), name, v1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to get %s/%s service from cluster %s: %w", name, ns, c.Name(), err)
@@ -276,11 +281,11 @@ func findLoadBalancerIP(c cluster.Cluster, name, ns string) (string, error) {
 	return "", fmt.Errorf("no load balancer IP found for service %s/%s in cluster %s", name, ns, c.Name())
 }
 
-func DeployApps(apps *echo.Instances, targetClusterName string, ns namespace.Getter, names ...string) func(t resource.Context) error {
+func DeployApps(apps *echo.Instances, targetClusterName string, ns namespace.Getter, spireEnabled bool, names ...string) func(t resource.Context) error {
 	return func(ctx resource.Context) error {
 		targetCluster := ctx.Clusters().GetByName(targetClusterName)
 		for _, name := range names {
-			newApp, err := deployment.New(ctx).WithClusters(targetCluster).WithConfig(echo.Config{
+			appConfig := echo.Config{
 				Service:   name,
 				Namespace: ns.Get(),
 				Ports: echo.Ports{
@@ -289,7 +294,15 @@ func DeployApps(apps *echo.Instances, targetClusterName string, ns namespace.Get
 					ports.HTTP2,
 					ports.HTTPS,
 				},
-			}).Build()
+			}
+			if spireEnabled {
+				appConfig.Subsets = []echo.SubsetConfig{{
+					Annotations: map[string]string{
+						annotation.InjectTemplates.Name: "sidecar,spire",
+					},
+				}}
+			}
+			newApp, err := deployment.New(ctx).WithClusters(targetCluster).WithConfig(appConfig).Build()
 			if err != nil {
 				return fmt.Errorf("failed to create echo: %w", err)
 			}
@@ -309,4 +322,9 @@ func RemoveServiceFromClusters(name string, ns namespace.Getter, targetClusterNa
 		}
 		return nil
 	}
+}
+
+func SetEnvAndKubeConfigPath(cmd *exec.Cmd, clusterIndex int) {
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", RootDir, ClusterNames[clusterIndex]))
 }

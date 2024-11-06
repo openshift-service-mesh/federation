@@ -24,10 +24,9 @@ spec:
         ENABLE_NATIVE_SIDECARS: "true"
   components:
     ingressGateways:
-    - name: istio-eastwestgateway
+    - name: federation-ingress-gateway
       label:
-        istio: eastwestgateway
-        app: istio-eastwestgateway
+        app: federation-ingress-gateway
         topology.istio.io/network: east-network
       enabled: true
       k8s:
