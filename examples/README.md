@@ -15,6 +15,8 @@ alias helm-east="KUBECONFIG=$(pwd)/east.kubeconfig helm"
 kind get kubeconfig --name west > west.kubeconfig
 alias kwest="KUBECONFIG=$(pwd)/west.kubeconfig kubectl"
 alias helm-west="KUBECONFIG=$(pwd)/west.kubeconfig helm"
+alias istioctl-east="istioctl --kubeconfig=$(pwd)/east.kubeconfig"
+alias istioctl-west="istioctl --kubeconfig=$(pwd)/west.kubeconfig"
 ```
 
 ### Trust model
@@ -79,8 +81,8 @@ helm-east install east-mesh chart -n istio-system --values examples/federation-c
 
 2. Deploy Istio control planes and gateways:
 ```shell
-istioctl --kubeconfig=west.kubeconfig install -f examples/mcp/west-mesh.yaml -y
-istioctl --kubeconfig=east.kubeconfig install -f examples/mcp/east-mesh.yaml -y
+istioctl-west install -f examples/mcp/west-mesh.yaml -y
+istioctl-east install -f examples/mcp/east-mesh.yaml -y
 ```
 
 3. Update gateway IPs and trigger injection in federation-controllers:
@@ -99,8 +101,8 @@ helm-west upgrade west-mesh chart -n istio-system \
 
 1. Deploy Istio control planes and gateways:
 ```shell
-istioctl --kubeconfig=west.kubeconfig install -f examples/k8s/west-mesh.yaml -y
-istioctl --kubeconfig=east.kubeconfig install -f examples/k8s/east-mesh.yaml -y
+istioctl-west install -f examples/k8s/west-mesh.yaml -y
+istioctl-east install -f examples/k8s/east-mesh.yaml -y
 ```
 
 2. Deploy federation controller:
