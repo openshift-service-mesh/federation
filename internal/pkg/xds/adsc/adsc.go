@@ -80,6 +80,15 @@ func (a *ADSC) Run() error {
 	return nil
 }
 
+func (a *ADSC) Restart() {
+	log.Infof("reconnecting to ADS server %s", a.cfg.DiscoveryAddr)
+	err := a.Run()
+	if err != nil {
+		log.Errorf("failed to Restart to ADS server %s: %v", a.cfg.DiscoveryAddr, err)
+		time.AfterFunc(reconnectDelay, a.Restart)
+	}
+}
+
 func (a *ADSC) send(req *discovery.DiscoveryRequest) error {
 	req.ResponseNonce = time.Now().String()
 	log.Infof("Sending Discovery Request to ADS server: %s", req.String())
@@ -114,7 +123,7 @@ func (a *ADSC) handleRecv() {
 		msg, err := a.stream.Recv()
 		if err != nil {
 			log.Errorf("connection closed with err: %v", err)
-			time.AfterFunc(reconnectDelay, a.reconnect)
+			time.AfterFunc(reconnectDelay, a.Restart)
 			return
 		}
 		log.Infof("received response for %s: %v", msg.TypeUrl, msg.Resources)
@@ -125,14 +134,5 @@ func (a *ADSC) handleRecv() {
 		} else {
 			log.Infof("no handler found for type: %s", msg.TypeUrl)
 		}
-	}
-}
-
-func (a *ADSC) reconnect() {
-	log.Infof("reconnecting to ADS server %s", a.cfg.DiscoveryAddr)
-	err := a.Run()
-	if err != nil {
-		log.Errorf("failed to reconnect to ADS server %s: %v", a.cfg.DiscoveryAddr, err)
-		time.AfterFunc(reconnectDelay, a.reconnect)
 	}
 }

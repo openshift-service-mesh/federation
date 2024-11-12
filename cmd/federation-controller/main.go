@@ -212,6 +212,7 @@ func main() {
 			go func() {
 				if err := federationClient.Run(); err != nil {
 					log.Fatalf("failed to start FDS client: %v", err)
+					time.AfterFunc(5*time.Second, federationClient.Restart)
 				}
 			}()
 		}
@@ -249,10 +250,6 @@ func main() {
 			log.Fatalf("initial Istio resource reconciliation failed: %v", err)
 		}
 		go rm.Start(ctx)
-
-		// TODO: implement an appropriate wait allowing proxy to receive all initial
-		// federation config before starting FDS client.
-		time.Sleep(time.Second * 5)
 
 		if startFDSClient != nil {
 			log.Info("Starting FDS client")
