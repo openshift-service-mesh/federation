@@ -83,7 +83,7 @@ func (a *ADSC) Run() error {
 func (a *ADSC) Restart() {
 	log.Infof("reconnecting to ADS server %s", a.cfg.DiscoveryAddr)
 	if err := a.Run(); err != nil {
-		log.Errorf("failed to start ADS server %s, will reconnect in %s: %v", a.cfg.DiscoveryAddr, a.cfg.ReconnectDelay, err)
+		log.Errorf("failed to connect to ADS server %s, will reconnect in %s: %v", a.cfg.DiscoveryAddr, a.cfg.ReconnectDelay, err)
 		time.AfterFunc(a.cfg.ReconnectDelay, a.Restart)
 	}
 }
