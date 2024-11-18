@@ -7,6 +7,8 @@ out
 # demo output
 Makefile.selfsigned.mk
 common.mk
+east/
+west/
 east.kubeconfig
 west.kubeconfig
 test/testdata/out
