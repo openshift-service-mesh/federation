@@ -39,7 +39,6 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/kube"
-	"github.com/openshift-service-mesh/federation/internal/pkg/mcp"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
@@ -47,7 +46,7 @@ import (
 
 var (
 	// Global variables to store the parsed commandline arguments
-	meshPeers, exportedServiceSet, importedServiceSet, configMode string
+	meshPeers, exportedServiceSet, importedServiceSet string
 
 	loggingOptions = istiolog.DefaultOptions()
 	log            = istiolog.RegisterScope("default", "default logging scope")
@@ -60,7 +59,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:          "federation-controller",
 		Short:        "Istio Federation.",
-		Long:         "Federation is a controller that utilizes MCP protocol to configure mesh-federation in Istio.",
+		Long:         "Federation controller provides discovery service for Istio mesh federation.",
 		SilenceUsage: true,
 		PreRunE: func(c *cobra.Command, args []string) error {
 			c.PersistentFlags().AddGoFlagSet(flag.CommandLine)
@@ -79,8 +78,6 @@ func addFlags(c *cobra.Command) {
 		"ExportedServiceSet that include selectors to match the services that will be exported")
 	c.PersistentFlags().StringVar(&importedServiceSet, "importedServiceSet", "",
 		"ImportedServiceSet that include selectors to match the services that will be imported")
-	c.PersistentFlags().StringVar(&configMode, "configMode", "",
-		"Specifies how the federation controller provides mesh config to istiod. Valid options include \"mcp\" and \"k8s\".")
 
 	// Attach the Istio logging options to the command.
 	loggingOptions.AttachCobraFlags(c)
@@ -115,16 +112,11 @@ func parse() (*config.Federation, error) {
 			return nil, fmt.Errorf("failed to unmarshal imported services: %w", err)
 		}
 	}
-	cfgMode := config.ConfigMode(configMode)
-	if cfgMode != config.ConfigModeMCP && cfgMode != config.ConfigModeK8s {
-		return nil, fmt.Errorf("invalid ConfigMode: %s", cfgMode)
-	}
 
 	return &config.Federation{
 		MeshPeers:          peers,
 		ExportedServiceSet: exported,
 		ImportedServiceSet: imported,
-		ConfigMode:         cfgMode,
 	}, nil
 }
 
@@ -196,9 +188,10 @@ func main() {
 		}
 	}()
 
-	var startFDSClient func()
+	var fdsClient *adsc.ADSC
 	if len(cfg.MeshPeers.Remote.Addresses) > 0 {
-		federationClient, err := adsc.New(&adsc.ADSCConfig{
+		var err error
+		fdsClient, err = adsc.New(&adsc.ADSCConfig{
 			DiscoveryAddr: fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local:15080", cfg.MeshPeers.Local.ControlPlane.Namespace),
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
@@ -210,56 +203,34 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to create FDS client: %v", err)
 		}
-		startFDSClient = func() {
-			go func() {
-				if err := federationClient.Run(); err != nil {
-					log.Errorf("failed to start FDS client, will reconnect in %s: %v", retryDelay, err)
-					time.AfterFunc(retryDelay, federationClient.Restart)
-				}
-			}()
-		}
 	}
 
-	if cfg.ConfigMode == config.ConfigModeMCP {
-		mcpServer := adss.NewServer(
-			&adss.ServerOpts{Port: 15010, ServerID: "mcp"},
-			meshConfigPushRequests,
-			startFDSClient,
-			mcp.NewGatewayResourceGenerator(istioConfigFactory),
-			mcp.NewServiceEntryGenerator(istioConfigFactory),
-			mcp.NewWorkloadEntryGenerator(istioConfigFactory),
-			mcp.NewVirtualServiceResourceGenerator(istioConfigFactory),
-			mcp.NewDestinationRuleResourceGenerator(istioConfigFactory),
-		)
-		if err := mcpServer.Run(ctx); err != nil {
-			log.Fatalf("Error running XDS server: %v", err)
-		}
-	} else if cfg.ConfigMode == config.ConfigModeK8s {
-		istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
-		if err != nil {
-			log.Fatalf("failed to create Istio client: %v", err)
-		}
-
-		rm := kube.NewReconcilerManager(
-			meshConfigPushRequests,
-			kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
-			kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
-			kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
-			kube.NewVirtualServiceReconciler(istioClient, istioConfigFactory),
-			kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory),
-		)
-		if err := rm.ReconcileAll(ctx); err != nil {
-			log.Fatalf("initial Istio resource reconciliation failed: %v", err)
-		}
-		go rm.Start(ctx)
-
-		if startFDSClient != nil {
-			log.Info("Starting FDS client")
-			startFDSClient()
-		}
-
-		select {}
+	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
+	if err != nil {
+		log.Fatalf("failed to create Istio client: %v", err)
 	}
 
-	os.Exit(0)
+	rm := kube.NewReconcilerManager(
+		meshConfigPushRequests,
+		kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
+		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
+		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
+		kube.NewVirtualServiceReconciler(istioClient, istioConfigFactory),
+		kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory),
+	)
+	if err := rm.ReconcileAll(ctx); err != nil {
+		log.Fatalf("initial Istio resource reconciliation failed: %v", err)
+	}
+	go rm.Start(ctx)
+
+	if fdsClient != nil {
+		go func() {
+			if err := fdsClient.Run(); err != nil {
+				log.Errorf("failed to start FDS client, will reconnect in %s: %v", retryDelay, err)
+				time.AfterFunc(retryDelay, fdsClient.Restart)
+			}
+		}()
+	}
+
+	select {}
 }
