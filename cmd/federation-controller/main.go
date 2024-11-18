@@ -177,7 +177,6 @@ func main() {
 		}
 	}
 	federationServer := adss.NewServer(
-		&adss.ServerOpts{Port: 15080, ServerID: "fds"},
 		fdsPushRequests,
 		triggerFDSPushOnNewSubscription,
 		fds.NewExportedServicesGenerator(*cfg, serviceLister),
