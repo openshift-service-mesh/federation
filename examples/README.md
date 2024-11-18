@@ -68,41 +68,10 @@ kwest create secret generic cacerts -n istio-system \
 
 ### Deploy control planes and federation controllers
 
-#### MCP mode - controller acts as a config source for istiod and sends resources using MCP-over-XDS protocol
-
-In this mode, federation controller must be deployed first, because istiod will not become ready until connected
-to all config sources. After installing istiod, federation controller must be restarted to trigger the injection.
-
-1. Deploy federation controller:
-```shell
-helm-west install west-mesh chart -n istio-system --values examples/federation-controller.yaml
-helm-east install east-mesh chart -n istio-system --values examples/federation-controller.yaml
-```
-
-2. Deploy Istio control planes and gateways:
-```shell
-istioctl-west install -f examples/mcp/west-mesh.yaml -y
-istioctl-east install -f examples/mcp/east-mesh.yaml -y
-```
-
-3. Update gateway IPs and trigger injection in federation-controllers:
-```shell
-WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-east upgrade east-mesh chart -n istio-system \
-  --values examples/federation-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP"
-EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-west upgrade west-mesh chart -n istio-system \
-  --values examples/federation-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP"
-```
-
-#### K8S mode - controller creates Istio resources in the k8s-apiserver
-
 1. Deploy Istio control planes and gateways:
 ```shell
-istioctl-west install -f examples/k8s/west-mesh.yaml -y
-istioctl-east install -f examples/k8s/east-mesh.yaml -y
+istioctl-west install -f examples/west-mesh.yaml -y
+istioctl-east install -f examples/east-mesh.yaml -y
 ```
 
 2. Deploy federation controller:
@@ -110,13 +79,11 @@ istioctl-east install -f examples/k8s/east-mesh.yaml -y
 WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-east install east-mesh chart -n istio-system \
   --values examples/federation-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP" \
-  --set "federation.configMode=k8s"
+  --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP"
 EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-west install west-mesh chart -n istio-system \
   --values examples/federation-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP" \
-  --set "federation.configMode=k8s"
+  --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP"
 ```
 
 ### Deploy and export services
