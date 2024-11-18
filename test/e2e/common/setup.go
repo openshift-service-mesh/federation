@@ -29,8 +29,6 @@ import (
 	"istio.io/api/annotation"
 	"k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-
 	"golang.org/x/sync/errgroup"
 
 	"istio.io/istio/pkg/test/framework/components/cluster"
@@ -201,7 +199,7 @@ func DeployControlPlanes(config string) resource.SetupFn {
 	}
 }
 
-func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode config.ConfigMode, spireEnabled bool) resource.SetupFn {
+func InstallOrUpgradeFederationControllers(spireEnabled bool) resource.SetupFn {
 	getRemoteNetworkAndIngressIP := func(ctx resource.Context, localCluster cluster.Cluster) (string, string, error) {
 		var gatewayIP string
 		var remoteClusterName string
@@ -226,24 +224,20 @@ func InstallOrUpgradeFederationControllers(configureRemotePeer bool, configMode 
 	return func(ctx resource.Context) error {
 		var g errgroup.Group
 		for idx, localCluster := range ctx.Clusters() {
+			gatewayIP, remoteClusterName, err := getRemoteNetworkAndIngressIP(ctx, localCluster)
+			if err != nil {
+				return err
+			}
 			helmUpgradeCmd := exec.Command("helm", "upgrade", "--install", "--wait",
 				"-n", "istio-system",
 				"federation",
 				fmt.Sprintf("%s/chart", RootDir),
 				fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", RootDir),
-				"--set", fmt.Sprintf("federation.configMode=%s", configMode),
-				"--set", fmt.Sprintf("istio.spire.enabled=%t", spireEnabled),
 				"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
-				"--set", fmt.Sprintf("image.tag=%s", testTag))
-			if configureRemotePeer {
-				gatewayIP, remoteClusterName, err := getRemoteNetworkAndIngressIP(ctx, localCluster)
-				if err != nil {
-					return err
-				}
-				helmUpgradeCmd.Args = append(helmUpgradeCmd.Args,
-					"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
-					"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
-			}
+				"--set", fmt.Sprintf("image.tag=%s", testTag),
+				"--set", fmt.Sprintf("istio.spire.enabled=%t", spireEnabled),
+				"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
+				"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
 			SetEnvAndKubeConfigPath(helmUpgradeCmd, idx)
 			g.Go(func() error {
 				if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {

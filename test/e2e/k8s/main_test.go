@@ -23,7 +23,6 @@ import (
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/namespace"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/test/e2e/common"
 )
 
@@ -35,7 +34,7 @@ func TestMain(m *testing.M) {
 		Setup(common.RecreateControlPlaneNamespace).
 		Setup(common.CreateCACertsSecret).
 		Setup(common.DeployControlPlanes("k8s")).
-		Setup(common.InstallOrUpgradeFederationControllers(true, config.ConfigModeK8s, false)).
+		Setup(common.InstallOrUpgradeFederationControllers(false)).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry
