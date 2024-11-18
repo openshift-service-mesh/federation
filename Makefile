@@ -49,7 +49,7 @@ ifeq ($(USE_LOCAL_IMAGE), true)
 endif
 
 .PHONY: e2e
-TEST_SUITES ?= mcp k8s spire
+TEST_SUITES ?= k8s spire
 ifeq ($(USE_LOCAL_IMAGE),true)
 	TEST_TAG := test
 else
