@@ -16,6 +16,7 @@ package kube
 
 import (
 	"context"
+	"errors"
 
 	istiolog "istio.io/istio/pkg/log"
 
@@ -42,12 +43,13 @@ func NewReconcilerManager(pushRequests <-chan xds.PushRequest, reconcilers ...Re
 }
 
 func (rm *ReconcilerManager) ReconcileAll(ctx context.Context) error {
+	reconcileErrs := make([]error, 0, len(rm.reconcilers))
+
 	for _, r := range rm.reconcilers {
-		if err := r.Reconcile(ctx); err != nil {
-			return err
-		}
+		reconcileErrs = append(reconcileErrs, r.Reconcile(ctx))
 	}
-	return nil
+
+	return errors.Join(reconcileErrs...)
 }
 
 func (rm *ReconcilerManager) Start(ctx context.Context) {
