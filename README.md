@@ -50,7 +50,7 @@ by different teams in different clusters.
     ```
 1. Run specific test suites:
     ```shell
-    TEST_SUITES="k8s mcp" make e2e
+    TEST_SUITES="spire" make e2e
     ```
 1. Customize federation controller image used in tests (`TAG` is ignored if `USE_LOCAL_IMAGE=true` or not set):
    ```shell

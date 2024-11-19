@@ -43,8 +43,7 @@ type (
 	DeltaDiscoveryStream = discovery.AggregatedDiscoveryService_DeltaAggregatedResourcesServer
 )
 
-// adsServer implements Envoy's AggregatedDiscoveryService service for sending MCP resources to Istiod.
-// ads is Aggregated Discovery Service
+// adsServer implements Envoy's AggregatedDiscoveryService.
 type adsServer struct {
 	handlers         map[string]RequestHandler
 	subscribers      sync.Map
@@ -52,7 +51,7 @@ type adsServer struct {
 	onNewSubscriber  func()
 }
 
-// subscriber represents a client that is subscribed to MCP resources.
+// subscriber represents a client that is subscribed to XDS resources.
 type subscriber struct {
 	id          uint64
 	stream      DiscoveryStream
@@ -130,12 +129,12 @@ func (adss *adsServer) generateResources(typeUrl string) ([]*anypb.Any, error) {
 	return []*anypb.Any{}, nil
 }
 
-// sendToStream sends MCP resources to the subscriber.
-func sendToStream(downstream DiscoveryStream, typeUrl string, mcpResources []*anypb.Any, version string) error {
+// sendToStream sends XDS resources to the subscriber.
+func sendToStream(downstream DiscoveryStream, typeUrl string, xdsResources []*anypb.Any, version string) error {
 	if err := downstream.Send(&discovery.DiscoveryResponse{
 		TypeUrl:     typeUrl,
 		VersionInfo: version,
-		Resources:   mcpResources,
+		Resources:   xdsResources,
 		ControlPlane: &envoycfgcorev3.ControlPlane{
 			Identifier: os.Getenv("POD_NAME"),
 		},
@@ -181,7 +180,7 @@ func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 				Identifier: os.Getenv("POD_NAME"),
 			},
 		}); err != nil {
-			log.Errorf("error sending MCP resources: %v", err)
+			log.Errorf("error sending XDS resources: %v", err)
 			value.(*subscriber).closeStream()
 			adss.subscribers.Delete(key)
 		}
