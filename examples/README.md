@@ -157,7 +157,7 @@ keast label svc reviews export-service=true
 keast label svc details export-service=true
 ```
 
-4. Send a few requests to the west ingress gateway and check access log:
+4. Send a few requests to the east ingress gateway and check access log:
 ```shell
 EAST_INGRESS_IP=$(keast get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 curl -v "http://$EAST_INGRESS_IP:80/productpage"
