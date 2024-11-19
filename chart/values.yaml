@@ -8,7 +8,6 @@ istio:
     templateName: spire
 
 federation:
-  configMode: mcp
   meshPeers:
 #    # Local control plane namespace is used to determine where ServiceEntry for imported services
 #    # and Gateway for exported Services should be created in the local mesh.

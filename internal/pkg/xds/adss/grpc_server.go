@@ -30,16 +30,9 @@ type Server struct {
 	grpc         *grpc.Server
 	ads          *adsServer
 	pushRequests <-chan xds.PushRequest
-	opts         *ServerOpts
 }
 
-type ServerOpts struct {
-	Port     int32
-	ServerID string
-}
-
-func NewServer(opts *ServerOpts, pushRequests <-chan xds.PushRequest, onNewSubscriber func(), handlers ...RequestHandler) *Server {
-	// TODO: handle nil opts
+func NewServer(pushRequests <-chan xds.PushRequest, onNewSubscriber func(), handlers ...RequestHandler) *Server {
 	grpcServer := grpc.NewServer()
 	handlerMap := make(map[string]RequestHandler)
 	for _, g := range handlers {
@@ -48,7 +41,6 @@ func NewServer(opts *ServerOpts, pushRequests <-chan xds.PushRequest, onNewSubsc
 	ads := &adsServer{
 		handlers:        handlerMap,
 		onNewSubscriber: onNewSubscriber,
-		serverID:        opts.ServerID,
 	}
 
 	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, ads)
@@ -57,7 +49,6 @@ func NewServer(opts *ServerOpts, pushRequests <-chan xds.PushRequest, onNewSubsc
 		grpc:         grpcServer,
 		ads:          ads,
 		pushRequests: pushRequests,
-		opts:         opts,
 	}
 }
 
@@ -65,21 +56,21 @@ func NewServer(opts *ServerOpts, pushRequests <-chan xds.PushRequest, onNewSubsc
 func (s *Server) Run(ctx context.Context) error {
 	var routinesGroup errgroup.Group
 
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.opts.Port))
+	listener, err := net.Listen("tcp", ":15080")
 	if err != nil {
-		return fmt.Errorf("[%s] creating TCP listener: %w", s.opts.ServerID, err)
+		return fmt.Errorf("creating TCP listener: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 
 	routinesGroup.Go(func() error {
 		defer cancel()
-		log.Infof("[%s] Running gRPC server", s.opts.ServerID)
+		log.Info("Running gRPC server")
 		return s.grpc.Serve(listener)
 	})
 
 	routinesGroup.Go(func() error {
-		defer log.Infof("[%s] gRPC server was shut down", s.opts.ServerID)
+		defer log.Info("gRPC server was shut down")
 		<-ctx.Done()
 		s.grpc.GracefulStop()
 		return nil
@@ -93,9 +84,9 @@ loop:
 			break loop
 
 		case pushRequest := <-s.pushRequests:
-			log.Infof("[%s] Received push request: %v", s.opts.ServerID, pushRequest)
+			log.Infof("Received push request: %v", pushRequest)
 			if err := s.ads.push(pushRequest); err != nil {
-				log.Errorf("[%s] failed to push to subscribers: %v", s.opts.ServerID, err)
+				log.Errorf("failed to push to subscribers: %v", err)
 			}
 		}
 	}

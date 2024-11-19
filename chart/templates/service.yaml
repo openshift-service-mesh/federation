@@ -7,10 +7,6 @@ metadata:
     {{- include "chart.labels" . | nindent 4 }}
 spec:
   ports:
-    - name: grpc-mcp
-      port: 15010
-      targetPort: grpc-mcp
-      protocol: TCP
     - name: grpc-fds
       port: 15080
       targetPort: grpc-fds

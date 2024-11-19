@@ -189,7 +189,7 @@ func deserializeExportedServices(t *testing.T, resources []*anypb.Any) []*v1alph
 	for _, res := range resources {
 		var exportedService v1alpha1.ExportedService
 		if err := res.UnmarshalTo(&exportedService); err != nil {
-			t.Errorf("failed to deserialize MCP resource: %v", err)
+			t.Errorf("failed to deserialize XDS resource: %v", err)
 		}
 		out = append(out, &exportedService)
 	}

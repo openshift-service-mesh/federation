@@ -43,17 +43,15 @@ type (
 	DeltaDiscoveryStream = discovery.AggregatedDiscoveryService_DeltaAggregatedResourcesServer
 )
 
-// adsServer implements Envoy's AggregatedDiscoveryService service for sending MCP resources to Istiod.
-// ads is Aggregated Discovery Service
+// adsServer implements Envoy's AggregatedDiscoveryService.
 type adsServer struct {
 	handlers         map[string]RequestHandler
 	subscribers      sync.Map
 	nextSubscriberID atomic.Uint64
 	onNewSubscriber  func()
-	serverID         string
 }
 
-// subscriber represents a client that is subscribed to MCP resources.
+// subscriber represents a client that is subscribed to XDS resources.
 type subscriber struct {
 	id          uint64
 	stream      DiscoveryStream
@@ -62,9 +60,8 @@ type subscriber struct {
 
 var _ discovery.AggregatedDiscoveryServiceServer = (*adsServer)(nil)
 
-// NewADSServer creates a new instance of the AggregatedDiscoveryServiceServer.
 func (adss *adsServer) StreamAggregatedResources(downstream DiscoveryStream) error {
-	log.Infof("[%s] New subscriber connected", adss.serverID)
+	log.Info("New subscriber connected")
 	ctx, closeStream := context.WithCancel(downstream.Context())
 
 	sub := &subscriber{
@@ -75,8 +72,6 @@ func (adss *adsServer) StreamAggregatedResources(downstream DiscoveryStream) err
 
 	adss.subscribers.Store(sub.id, sub)
 
-	// TODO: this should be executed only on first subscription, because we need only 1 FDS subscription for n MCP subscriptions.
-	// However, new MCP subscription should trigger full FDS push, so then we need to send DiscoveryRequest with newer version.
 	if adss.onNewSubscriber != nil {
 		adss.onNewSubscriber()
 	}
@@ -98,24 +93,24 @@ var (
 
 // recvFromStream receives discovery requests from the subscriber.
 func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
-	log.Infof("[%s] Received from stream %d", adss.serverID, id)
+	log.Infof("Received from stream %d", id)
 	for {
 		discoveryRequest, err := downstream.Recv()
 		if err != nil {
-			log.Errorf("[%s] error while recv discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), err)
+			log.Errorf("error while recv discovery request from subscriber %s: %v", fmt.Sprintf(subIDFmtStr, id), err)
 			break
 		}
-		log.Infof("[%s] Got discovery request from subscriber %s: %v", adss.serverID, fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
+		log.Infof("Got discovery request from subscriber %s: %v", fmt.Sprintf(subIDFmtStr, id), discoveryRequest)
 		if discoveryRequest.GetVersionInfo() == "" {
 			resources, err := adss.generateResources(discoveryRequest.GetTypeUrl())
 			if err != nil {
 				// TODO: Do not push empty resources if there was an error during resource generation,
 				// because that may cause unintentional removal of the subscribed resources.
-				log.Errorf("[%s] failed to generate resources of type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
+				log.Errorf("failed to generate resources of type %s: %v", discoveryRequest.GetTypeUrl(), err)
 			}
-			log.Infof("[%s] Sending initial config snapshot for type %s: %s", adss.serverID, discoveryRequest.GetTypeUrl(), resources)
+			log.Infof("Sending initial config snapshot for type %s: %s", discoveryRequest.GetTypeUrl(), resources)
 			if err := sendToStream(downstream, discoveryRequest.GetTypeUrl(), resources, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
-				log.Errorf("[%s] failed to send initial config snapshot for type %s: %v", adss.serverID, discoveryRequest.GetTypeUrl(), err)
+				log.Errorf("failed to send initial config snapshot for type %s: %v", discoveryRequest.GetTypeUrl(), err)
 			}
 		}
 	}
@@ -123,9 +118,9 @@ func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
 
 func (adss *adsServer) generateResources(typeUrl string) ([]*anypb.Any, error) {
 	if handler, found := adss.handlers[typeUrl]; found {
-		log.Infof("[%s] Generating config snapshot for type %s", adss.serverID, typeUrl)
+		log.Infof("Generating config snapshot for type %s", typeUrl)
 		if resources, err := handler.GenerateResponse(); err != nil {
-			log.Errorf("[%s] error generating resources of type %s: %v", adss.serverID, typeUrl, err)
+			log.Errorf("error generating resources of type %s: %v", typeUrl, err)
 			return []*anypb.Any{}, err
 		} else {
 			return resources, nil
@@ -134,12 +129,12 @@ func (adss *adsServer) generateResources(typeUrl string) ([]*anypb.Any, error) {
 	return []*anypb.Any{}, nil
 }
 
-// sendToStream sends MCP resources to the subscriber.
-func sendToStream(downstream DiscoveryStream, typeUrl string, mcpResources []*anypb.Any, version string) error {
+// sendToStream sends XDS resources to the subscriber.
+func sendToStream(downstream DiscoveryStream, typeUrl string, xdsResources []*anypb.Any, version string) error {
 	if err := downstream.Send(&discovery.DiscoveryResponse{
 		TypeUrl:     typeUrl,
 		VersionInfo: version,
-		Resources:   mcpResources,
+		Resources:   xdsResources,
 		ControlPlane: &envoycfgcorev3.ControlPlane{
 			Identifier: os.Getenv("POD_NAME"),
 		},
@@ -161,7 +156,7 @@ func (adss *adsServer) subscribersLen() int {
 
 func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 	if adss.subscribersLen() == 0 {
-		log.Infof("[%s] Skip pushing XDS resources for request [type=%s,resources=%v] as there are no subscribers", adss.serverID, pushRequest.TypeUrl, pushRequest.Resources)
+		log.Infof("Skip pushing XDS resources for request [type=%s,resources=%v] as there are no subscribers", pushRequest.TypeUrl, pushRequest.Resources)
 		return nil
 	}
 
@@ -174,9 +169,9 @@ func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 		}
 	}
 
-	log.Infof("[%s] Pushing discovery response to subscribers: [type=%s,resources=%v]", adss.serverID, pushRequest.TypeUrl, resources)
+	log.Infof("Pushing discovery response to subscribers: [type=%s,resources=%v]", pushRequest.TypeUrl, resources)
 	adss.subscribers.Range(func(key, value any) bool {
-		log.Infof("[%s] Sending to subscriber %s", adss.serverID, fmt.Sprintf(subIDFmtStr, key.(uint64)))
+		log.Infof("Sending to subscriber %s", fmt.Sprintf(subIDFmtStr, key.(uint64)))
 		if err := value.(*subscriber).stream.Send(&discovery.DiscoveryResponse{
 			TypeUrl:     pushRequest.TypeUrl,
 			VersionInfo: strconv.FormatInt(time.Now().Unix(), 10), // TODO improve version computation
@@ -185,7 +180,7 @@ func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 				Identifier: os.Getenv("POD_NAME"),
 			},
 		}); err != nil {
-			log.Errorf("[%s] error sending MCP resources: %v", adss.serverID, err)
+			log.Errorf("error sending XDS resources: %v", err)
 			value.(*subscriber).closeStream()
 			adss.subscribers.Delete(key)
 		}
@@ -197,10 +192,9 @@ func (adss *adsServer) push(pushRequest xds.PushRequest) error {
 // closeSubscribers closes all active subscriber streams.
 func (adss *adsServer) closeSubscribers() {
 	adss.subscribers.Range(func(key, value any) bool {
-		log.Infof("[%s] Closing stream of subscriber %s", adss.serverID, fmt.Sprintf(subIDFmtStr, key.(uint64)))
+		log.Infof("Closing stream of subscriber %s", fmt.Sprintf(subIDFmtStr, key.(uint64)))
 		value.(*subscriber).closeStream()
 		adss.subscribers.Delete(key)
-
 		return true
 	})
 }

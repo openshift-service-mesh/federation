@@ -1,10 +1,12 @@
 # Federation
 
-A Kubernetes controller that utilizes MCP-over-XDS protocol to configure mesh-federation in Istio.
+A Kubernetes controller that provides discovery service for Istio mesh federation.
 
-The API allows to export services to remote peers using label selectors. An exported service is available 
-in the importing cluster without any additional routing configuration. Controllers use gRPC protocol to exchange
-exported services, and cross-cluster connections between controllers are secured with Istio mTLS.
+Mesh federation allows exposing services between meshes and enabling communication across mesh boundaries.
+Each mesh may expose a subset of its services to allow other meshes to connect to the exposed services.
+
+Controllers utilize XDS protocol to discover exported services in federated meshes.
+Controllers are deployed with sidecars, so cross-cluster connections between controllers are secured with Istio mTLS.
 
 ## Motivation
 
@@ -48,7 +50,7 @@ by different teams in different clusters.
     ```
 1. Run specific test suites:
     ```shell
-    TEST_SUITES="k8s mcp" make e2e
+    TEST_SUITES="spire" make e2e
     ```
 1. Customize federation controller image used in tests (`TAG` is ignored if `USE_LOCAL_IMAGE=true` or not set):
    ```shell
