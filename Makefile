@@ -14,10 +14,11 @@ help:
 
 ##@ Build
 
+EXTRA_BUILD_ARGS?=
 .PHONY: build
 build: ## Builds the project
 	go get ./...
-	go build -C cmd/federation-controller -o "${OUT}/out/"
+	go build -C cmd/federation-controller -o "${OUT}/out/" $(EXTRA_BUILD_ARGS)
 
 .PHONY: test
 test: build ## Runs tests
