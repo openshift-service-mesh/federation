@@ -31,7 +31,5 @@ spec:
         - name: CONTROLLER_SERVICE_FQDN
           value: "{{ include "chart.name" . }}.{{ .Release.Namespace }}.svc.cluster.local"
         ports:
-        - name: grpc-mcp
-          containerPort: 15010
         - name: grpc-fds
           containerPort: 15080
