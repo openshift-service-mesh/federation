@@ -1,8 +1,6 @@
 federation:
   meshPeers:
     local:
-      controlPlane:
-        namespace: istio-system
       gateways:
         ingress:
           selector:
