@@ -10,11 +10,11 @@ istio:
 federation:
   configMode: mcp
   meshPeers:
-#    # Local control plane namespace is used to determine where ServiceEntry for imported services
-#    # and Gateway for exported Services should be created in the local mesh.
-#    local:
-#      controlPlane:
-#        namespace: istio-system
+    local:
+      controlPlane:
+        # Local control plane namespace is used to create local Istio configs (ServiceEntry for imported services,
+        # Gateway for exported services, VirtualService and DestinationRule for routing to federation-discovery-service).
+        namespace: istio-system
 #    remote:
 #      addresses:
 #      - "192.168.0.1"
