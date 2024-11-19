@@ -29,7 +29,7 @@ spec:
         - '--exportedServiceSet={{ .Values.federation.exportedServiceSet | toJson }}'
         env:
         - name: CONTROLLER_SERVICE_FQDN
-          value: "{{ include "chart.name" . }}.{{ .Release.Namespace }}.svc.cluster.local"
+          value: "federation-discovery-service.{{ .Release.Namespace }}.svc.cluster.local"
         ports:
         - name: grpc-fds
           containerPort: 15080

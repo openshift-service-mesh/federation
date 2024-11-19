@@ -64,8 +64,8 @@ func (cf *ConfigFactory) GetDestinationRules() *v1alpha3.DestinationRule {
 			TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
 				Tls: &istionetv1alpha3.ClientTLSSettings{
 					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-					// SNI must come from the configured identity
-					Sni: fmt.Sprintf("federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace),
+					// TODO: namespace should come from remote.identity.namespace
+					Sni: "federation-discovery-service.istio-system.svc.cluster.local",
 				},
 			},
 		},
