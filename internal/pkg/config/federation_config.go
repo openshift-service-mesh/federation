@@ -34,12 +34,14 @@ type MeshPeers struct {
 type Local struct {
 	ControlPlane ControlPlane `json:"controlPlane"`
 	Gateways     Gateways     `json:"gateway"`
+	IngressType  IngressType  `json:"ingressType"`
 }
 
 type Remote struct {
-	Addresses []string      `json:"addresses"`
-	Ports     *GatewayPorts `json:"ports,omitempty"`
-	Network   string        `json:"network"`
+	Addresses   []string      `json:"addresses"`
+	IngressType IngressType   `json:"ingressType"`
+	Ports       *GatewayPorts `json:"ports,omitempty"`
+	Network     string        `json:"network"`
 }
 
 type ControlPlane struct {
@@ -104,3 +106,10 @@ type MatchExpressions struct {
 	Operator string   `json:"operator"`
 	Values   []string `json:"values"`
 }
+
+type IngressType string
+
+const (
+	NLB             IngressType = "nlb"
+	OpenShiftRouter IngressType = "openshift-router"
+)
