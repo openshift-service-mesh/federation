@@ -35,22 +35,30 @@ const (
 )
 
 type ConfigFactory struct {
-	cfg                   config.Federation
-	serviceLister         v1.ServiceLister
-	importedServiceStore  *fds.ImportedServiceStore
-	controllerServiceFQDN string
+	cfg                                 config.Federation
+	serviceLister                       v1.ServiceLister
+	importedServiceStore                *fds.ImportedServiceStore
+	localFederationDiscoveryServiceFQDN string
 }
 
-func NewConfigFactory(cfg config.Federation, serviceLister v1.ServiceLister, importedServiceStore *fds.ImportedServiceStore, controllerServiceFQDN string) *ConfigFactory {
+func NewConfigFactory(
+	cfg config.Federation,
+	serviceLister v1.ServiceLister,
+	importedServiceStore *fds.ImportedServiceStore,
+	localFederationDiscoveryServiceFQDN string,
+) *ConfigFactory {
 	return &ConfigFactory{
-		cfg:                   cfg,
-		serviceLister:         serviceLister,
-		importedServiceStore:  importedServiceStore,
-		controllerServiceFQDN: controllerServiceFQDN,
+		cfg:                                 cfg,
+		serviceLister:                       serviceLister,
+		importedServiceStore:                importedServiceStore,
+		localFederationDiscoveryServiceFQDN: localFederationDiscoveryServiceFQDN,
 	}
 }
 
-func (cf *ConfigFactory) GetDestinationRules() *v1alpha3.DestinationRule {
+// DestinationRule returns a destination rule that customizes SNI in the mTLS connection to remote federation discovery service.
+// We must customize SNI, because we do not import remote FDS using its FQDN, because the service name is not unique
+// among federated meshes.
+func (cf *ConfigFactory) DestinationRule() *v1alpha3.DestinationRule {
 	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
 		return nil
 	}
@@ -72,7 +80,7 @@ func (cf *ConfigFactory) GetDestinationRules() *v1alpha3.DestinationRule {
 	}
 }
 
-func (cf *ConfigFactory) GetIngressGateway() (*v1alpha3.Gateway, error) {
+func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
 	gateway := &v1alpha3.Gateway{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      federationIngressGatewayName,
@@ -81,20 +89,20 @@ func (cf *ConfigFactory) GetIngressGateway() (*v1alpha3.Gateway, error) {
 		Spec: istionetv1alpha3.Gateway{
 			Selector: cf.cfg.MeshPeers.Local.Gateways.Ingress.Selector,
 			Servers: []*istionetv1alpha3.Server{{
-				Hosts: []string{"*"},
+				Hosts: []string{},
 				Port: &istionetv1alpha3.Port{
-					Number:   cf.cfg.MeshPeers.Local.Gateways.Ingress.Ports.GetDiscoveryPort(),
-					Name:     "discovery",
+					Number:   cf.cfg.MeshPeers.Local.Gateways.Ingress.Ports.GetDataPlanePort(),
+					Name:     "tls-passthrough",
 					Protocol: "TLS",
 				},
 				Tls: &istionetv1alpha3.ServerTLSSettings{
-					Mode: istionetv1alpha3.ServerTLSSettings_ISTIO_MUTUAL,
+					Mode: istionetv1alpha3.ServerTLSSettings_AUTO_PASSTHROUGH,
 				},
 			}},
 		},
 	}
 
-	var hosts []string
+	hosts := []string{cf.localFederationDiscoveryServiceFQDN}
 	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
 		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
 		services, err := cf.serviceLister.List(matchLabels)
@@ -105,24 +113,11 @@ func (cf *ConfigFactory) GetIngressGateway() (*v1alpha3.Gateway, error) {
 			hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace))
 		}
 	}
-	if len(hosts) == 0 {
-		return gateway, nil
-	}
 	// ServiceLister.List is not idempotent, so to avoid redundant XDS push from Istio to proxies,
 	// we must return hostnames in the same order.
 	sort.Strings(hosts)
+	gateway.Spec.Servers[0].Hosts = hosts
 
-	gateway.Spec.Servers = append(gateway.Spec.Servers, &istionetv1alpha3.Server{
-		Hosts: hosts,
-		Port: &istionetv1alpha3.Port{
-			Number:   cf.cfg.MeshPeers.Local.Gateways.Ingress.Ports.GetDataPlanePort(),
-			Name:     "data-plane",
-			Protocol: "TLS",
-		},
-		Tls: &istionetv1alpha3.ServerTLSSettings{
-			Mode: istionetv1alpha3.ServerTLSSettings_AUTO_PASSTHROUGH,
-		},
-	})
 	return gateway, nil
 }
 
@@ -199,32 +194,6 @@ func (cf *ConfigFactory) GetWorkloadEntries() ([]*v1alpha3.WorkloadEntry, error)
 	return workloadEntries, nil
 }
 
-func (cf *ConfigFactory) GetVirtualServices() *v1alpha3.VirtualService {
-	return &v1alpha3.VirtualService{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      federationIngressGatewayName,
-			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-		},
-		Spec: istionetv1alpha3.VirtualService{
-			Hosts:    []string{"*"},
-			Gateways: []string{federationIngressGatewayName},
-			Tcp: []*istionetv1alpha3.TCPRoute{{
-				Match: []*istionetv1alpha3.L4MatchAttributes{{
-					Port: cf.cfg.MeshPeers.Local.Gateways.Ingress.Ports.GetDiscoveryPort(),
-				}},
-				Route: []*istionetv1alpha3.RouteDestination{{
-					Destination: &istionetv1alpha3.Destination{
-						Host: cf.controllerServiceFQDN,
-						Port: &istionetv1alpha3.PortSelector{
-							Number: 15080,
-						},
-					},
-				}},
-			}},
-		},
-	}
-}
-
 func (cf *ConfigFactory) getServiceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
 	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
 		return nil
@@ -243,9 +212,9 @@ func (cf *ConfigFactory) getServiceEntryForRemoteFederationController() *v1alpha
 		Spec: istionetv1alpha3.ServiceEntry{
 			Hosts: []string{fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace)},
 			Ports: []*istionetv1alpha3.ServicePort{{
-				Name:     "discovery",
-				Number:   15080,
-				Protocol: "GRPC",
+				Name:     "tls-passthrough",
+				Number:   cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort(),
+				Protocol: "TLS",
 			}},
 			Location:   istionetv1alpha3.ServiceEntry_MESH_EXTERNAL,
 			Resolution: istionetv1alpha3.ServiceEntry_STATIC,
