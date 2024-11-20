@@ -16,6 +16,7 @@ package istio
 
 import (
 	"fmt"
+	"net"
 	"sort"
 
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
@@ -300,7 +301,7 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 	var workloadEntries []*istionetv1alpha3.WorkloadEntry
 	for _, addr := range cf.cfg.MeshPeers.Remote.Addresses {
 		we := &istionetv1alpha3.WorkloadEntry{
-			Address: addr,
+			Address: resolveAddress(addr),
 			Network: cf.cfg.MeshPeers.Remote.Network,
 			Labels:  labels,
 			Ports:   make(map[string]uint32, len(ports)),
@@ -311,4 +312,18 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 		workloadEntries = append(workloadEntries, we)
 	}
 	return workloadEntries
+}
+
+// TODO: We do not have to update these IPs, because we have enable DNS proxy.
+// TODO: Will it work with IP auto-allocation v2?
+func resolveAddress(addr string) string {
+	if ip := net.ParseIP(addr); ip != nil {
+		return addr
+	}
+
+	ips, err := net.LookupIP(addr)
+	if err != nil {
+		fmt.Printf("Failed to resolve '%s': %v\n", addr, err)
+	}
+	return ips[0].String()
 }
