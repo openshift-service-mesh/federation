@@ -1,4 +1,5 @@
-OUT := $(shell pwd)
+PROJECT_DIR:=$(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+OUT_DIR:=out
 
 .PHONY: default
 default: build test
@@ -17,18 +18,18 @@ help:
 EXTRA_BUILD_ARGS?=
 .PHONY: build
 build: ## Builds the project
-	go get ./...
-	go build -C cmd/federation-controller -o "${OUT}/out/" $(EXTRA_BUILD_ARGS)
+	go get $(PROJECT_DIR)/...
+	go build -C $(PROJECT_DIR)/cmd/federation-controller -o $(PROJECT_DIR)/$(OUT_DIR)/federation-controller $(EXTRA_BUILD_ARGS)
 
 .PHONY: test
 test: build ## Runs tests
-	go test ./...
+	go test $(PROJECT_DIR)/...
 
 CONTAINER_CLI ?= docker
 
 .PHONY: docker-build
 docker-build: build ## Builds container image
-	$(CONTAINER_CLI) build -t $(HUB)/federation-controller:$(TAG) -f build/Dockerfile .
+	$(CONTAINER_CLI) build -t $(HUB)/federation-controller:$(TAG) -f $(PROJECT_DIR)/build/Dockerfile .
 
 .PHONY: docker-push
 docker-push: ## Pushes container image to the registry
@@ -41,7 +42,7 @@ docker: docker-build docker-push ## Combines build and push targets
 
 .PHONY: kind-clusters
 kind-clusters: build-test-image ## Provisions KinD clusters for local development or testing
-	bash test/scripts/kind_provisioner.sh $(ISTIO_VERSION)
+	bash $(PROJECT_DIR)/test/scripts/kind_provisioner.sh $(ISTIO_VERSION)
 
 .PHONY: build-test-image
 build-test-image: ## Builds test image
@@ -58,29 +59,29 @@ else
 endif
 e2e: build-test-image kind-clusters ## Runs end-to-end tests against KinD clusters
 	@$(foreach suite, $(TEST_SUITES), \
-		TAG=$(TEST_TAG) go test -tags=integ -run TestTraffic ./test/e2e/$(suite) \
+		TAG=$(TEST_TAG) go test -tags=integ -run TestTraffic $(PROJECT_DIR)/test/e2e/$(suite) \
 			--istio.test.hub=docker.io/istio\
 			--istio.test.tag=$(ISTIO_VERSION)\
-			--istio.test.kube.config=$(shell pwd)/test/east.kubeconfig,$(shell pwd)/test/west.kubeconfig\
+			--istio.test.kube.config=$(PROJECT_DIR)//test/east.kubeconfig,$(PROJECT_DIR)//test/west.kubeconfig\
 			--istio.test.kube.networkTopology=0:east-network,1:west-network\
 			--istio.test.onlyWorkloads=standard;)
 
 ##@ Code Gen
 
-PROTO_DIR=api/proto/federation
-OUT_DIR=internal/api
+PROTO_DIR=$(PROJECT_DIR)/api/proto/federation
+API_GEN_DIR=$(PROJECT_DIR)/internal/api
 
 .PHONY: proto
 proto: ## Generates Go files from protobuf-based API files
-	protoc --proto_path=$(PROTO_DIR) --go_out=$(OUT_DIR) --go-grpc_out=$(OUT_DIR) --golang-deepcopy_out=:$(OUT_DIR) $(PROTO_DIR)/**/*.proto
+	protoc --proto_path=$(PROTO_DIR) --go_out=$(API_GEN_DIR) --go-grpc_out=$(API_GEN_DIR) --golang-deepcopy_out=:$(API_GEN_DIR) $(PROTO_DIR)/**/*.proto
 
 
 .PHONY: fix-imports
 fix-imports: ## Fixes imports
-	goimports -local "github.com/openshift-service-mesh/federation" -w .
+	goimports -local "github.com/openshift-service-mesh/federation" -w $(PROJECT_DIR)/
 
 LICENSE_FILE := /tmp/license.txt
-GO_FILES := $(shell find . -name '*.go')
+GO_FILES := $(shell find $(PROJECT_DIR)/ -name '*.go')
 
 .PHONY: add-license
 add-license: ## Adds license to all Golang files
