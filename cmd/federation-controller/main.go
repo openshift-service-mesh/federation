@@ -191,7 +191,7 @@ func main() {
 	if len(cfg.MeshPeers.Remote.Addresses) > 0 {
 		var err error
 		fdsClient, err = adsc.New(&adsc.ADSCConfig{
-			DiscoveryAddr: fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local:15080", cfg.MeshPeers.Local.ControlPlane.Namespace),
+			DiscoveryAddr: fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local:%d", cfg.MeshPeers.Local.ControlPlane.Namespace, cfg.MeshPeers.Remote.Ports.GetDataPlanePort()),
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
@@ -215,7 +215,6 @@ func main() {
 		kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
 		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
-		kube.NewVirtualServiceReconciler(istioClient, istioConfigFactory),
 		kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory),
 	)
 	if err := rm.ReconcileAll(ctx); err != nil {
