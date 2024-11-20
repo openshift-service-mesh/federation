@@ -52,7 +52,7 @@ var (
 	log            = istiolog.RegisterScope("default", "default logging scope")
 )
 
-const retryDelay = time.Second * 5
+const reconnectDelay = time.Second * 5
 
 // NewRootCommand returns the root cobra command of federation-controller
 func NewRootCommand() *cobra.Command {
@@ -198,6 +198,7 @@ func main() {
 			Handlers: map[string]adsc.ResponseHandler{
 				xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, meshConfigPushRequests),
 			},
+			ReconnectDelay: reconnectDelay,
 		})
 		if err != nil {
 			log.Fatalf("failed to create FDS client: %v", err)
@@ -225,8 +226,8 @@ func main() {
 	if fdsClient != nil {
 		go func() {
 			if err := fdsClient.Run(); err != nil {
-				log.Errorf("failed to start FDS client, will reconnect in %s: %v", retryDelay, err)
-				time.AfterFunc(retryDelay, fdsClient.Restart)
+				log.Errorf("failed to start FDS client, will reconnect in %s: %v", reconnectDelay, err)
+				time.AfterFunc(reconnectDelay, fdsClient.Restart)
 			}
 		}()
 	}
