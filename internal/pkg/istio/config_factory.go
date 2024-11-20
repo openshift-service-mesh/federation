@@ -121,7 +121,7 @@ func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
 	return gateway, nil
 }
 
-func (cf *ConfigFactory) GetServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
+func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 	var serviceEntries []*v1alpha3.ServiceEntry
 	for _, importedSvc := range cf.importedServiceStore.GetAll() {
 		// enable Istio mTLS
@@ -197,6 +197,27 @@ func (cf *ConfigFactory) GetWorkloadEntries() ([]*v1alpha3.WorkloadEntry, error)
 func (cf *ConfigFactory) getServiceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
 	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
 		return nil
+	}
+
+	if cf.cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
+		// TODO: Add validation for addresses - it should be single hostname
+		return &v1alpha3.ServiceEntry{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "remote-federation-controller",
+				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+			},
+			Spec: istionetv1alpha3.ServiceEntry{
+				Hosts: []string{cf.cfg.MeshPeers.Remote.Addresses[0]},
+				Ports: []*istionetv1alpha3.ServicePort{{
+					Name:     "tls-passthrough",
+					Number:   cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort(),
+					Protocol: "TLS",
+				}},
+				Location:   istionetv1alpha3.ServiceEntry_MESH_EXTERNAL,
+				Resolution: istionetv1alpha3.ServiceEntry_DNS,
+			},
+		}
 	}
 
 	var endpoints []*istionetv1alpha3.WorkloadEntry

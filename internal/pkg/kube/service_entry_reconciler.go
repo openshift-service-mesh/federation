@@ -50,7 +50,7 @@ func (r *ServiceEntryReconciler) GetTypeUrl() string {
 }
 
 func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
-	serviceEntries, err := r.cf.GetServiceEntries()
+	serviceEntries, err := r.cf.ServiceEntries()
 	if err != nil {
 		return fmt.Errorf("error generating service entries: %w", err)
 	}
