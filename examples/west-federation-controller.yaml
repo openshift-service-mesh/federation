@@ -1,0 +1,23 @@
+image:
+  repository: quay.io/jewertow/federation-controller
+  tag: openshift-router-4
+federation:
+  meshPeers:
+    local:
+      gateways:
+        ingress:
+          selector:
+            app: federation-ingress-gateway
+    remote:
+      addresses:
+      - "fds.apps.east1.servicemesh.devcluster.openshift.com"
+      ingressType: openshift-router
+      ports:
+        dataPlane: 443
+      network: east
+  exportedServiceSet:
+    rules:
+    - type: LabelSelector
+      labelSelectors:
+      - matchLabels:
+          export-service: "true"

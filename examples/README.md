@@ -10,13 +10,13 @@ make kind-clusters
 2. Prepare contexts:
 ```shell
 kind get kubeconfig --name east > east.kubeconfig
-alias keast="KUBECONFIG=$(pwd)/east.kubeconfig kubectl"
-alias helm-east="KUBECONFIG=$(pwd)/east.kubeconfig helm"
+alias keast="KUBECONFIG=$EAST_AUTH_PATH/kubeconfig kubectl"
+alias helm-east="KUBECONFIG=$EAST_AUTH_PATH/kubeconfig helm"
 kind get kubeconfig --name west > west.kubeconfig
-alias kwest="KUBECONFIG=$(pwd)/west.kubeconfig kubectl"
-alias helm-west="KUBECONFIG=$(pwd)/west.kubeconfig helm"
-alias istioctl-east="istioctl --kubeconfig=$(pwd)/east.kubeconfig"
-alias istioctl-west="istioctl --kubeconfig=$(pwd)/west.kubeconfig"
+alias kwest="KUBECONFIG=$WEST_AUTH_PATH/kubeconfig kubectl"
+alias helm-west="KUBECONFIG=$WEST_AUTH_PATH/kubeconfig helm"
+alias istioctl-east="istioctl --kubeconfig=$EAST_AUTH_PATH/kubeconfig"
+alias istioctl-west="istioctl --kubeconfig=$WEST_AUTH_PATH/kubeconfig"
 ```
 
 ### Trust model
@@ -70,31 +70,29 @@ kwest create secret generic cacerts -n istio-system \
 
 1. Deploy Istio control planes and gateways:
 ```shell
-istioctl-west install -f examples/west-mesh.yaml -y
 istioctl-east install -f examples/east-mesh.yaml -y
+istioctl-west install -f examples/west-mesh.yaml -y
 ```
 
-2. Deploy federation controller:
+2. Enable mTLS:
 ```shell
-WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-east install east-mesh chart -n istio-system \
-  --values examples/federation-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP"
-EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-west install west-mesh chart -n istio-system \
-  --values examples/federation-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP"
+keast apply -f examples/mtls.yaml -n istio-system
+kwest apply -f examples/mtls.yaml -n istio-system
+```
+
+3. Deploy federation controller:
+```shell
+helm-east install east-mesh chart -n istio-system --values examples/east-federation-controller.yaml
+helm-west install west-mesh chart -n istio-system --values examples/west-federation-controller.yaml
 ```
 
 ### Deploy and export services
 
 1. Enable mTLS and deploy apps:
 ```shell
-keast apply -f examples/mtls.yaml -n istio-system
 keast label namespace default istio-injection=enabled
 keast apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/bookinfo/platform/kube/bookinfo.yaml
 keast apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/bookinfo/networking/bookinfo-gateway.yaml
-kwest apply -f examples/mtls.yaml -n istio-system
 kwest label namespace default istio-injection=enabled
 kwest apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/bookinfo/platform/kube/bookinfo.yaml
 kwest apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/bookinfo/networking/bookinfo-gateway.yaml
@@ -126,7 +124,7 @@ keast label svc details export-service=true
 
 4. Send a few requests to the east ingress gateway and check access log:
 ```shell
-EAST_INGRESS_IP=$(keast get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+EAST_INGRESS_IP=$(keast get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 curl -v "http://$EAST_INGRESS_IP:80/productpage"
 ```
 ```shell
@@ -141,7 +139,7 @@ You should see an output like this:
 
 Repeat for west cluster:
 ```shell
-WEST_INGRESS_IP=$(kwest get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+WEST_INGRESS_IP=$(kwest get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 curl -v "http://$WEST_INGRESS_IP:80/productpage"
 ```
 ```shell
