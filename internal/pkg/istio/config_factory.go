@@ -16,9 +16,11 @@ package istio
 
 import (
 	"fmt"
+	"google.golang.org/protobuf/types/known/structpb"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
 	"istio.io/istio/pkg/slices"
+	"istio.io/istio/pkg/util/protomarshal"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -165,6 +167,64 @@ func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
 	gateway.Spec.Servers[0].Hosts = hosts
 
 	return gateway, nil
+}
+
+func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
+	createEnvoyFilter := func(svcName, svcNamespace string, port int32) *v1alpha3.EnvoyFilter {
+		buildPatchStruct := func(config string) *structpb.Struct {
+			val := &structpb.Struct{}
+			if err := protomarshal.UnmarshalString(config, val); err != nil {
+				fmt.Printf("error unmarshalling envoyfilter config %q: %v", config, err)
+			}
+			return val
+		}
+		return &v1alpha3.EnvoyFilter{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("sni-%s-%s-%d", svcName, svcName, port),
+				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+			},
+			Spec: istionetv1alpha3.EnvoyFilter{
+				WorkloadSelector: &istionetv1alpha3.WorkloadSelector{
+					Labels: cf.cfg.MeshPeers.Local.Gateways.Ingress.Selector,
+				},
+				ConfigPatches: []*istionetv1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{{
+					ApplyTo: istionetv1alpha3.EnvoyFilter_FILTER_CHAIN,
+					Match: &istionetv1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
+						ObjectTypes: &istionetv1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &istionetv1alpha3.EnvoyFilter_ListenerMatch{
+								Name: "0.0.0.0_15443",
+								FilterChain: &istionetv1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Sni: fmt.Sprintf("outbound_.%d_._.%s.%s.svc.cluster.local", port, svcName, svcNamespace),
+								},
+							},
+						},
+					},
+					Patch: &istionetv1alpha3.EnvoyFilter_Patch{
+						Operation: istionetv1alpha3.EnvoyFilter_Patch_MERGE,
+						Value:     buildPatchStruct(fmt.Sprintf(`{"filter_chain_match":{"server_names":["%s-%d.%s.svc.cluster.local"]}}`, svcName, port, svcNamespace)),
+					},
+				}},
+			},
+		}
+	}
+
+	envoyFilters := []*v1alpha3.EnvoyFilter{
+		createEnvoyFilter("federation-discovery-service", "istio-system", 15080),
+	}
+	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
+		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
+		services, err := cf.serviceLister.List(matchLabels)
+		if err != nil {
+			fmt.Printf("error listing services (selector=%s): %v", matchLabels, err)
+		}
+		for _, svc := range services {
+			for _, port := range svc.Spec.Ports {
+				envoyFilters = append(envoyFilters, createEnvoyFilter(svc.Name, svc.Namespace, port.Port))
+			}
+		}
+	}
+	return envoyFilters
 }
 
 func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {

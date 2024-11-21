@@ -220,6 +220,7 @@ func main() {
 		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory),
+		kube.NewEnvoyFilterReconciler(istioClient, istioConfigFactory),
 	)
 	if err := rm.ReconcileAll(ctx); err != nil {
 		log.Fatalf("initial Istio resource reconciliation failed: %v", err)
