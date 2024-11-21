@@ -26,38 +26,38 @@ type Federation struct {
 }
 
 type MeshPeers struct {
-	Local Local `yaml:"local"`
+	Local Local `json:"local"`
 	// TODO: This should be a list of Remote objects
-	Remote Remote `yaml:"remote"`
+	Remote Remote `json:"remote"`
 }
 
 type Local struct {
-	ControlPlane ControlPlane `yaml:"controlPlane"`
-	Gateways     Gateways     `yaml:"gateway"`
+	ControlPlane ControlPlane `json:"controlPlane"`
+	Gateways     Gateways     `json:"gateway"`
 }
 
 type Remote struct {
-	Addresses []string      `yaml:"addresses"`
-	Ports     *GatewayPorts `yaml:"ports"`
-	Network   string        `yaml:"network"`
+	Addresses []string      `json:"addresses"`
+	Ports     *GatewayPorts `json:"ports,omitempty"`
+	Network   string        `json:"network"`
 }
 
 type ControlPlane struct {
-	Namespace string `yaml:"namespace"`
+	Namespace string `json:"namespace"`
 }
 
 type Gateways struct {
-	Ingress LocalGateway `yaml:"ingress"`
+	Ingress LocalGateway `json:"ingress"`
 }
 
 type LocalGateway struct {
-	Selector map[string]string `yaml:"selector"`
-	Ports    *GatewayPorts     `yaml:"ports"`
+	Selector map[string]string `json:"selector"`
+	Ports    *GatewayPorts     `json:"ports,omitempty"`
 }
 
 type GatewayPorts struct {
-	DataPlane uint32 `yaml:"dataPlane"`
-	Discovery uint32 `yaml:"discovery"`
+	DataPlane uint32 `json:"dataPlane"`
+	Discovery uint32 `json:"discovery"`
 }
 
 func (g *GatewayPorts) GetDataPlanePort() uint32 {
@@ -75,7 +75,7 @@ func (g *GatewayPorts) GetDiscoveryPort() uint32 {
 }
 
 type ExportedServiceSet struct {
-	Rules []Rules `yaml:"rules"`
+	Rules []Rules `json:"rules"`
 }
 
 func (s *ExportedServiceSet) GetLabelSelectors() []LabelSelectors {
@@ -86,21 +86,21 @@ func (s *ExportedServiceSet) GetLabelSelectors() []LabelSelectors {
 }
 
 type ImportedServiceSet struct {
-	Rules []Rules `yaml:"rules"`
+	Rules []Rules `json:"rules"`
 }
 
 type Rules struct {
-	Type           string           `yaml:"type"`
-	LabelSelectors []LabelSelectors `yaml:"labelSelectors"`
+	Type           string           `json:"type"`
+	LabelSelectors []LabelSelectors `json:"labelSelectors"`
 }
 
 type LabelSelectors struct {
-	MatchLabels      map[string]string  `yaml:"matchLabels,omitempty"`
-	MatchExpressions []MatchExpressions `yaml:"matchExpressions,omitempty"`
+	MatchLabels      map[string]string  `json:"matchLabels,omitempty"`
+	MatchExpressions []MatchExpressions `json:"matchExpressions,omitempty"`
 }
 
 type MatchExpressions struct {
-	Key      string   `yaml:"key"`
-	Operator string   `yaml:"operator"`
-	Values   []string `yaml:"values"`
+	Key      string   `json:"key"`
+	Operator string   `json:"operator"`
+	Values   []string `json:"values"`
 }
