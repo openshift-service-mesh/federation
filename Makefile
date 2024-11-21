@@ -62,7 +62,7 @@ e2e: build-test-image kind-clusters ## Runs end-to-end tests against KinD cluste
 		TAG=$(TEST_TAG) go test -tags=integ -run TestTraffic $(PROJECT_DIR)/test/e2e/$(suite) \
 			--istio.test.hub=docker.io/istio\
 			--istio.test.tag=$(ISTIO_VERSION)\
-			--istio.test.kube.config=$(PROJECT_DIR)//test/east.kubeconfig,$(PROJECT_DIR)//test/west.kubeconfig\
+			--istio.test.kube.config=$(PROJECT_DIR)/test/east.kubeconfig,$(PROJECT_DIR)/test/west.kubeconfig\
 			--istio.test.kube.networkTopology=0:east-network,1:west-network\
 			--istio.test.onlyWorkloads=standard;)
 
