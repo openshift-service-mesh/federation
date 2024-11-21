@@ -16,15 +16,13 @@ package istio
 
 import (
 	"fmt"
-	"net"
-	"sort"
-
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	v1 "k8s.io/client-go/listers/core/v1"
+	"sort"
 
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
@@ -98,37 +96,30 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 			},
 		})
 	}
-	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
-		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
-		services, err := cf.serviceLister.List(matchLabels)
-		if err != nil {
-			fmt.Printf("Error listing services: %v", err)
-		}
-		for _, svc := range services {
-			dr := &v1alpha3.DestinationRule{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("originate-istio-mtls-to-%s-%s", svc.Name, svc.Namespace),
-					Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-					Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+	for _, svc := range cf.importedServiceStore.GetAll() {
+		dr := &v1alpha3.DestinationRule{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("originate-istio-mtls-to-%s-%s", svc.Name, svc.Namespace),
+				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+			},
+			Spec: istionetv1alpha3.DestinationRule{
+				Host: fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace),
+				TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
+					PortLevelSettings: []*istionetv1alpha3.TrafficPolicy_PortTrafficPolicy{},
 				},
-				Spec: istionetv1alpha3.DestinationRule{
-					Host: fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace),
-					TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
-						PortLevelSettings: []*istionetv1alpha3.TrafficPolicy_PortTrafficPolicy{},
-					},
-				},
-			}
-			for _, port := range svc.Spec.Ports {
-				dr.Spec.TrafficPolicy.PortLevelSettings = append(dr.Spec.TrafficPolicy.PortLevelSettings, &istionetv1alpha3.TrafficPolicy_PortTrafficPolicy{
-					Port: &istionetv1alpha3.PortSelector{Number: uint32(port.Port)},
-					Tls: &istionetv1alpha3.ClientTLSSettings{
-						Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-						Sni:  fmt.Sprintf("%s-%d.%s.svc.cluster.local", svc.Name, port.Port, svc.Namespace),
-					},
-				})
-			}
-			destinationRules = append(destinationRules, dr)
+			},
 		}
+		for _, port := range svc.Ports {
+			dr.Spec.TrafficPolicy.PortLevelSettings = append(dr.Spec.TrafficPolicy.PortLevelSettings, &istionetv1alpha3.TrafficPolicy_PortTrafficPolicy{
+				Port: &istionetv1alpha3.PortSelector{Number: port.Number},
+				Tls: &istionetv1alpha3.ClientTLSSettings{
+					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
+					Sni:  fmt.Sprintf("%s-%d.%s.svc.cluster.local", svc.Name, port.Number, svc.Namespace),
+				},
+			})
+		}
+		destinationRules = append(destinationRules, dr)
 	}
 	return destinationRules
 }
@@ -301,7 +292,7 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 	var workloadEntries []*istionetv1alpha3.WorkloadEntry
 	for _, addr := range cf.cfg.MeshPeers.Remote.Addresses {
 		we := &istionetv1alpha3.WorkloadEntry{
-			Address: resolveAddress(addr),
+			Address: addr,
 			Network: cf.cfg.MeshPeers.Remote.Network,
 			Labels:  labels,
 			Ports:   make(map[string]uint32, len(ports)),
@@ -312,18 +303,4 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 		workloadEntries = append(workloadEntries, we)
 	}
 	return workloadEntries
-}
-
-// TODO: We do not have to update these IPs, because we have enable DNS proxy.
-// TODO: Will it work with IP auto-allocation v2?
-func resolveAddress(addr string) string {
-	if ip := net.ParseIP(addr); ip != nil {
-		return addr
-	}
-
-	ips, err := net.LookupIP(addr)
-	if err != nil {
-		fmt.Printf("Failed to resolve '%s': %v\n", addr, err)
-	}
-	return ips[0].String()
 }
