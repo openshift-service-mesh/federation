@@ -83,5 +83,6 @@ func (w *ServiceExportEventHandler) triggerXDSPushIfMatchRules(services ...*core
 func (w *ServiceExportEventHandler) triggerXDSPush() {
 	w.mcpPushRequests <- xds.PushRequest{TypeUrl: xds.GatewayTypeUrl}
 	w.mcpPushRequests <- xds.PushRequest{TypeUrl: xds.EnvoyFilterTypeUrl}
+	w.mcpPushRequests <- xds.PushRequest{TypeUrl: xds.RouteTypeUrl}
 	w.fdsPushRequests <- xds.PushRequest{TypeUrl: xds.ExportedServiceTypeUrl}
 }

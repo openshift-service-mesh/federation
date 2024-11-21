@@ -9,3 +9,6 @@ rules:
 - apiGroups: ["networking.istio.io"]
   resources: ["gateways", "serviceentries", "workloadentries", "destinationrules", "virtualservices", "envoyfilters"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
+- apiGroups: ["route.openshift.io"]
+  resources: ["routes", "routes/custom-host"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]

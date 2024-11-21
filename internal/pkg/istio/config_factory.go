@@ -180,7 +180,7 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 		}
 		return &v1alpha3.EnvoyFilter{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("sni-%s-%s-%d", svcName, svcName, port),
+				Name:      fmt.Sprintf("sni-%s-%s-%d", svcName, svcNamespace, port),
 				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
 				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 			},

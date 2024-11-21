@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
+	routev1client "github.com/openshift/client-go/route/clientset/versioned"
 	"os"
 	"os/signal"
 	"syscall"
@@ -170,6 +172,7 @@ func main() {
 		log.Fatalf("did not find environment variable CONTROLLER_SERVICE_FQDN")
 	}
 	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, controllerServiceFQDN)
+	openshiftConfigFactory := openshift.NewConfigFactory(*cfg, serviceLister)
 
 	triggerFDSPushOnNewSubscription := func() {
 		fdsPushRequests <- xds.PushRequest{
@@ -213,6 +216,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create Istio client: %v", err)
 	}
+	routeClient, err := routev1client.NewForConfig(kubeConfig)
+	if err != nil {
+		log.Fatalf("failed to create Route client: %v", err)
+	}
 
 	rm := kube.NewReconcilerManager(
 		meshConfigPushRequests,
@@ -221,6 +228,7 @@ func main() {
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory),
 		kube.NewEnvoyFilterReconciler(istioClient, istioConfigFactory),
+		kube.NewRouteReconciler(routeClient, openshiftConfigFactory),
 	)
 	if err := rm.ReconcileAll(ctx); err != nil {
 		log.Fatalf("initial Istio resource reconciliation failed: %v", err)

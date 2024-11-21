@@ -22,4 +22,5 @@ const (
 	WorkloadEntryTypeUrl   = "networking.istio.io/v1alpha3/WorkloadEntry"
 	EnvoyFilterTypeUrl     = "networking.istio.io/v1alpha3/EnvoyFilter"
 	VirtualServiceTypeUrl  = "networking.istio.io/v1alpha3/VirtualService"
+	RouteTypeUrl           = "route.openshift.io/v1/Route"
 )
