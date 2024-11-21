@@ -18,10 +18,12 @@ import (
 	"fmt"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
+	"istio.io/istio/pkg/slices"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	v1 "k8s.io/client-go/listers/core/v1"
+	"net"
 	"sort"
 
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
@@ -252,7 +254,8 @@ func (cf *ConfigFactory) getServiceEntryForRemoteFederationController() *v1alpha
 				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 			},
 			Spec: istionetv1alpha3.ServiceEntry{
-				Hosts: []string{cf.cfg.MeshPeers.Remote.Addresses[0]},
+				Hosts:     []string{cf.cfg.MeshPeers.Remote.Addresses[0]},
+				Addresses: resolveAddress(cf.cfg.MeshPeers.Remote.Addresses[0]),
 				Ports: []*istionetv1alpha3.ServicePort{{
 					Name:     "tls-passthrough",
 					Number:   cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort(),
@@ -292,7 +295,7 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 	var workloadEntries []*istionetv1alpha3.WorkloadEntry
 	for _, addr := range cf.cfg.MeshPeers.Remote.Addresses {
 		we := &istionetv1alpha3.WorkloadEntry{
-			Address: addr,
+			Address: resolveAddress(addr)[0],
 			Network: cf.cfg.MeshPeers.Remote.Network,
 			Labels:  labels,
 			Ports:   make(map[string]uint32, len(ports)),
@@ -303,4 +306,20 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 		workloadEntries = append(workloadEntries, we)
 	}
 	return workloadEntries
+}
+
+// This will not work with DNS proxy, so we have to resolve this IP periodically and trigger updates on DNS change,
+// or implement this in Istio if possible.
+func resolveAddress(addr string) []string {
+	if ip := net.ParseIP(addr); ip != nil {
+		return []string{addr}
+	}
+
+	ips, err := net.LookupIP(addr)
+	if err != nil {
+		fmt.Printf("Failed to resolve '%s': %v\n", addr, err)
+	}
+	return slices.Map(ips, func(ip net.IP) string {
+		return ip.String()
+	})
 }

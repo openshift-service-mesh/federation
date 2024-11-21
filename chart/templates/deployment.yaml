@@ -15,6 +15,10 @@ spec:
       {{- if .Values.istio.spire.enabled }}
         inject.istio.io/templates: "sidecar,{{ .Values.istio.spire.templateName }}"
       {{- end }}
+        proxy.istio.io/config: |
+          proxyMetadata:
+            ISTIO_META_DNS_CAPTURE: "false"
+            ISTIO_META_DNS_AUTO_ALLOCATE: "false"
       labels:
         {{- include "chart.labels" . | nindent 8 }}
         sidecar.istio.io/inject: "true"
