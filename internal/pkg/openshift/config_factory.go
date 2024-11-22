@@ -2,12 +2,14 @@ package openshift
 
 import (
 	"fmt"
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+
 	routev1 "github.com/openshift/api/route/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	v1 "k8s.io/client-go/listers/core/v1"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 )
 
 type ConfigFactory struct {

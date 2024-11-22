@@ -3,9 +3,6 @@ package kube
 import (
 	"context"
 	"fmt"
-	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
-	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 	"reflect"
 
 	routev1 "github.com/openshift/api/route/v1"
@@ -14,6 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
+
+	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var _ Reconciler = (*RouteReconciler)(nil)
