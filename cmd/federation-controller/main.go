@@ -149,6 +149,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create Kubernetes clientset: %v", err.Error())
 	}
+	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
+	if err != nil {
+		log.Fatalf("failed to create Istio client: %v", err)
+	}
 
 	fdsPushRequests := make(chan xds.PushRequest)
 	meshConfigPushRequests := make(chan xds.PushRequest)
@@ -165,19 +169,15 @@ func main() {
 	}
 	serviceController.RunAndWait(ctx.Done())
 
-	importedServiceStore := fds.NewImportedServiceStore()
-
 	var controllerServiceFQDN string
 	if controllerServiceFQDN = env.GetString("CONTROLLER_SERVICE_FQDN", ""); controllerServiceFQDN == "" {
 		log.Fatalf("did not find environment variable CONTROLLER_SERVICE_FQDN")
 	}
+	importedServiceStore := fds.NewImportedServiceStore()
 	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, controllerServiceFQDN)
-	openshiftConfigFactory := openshift.NewConfigFactory(*cfg, serviceLister)
 
 	triggerFDSPushOnNewSubscription := func() {
-		fdsPushRequests <- xds.PushRequest{
-			TypeUrl: xds.ExportedServiceTypeUrl,
-		}
+		fdsPushRequests <- xds.PushRequest{TypeUrl: xds.ExportedServiceTypeUrl}
 	}
 	federationServer := adss.NewServer(
 		fdsPushRequests,
@@ -212,24 +212,23 @@ func main() {
 		}
 	}
 
-	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
-	if err != nil {
-		log.Fatalf("failed to create Istio client: %v", err)
-	}
-	routeClient, err := routev1client.NewForConfig(kubeConfig)
-	if err != nil {
-		log.Fatalf("failed to create Route client: %v", err)
-	}
-
-	rm := kube.NewReconcilerManager(
-		meshConfigPushRequests,
+	reconcilers := []kube.Reconciler{
 		kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
 		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory),
 		kube.NewEnvoyFilterReconciler(istioClient, istioConfigFactory),
-		kube.NewRouteReconciler(routeClient, openshiftConfigFactory),
-	)
+	}
+	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
+		routeClient, err := routev1client.NewForConfig(kubeConfig)
+		if err != nil {
+			log.Fatalf("failed to create Route client: %v", err)
+		}
+		openshiftConfigFactory := openshift.NewConfigFactory(*cfg, serviceLister)
+		reconcilers = append(reconcilers, kube.NewRouteReconciler(routeClient, openshiftConfigFactory))
+	}
+
+	rm := kube.NewReconcilerManager(meshConfigPushRequests, reconcilers...)
 	if err := rm.ReconcileAll(ctx); err != nil {
 		log.Fatalf("initial Istio resource reconciliation failed: %v", err)
 	}
