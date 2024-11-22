@@ -12,7 +12,7 @@ federation:
     local:
       controlPlane:
         # Local control plane namespace is used to create local Istio configs (ServiceEntry for imported services,
-        # Gateway for exported services, VirtualService and DestinationRule for routing to federation-discovery-service).
+        # Gateway for exported services, etc.).
         namespace: istio-system
       # Allowed values: [nlb, openshift-router].
       ingressType: nlb
