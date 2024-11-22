@@ -36,18 +36,16 @@ func (r *RouteReconciler) GetTypeUrl() string {
 }
 
 func (r *RouteReconciler) Reconcile(ctx context.Context) error {
-	routes := r.cf.Routes()
-	if routes == nil {
-		return nil
+	routes, err := r.cf.Routes()
+	if err != nil {
+		return fmt.Errorf("could not reconcile routes: %w", err)
 	}
 
-	// Map of desired Routes
 	routesMap := make(map[types.NamespacedName]*routev1.Route, len(routes))
 	for _, route := range routes {
 		routesMap[types.NamespacedName{Namespace: route.Namespace, Name: route.Name}] = route
 	}
 
-	// List existing Routes with a specific label
 	oldRoutes, err := r.client.RouteV1().Routes(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{
 			MatchLabels: map[string]string{"federation.openshift.io/peer": "todo"},
@@ -57,13 +55,11 @@ func (r *RouteReconciler) Reconcile(ctx context.Context) error {
 		return fmt.Errorf("failed to list routes: %w", err)
 	}
 
-	// Map of existing Routes
 	oldRoutesMap := make(map[types.NamespacedName]*routev1.Route, len(oldRoutes.Items))
 	for _, route := range oldRoutes.Items {
 		oldRoutesMap[types.NamespacedName{Namespace: route.Namespace, Name: route.Name}] = &route
 	}
 
-	// Apply configuration for new or updated Routes
 	kind := "Route"
 	apiVersion := "route.openshift.io/v1"
 	for k, route := range routesMap {
@@ -108,7 +104,6 @@ func (r *RouteReconciler) Reconcile(ctx context.Context) error {
 		}
 	}
 
-	// Delete old Routes no longer present in desired state
 	for k, oldRoute := range oldRoutesMap {
 		if _, ok := routesMap[k]; !ok {
 			err := r.client.RouteV1().Routes(oldRoute.Namespace).Delete(ctx, oldRoute.Name, metav1.DeleteOptions{})

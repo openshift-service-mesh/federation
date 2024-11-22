@@ -27,7 +27,7 @@ func NewConfigFactory(
 	}
 }
 
-func (cf *ConfigFactory) Routes() []*routev1.Route {
+func (cf *ConfigFactory) Routes() ([]*routev1.Route, error) {
 	createRoute := func(svcName, svcNamespace string, port int32) *routev1.Route {
 		return &routev1.Route{
 			ObjectMeta: metav1.ObjectMeta{
@@ -58,7 +58,7 @@ func (cf *ConfigFactory) Routes() []*routev1.Route {
 		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
 		services, err := cf.serviceLister.List(matchLabels)
 		if err != nil {
-			fmt.Printf("error listing services (selector=%s): %v", matchLabels, err)
+			return nil, fmt.Errorf("error listing services (selector=%s): %w", matchLabels, err)
 		}
 		for _, svc := range services {
 			for _, port := range svc.Spec.Ports {
@@ -66,5 +66,5 @@ func (cf *ConfigFactory) Routes() []*routev1.Route {
 			}
 		}
 	}
-	return routes
+	return routes, nil
 }
