@@ -54,7 +54,7 @@ func (r *DestinationRuleReconciler) GetTypeUrl() string {
 
 func (r *DestinationRuleReconciler) Reconcile(ctx context.Context) error {
 	destinationRules := r.cf.DestinationRules()
-	if destinationRules == nil {
+	if len(destinationRules) == 0 {
 		return nil
 	}
 

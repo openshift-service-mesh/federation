@@ -65,31 +65,18 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
 		return nil
 	}
-	var destinationRules []*v1alpha3.DestinationRule
-	if cf.cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
-		destinationRules = append(destinationRules, &v1alpha3.DestinationRule{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "originate-istio-mtls-to-remote-federation-controller",
-				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
-			},
-			Spec: istionetv1alpha3.DestinationRule{
-				Host: cf.cfg.MeshPeers.Remote.Addresses[0],
-				TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
-					Tls: &istionetv1alpha3.ClientTLSSettings{
-						Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-						Sni:  "federation-discovery-service-15080.istio-system.svc.cluster.local",
-					},
-				},
-			},
-		})
-	} else {
-		destinationRules = append(destinationRules, &v1alpha3.DestinationRule{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "originate-istio-mtls-to-remote-federation-controller",
-				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
-			},
+
+	createObjectMeta := func(svcName, svcNs string) metav1.ObjectMeta {
+		return metav1.ObjectMeta{
+			Name:      fmt.Sprintf("mtls-sni-%s-%s", svcName, svcNs),
+			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+		}
+	}
+
+	if cf.cfg.MeshPeers.Remote.IngressType != config.OpenShiftRouter {
+		return []*v1alpha3.DestinationRule{{
+			ObjectMeta: createObjectMeta("remote-federation-discovery-service", "istio-system"),
 			Spec: istionetv1alpha3.DestinationRule{
 				Host: fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace),
 				TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
@@ -99,15 +86,24 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 					},
 				},
 			},
-		})
+		}}
 	}
+
+	destinationRules := []*v1alpha3.DestinationRule{{
+		ObjectMeta: createObjectMeta("remote-federation-discovery-service", "istio-system"),
+		Spec: istionetv1alpha3.DestinationRule{
+			Host: cf.cfg.MeshPeers.Remote.Addresses[0],
+			TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
+				Tls: &istionetv1alpha3.ClientTLSSettings{
+					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
+					Sni:  routerCompatibleSNI("federation-discovery-service", "istio-system", 15080),
+				},
+			},
+		},
+	}}
 	for _, svc := range cf.importedServiceStore.GetAll() {
 		dr := &v1alpha3.DestinationRule{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("originate-istio-mtls-to-%s-%s", svc.Name, svc.Namespace),
-				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
-			},
+			ObjectMeta: createObjectMeta(svc.Name, svc.Namespace),
 			Spec: istionetv1alpha3.DestinationRule{
 				Host: fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace),
 				TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
@@ -120,7 +116,7 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 				Port: &istionetv1alpha3.PortSelector{Number: port.Number},
 				Tls: &istionetv1alpha3.ClientTLSSettings{
 					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-					Sni:  fmt.Sprintf("%s-%d.%s.svc.cluster.local", svc.Name, port.Number, svc.Namespace),
+					Sni:  routerCompatibleSNI(svc.Name, svc.Namespace, int32(port.Number)),
 				},
 			})
 		}
@@ -203,7 +199,7 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 					},
 					Patch: &istionetv1alpha3.EnvoyFilter_Patch{
 						Operation: istionetv1alpha3.EnvoyFilter_Patch_MERGE,
-						Value:     buildPatchStruct(fmt.Sprintf(`{"filter_chain_match":{"server_names":["%s-%d.%s.svc.cluster.local"]}}`, svcName, port, svcNamespace)),
+						Value:     buildPatchStruct(fmt.Sprintf(`{"filter_chain_match":{"server_names":["%s"]}}`, routerCompatibleSNI(svcName, svcNamespace, port))),
 					},
 				}},
 			},
@@ -367,6 +363,11 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 		workloadEntries = append(workloadEntries, we)
 	}
 	return workloadEntries
+}
+
+// routerCompatibleSNI returns SNI compatible with https://datatracker.ietf.org/doc/html/rfc952 required by OpenShift Router.
+func routerCompatibleSNI(svcName, svcNs string, port int32) string {
+	return fmt.Sprintf("%s-%d.%s.svc.cluster.local", svcName, port, svcNs)
 }
 
 // This will not work with DNS proxy, so we have to resolve this IP periodically and trigger updates on DNS change,
