@@ -309,7 +309,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 	}
 	if cf.cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
 		se.Spec.Hosts = []string{cf.cfg.MeshPeers.Remote.Addresses[0]}
-		se.Spec.Addresses = resolveAddress(cf.cfg.MeshPeers.Remote.Addresses[0])
+		se.Spec.Addresses = resolve(cf.cfg.MeshPeers.Remote.Addresses[0])
 		se.Spec.Resolution = istionetv1alpha3.ServiceEntry_DNS
 	} else {
 		// TODO: this will not work for ingressType=nlb when the remote address is a hostname
@@ -324,19 +324,21 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 
 func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
 	var workloadEntries []*istionetv1alpha3.WorkloadEntry
-	for _, addr := range cf.cfg.MeshPeers.Remote.Addresses {
-		we := &istionetv1alpha3.WorkloadEntry{
-			Address: resolveAddress(addr)[0],
-			Network: cf.cfg.MeshPeers.Remote.Network,
-			Labels:  labels,
-			Ports:   make(map[string]uint32, len(ports)),
+	for _, hostnameOrIP := range cf.cfg.MeshPeers.Remote.Addresses {
+		for _, addr := range resolve(hostnameOrIP) {
+			we := &istionetv1alpha3.WorkloadEntry{
+				Address: addr,
+				Network: cf.cfg.MeshPeers.Remote.Network,
+				Labels:  labels,
+				Ports:   make(map[string]uint32, len(ports)),
+			}
+			// enable Istio mTLS
+			we.Labels["security.istio.io/tlsMode"] = "istio"
+			for _, p := range ports {
+				we.Ports[p.Name] = cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort()
+			}
+			workloadEntries = append(workloadEntries, we)
 		}
-		// enable Istio mTLS
-		we.Labels["security.istio.io/tlsMode"] = "istio"
-		for _, p := range ports {
-			we.Ports[p.Name] = cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort()
-		}
-		workloadEntries = append(workloadEntries, we)
 	}
 	return workloadEntries
 }
@@ -346,9 +348,7 @@ func routerCompatibleSNI(svcName, svcNs string, port int32) string {
 	return fmt.Sprintf("%s-%d.%s.svc.cluster.local", svcName, port, svcNs)
 }
 
-// This will not work with DNS proxy, so we have to resolve this IP periodically and trigger updates on DNS change,
-// or implement this in Istio if possible.
-func resolveAddress(addr string) []string {
+func resolve(addr string) []string {
 	if ip := net.ParseIP(addr); ip != nil {
 		return []string{addr}
 	}
