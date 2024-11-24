@@ -225,11 +225,12 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 }
 
 func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
-	var serviceEntries []*v1alpha3.ServiceEntry
-	for _, importedSvc := range cf.importedServiceStore.GetAll() {
-		// enable Istio mTLS
-		importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
+	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
+		return nil, nil
+	}
 
+	serviceEntries := []*v1alpha3.ServiceEntry{cf.serviceEntryForRemoteFederationController()}
+	for _, importedSvc := range cf.importedServiceStore.GetAll() {
 		_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
 		if err != nil {
 			if !errors.IsNotFound(err) {
@@ -247,7 +248,6 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 			}
 			serviceEntries = append(serviceEntries, &v1alpha3.ServiceEntry{
 				ObjectMeta: metav1.ObjectMeta{
-					// TODO: add peer name to ensure uniqueness when more than 2 peers are connected
 					Name:      fmt.Sprintf("import-%s-%s", importedSvc.Name, importedSvc.Namespace),
 					Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
 					Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
@@ -262,18 +262,12 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 			})
 		}
 	}
-	if se := cf.getServiceEntryForRemoteFederationController(); se != nil {
-		serviceEntries = append(serviceEntries, se)
-	}
 	return serviceEntries, nil
 }
 
 func (cf *ConfigFactory) GetWorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 	var workloadEntries []*v1alpha3.WorkloadEntry
 	for _, importedSvc := range cf.importedServiceStore.GetAll() {
-		// enable Istio mTLS
-		importedSvc.Labels["security.istio.io/tlsMode"] = "istio"
-
 		_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
 		if err != nil {
 			if !errors.IsNotFound(err) {
@@ -297,55 +291,35 @@ func (cf *ConfigFactory) GetWorkloadEntries() ([]*v1alpha3.WorkloadEntry, error)
 	return workloadEntries, nil
 }
 
-func (cf *ConfigFactory) getServiceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
-	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
-		return nil
-	}
-
-	if cf.cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
-		// TODO: Add validation for addresses - it should be single hostname
-		return &v1alpha3.ServiceEntry{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "remote-federation-controller",
-				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
-			},
-			Spec: istionetv1alpha3.ServiceEntry{
-				Hosts:     []string{cf.cfg.MeshPeers.Remote.Addresses[0]},
-				Addresses: resolveAddress(cf.cfg.MeshPeers.Remote.Addresses[0]),
-				Ports: []*istionetv1alpha3.ServicePort{{
-					Name:     "tls-passthrough",
-					Number:   cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort(),
-					Protocol: "TLS",
-				}},
-				Location:   istionetv1alpha3.ServiceEntry_MESH_EXTERNAL,
-				Resolution: istionetv1alpha3.ServiceEntry_DNS,
-			},
-		}
-	}
-
-	var endpoints []*istionetv1alpha3.WorkloadEntry
-	for _, remoteAddr := range cf.cfg.MeshPeers.Remote.Addresses {
-		endpoints = append(endpoints, &istionetv1alpha3.WorkloadEntry{Address: remoteAddr})
-	}
-	return &v1alpha3.ServiceEntry{
+func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
+	se := &v1alpha3.ServiceEntry{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "remote-federation-controller",
 			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
 			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 		},
 		Spec: istionetv1alpha3.ServiceEntry{
-			Hosts: []string{fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace)},
 			Ports: []*istionetv1alpha3.ServicePort{{
 				Name:     "tls-passthrough",
 				Number:   cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort(),
 				Protocol: "TLS",
 			}},
-			Location:   istionetv1alpha3.ServiceEntry_MESH_EXTERNAL,
-			Resolution: istionetv1alpha3.ServiceEntry_STATIC,
-			Endpoints:  endpoints,
+			Location: istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
 		},
 	}
+	if cf.cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
+		se.Spec.Hosts = []string{cf.cfg.MeshPeers.Remote.Addresses[0]}
+		se.Spec.Addresses = resolveAddress(cf.cfg.MeshPeers.Remote.Addresses[0])
+		se.Spec.Resolution = istionetv1alpha3.ServiceEntry_DNS
+	} else {
+		// TODO: this will not work for ingressType=nlb when the remote address is a hostname
+		se.Spec.Hosts = []string{fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace)}
+		se.Spec.Endpoints = slices.Map(cf.cfg.MeshPeers.Remote.Addresses, func(addr string) *istionetv1alpha3.WorkloadEntry {
+			return &istionetv1alpha3.WorkloadEntry{Address: addr}
+		})
+		se.Spec.Resolution = istionetv1alpha3.ServiceEntry_STATIC
+	}
+	return se
 }
 
 func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
@@ -357,6 +331,8 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 			Labels:  labels,
 			Ports:   make(map[string]uint32, len(ports)),
 		}
+		// enable Istio mTLS
+		we.Labels["security.istio.io/tlsMode"] = "istio"
 		for _, p := range ports {
 			we.Ports[p.Name] = cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort()
 		}
