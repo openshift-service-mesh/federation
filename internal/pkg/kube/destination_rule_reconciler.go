@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
-	v1alpha4 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
+	applyv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 
 	"reflect"
 
@@ -83,8 +83,7 @@ func (r *DestinationRuleReconciler) Reconcile(ctx context.Context) error {
 		if !ok || !reflect.DeepEqual(&oldDR.Spec, &dr.Spec) {
 			// Destination rule does not currently exist or requires update
 			newDR, err := r.client.Istio().NetworkingV1alpha3().DestinationRules(dr.GetNamespace()).Apply(ctx,
-				// TODO v1alpha4?
-				&v1alpha4.DestinationRuleApplyConfiguration{
+				&applyv1alpha3.DestinationRuleApplyConfiguration{
 					TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
 						Kind:       &kind,
 						APIVersion: &apiVersion,

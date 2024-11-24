@@ -236,6 +236,8 @@ func InstallOrUpgradeFederationControllers(spireEnabled bool) resource.SetupFn {
 				"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
 				"--set", fmt.Sprintf("image.tag=%s", testTag),
 				"--set", fmt.Sprintf("istio.spire.enabled=%t", spireEnabled),
+				"--set", fmt.Sprintf("federation.meshPeers.local.name=%s", ClusterNames[idx]),
+				"--set", fmt.Sprintf("federation.meshPeers.remote.name=%s", remoteClusterName),
 				"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
 				"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
 			SetEnvAndKubeConfigPath(helmUpgradeCmd, idx)

@@ -61,6 +61,7 @@ func (r *GatewayResourceReconciler) Reconcile(ctx context.Context) error {
 		ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
 			Name:      &gw.Name,
 			Namespace: &gw.Namespace,
+			Labels:    gw.Labels,
 		},
 		Spec:   &gw.Spec,
 		Status: nil,

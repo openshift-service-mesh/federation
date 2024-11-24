@@ -52,7 +52,7 @@ func (cf *ConfigFactory) Routes() ([]*routev1.Route, error) {
 	}
 
 	routes := []*routev1.Route{
-		createRoute("federation-discovery-service", "istio-system", 15080),
+		createRoute(fmt.Sprintf("federation-discovery-service-%s", cf.cfg.MeshPeers.Local.Name), "istio-system", 15080),
 	}
 	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
 		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)

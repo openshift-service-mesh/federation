@@ -54,7 +54,7 @@ func (r *EnvoyFilterReconciler) GetTypeUrl() string {
 
 func (r *EnvoyFilterReconciler) Reconcile(ctx context.Context) error {
 	envoyFilters := r.cf.EnvoyFilters()
-	if envoyFilters == nil {
+	if len(envoyFilters) == 0 {
 		return nil
 	}
 

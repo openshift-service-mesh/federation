@@ -192,7 +192,7 @@ func main() {
 
 	var fdsClient *adsc.ADSC
 	if len(cfg.MeshPeers.Remote.Addresses) > 0 {
-		discoveryAddr := fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local:%d", cfg.MeshPeers.Local.ControlPlane.Namespace, cfg.MeshPeers.Remote.Ports.GetDataPlanePort())
+		discoveryAddr := fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local:15080", cfg.MeshPeers.Remote.Name, cfg.MeshPeers.Local.ControlPlane.Namespace)
 		if cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
 			discoveryAddr = cfg.MeshPeers.Remote.Addresses[0]
 		}
@@ -218,6 +218,7 @@ func main() {
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory),
 		kube.NewEnvoyFilterReconciler(istioClient, istioConfigFactory),
+		kube.NewPeerAuthResourceReconciler(istioClient),
 	}
 	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
 		routeClient, err := routev1client.NewForConfig(kubeConfig)

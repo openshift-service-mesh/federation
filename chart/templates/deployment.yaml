@@ -15,12 +15,14 @@ spec:
       {{- if .Values.istio.spire.enabled }}
         inject.istio.io/templates: "sidecar,{{ .Values.istio.spire.templateName }}"
       {{- end }}
+      {{- if eq ( default "nlb" .Values.federation.meshPeers.remote.ingressType ) "openshift-router" }}
         proxy.istio.io/config: |
           proxyMetadata:
-            ISTIO_META_DNS_CAPTURE: "false"
             ISTIO_META_DNS_AUTO_ALLOCATE: "false"
+      {{- end }}
       labels:
         {{- include "chart.labels" . | nindent 8 }}
+        app.kubernetes.io/name: federation-controller
         sidecar.istio.io/inject: "true"
     spec:
       serviceAccountName: {{ include "chart.name" . }}
@@ -33,7 +35,7 @@ spec:
         - '--exportedServiceSet={{ .Values.federation.exportedServiceSet | toJson }}'
         env:
         - name: CONTROLLER_SERVICE_FQDN
-          value: "federation-discovery-service.{{ .Release.Namespace }}.svc.cluster.local"
+          value: "{{ include "chart.serviceName" . }}.{{ .Release.Namespace }}.svc.cluster.local"
         ports:
         - name: grpc-fds
           containerPort: 15080

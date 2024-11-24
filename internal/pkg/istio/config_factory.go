@@ -62,7 +62,7 @@ func NewConfigFactory(
 // DestinationRules returns destination rules to customize SNI in the mTLS connection to remote services.
 // TODO: namespace in the SNI should come from remote.identity.namespace
 func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
-	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
+	if cf.cfg.MeshPeers.Remote.IngressType != config.OpenShiftRouter {
 		return nil
 	}
 
@@ -74,29 +74,19 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 		}
 	}
 
-	if cf.cfg.MeshPeers.Remote.IngressType != config.OpenShiftRouter {
-		return []*v1alpha3.DestinationRule{{
-			ObjectMeta: createObjectMeta("remote-federation-discovery-service", "istio-system"),
-			Spec: istionetv1alpha3.DestinationRule{
-				Host: fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace),
-				TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
-					Tls: &istionetv1alpha3.ClientTLSSettings{
-						Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-						Sni:  "federation-discovery-service.istio-system.svc.cluster.local",
-					},
-				},
-			},
-		}}
+	host := fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", cf.cfg.MeshPeers.Remote.Name)
+	if cf.cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
+		host = cf.cfg.MeshPeers.Remote.Addresses[0]
 	}
 
 	destinationRules := []*v1alpha3.DestinationRule{{
-		ObjectMeta: createObjectMeta("remote-federation-discovery-service", "istio-system"),
+		ObjectMeta: createObjectMeta(fmt.Sprintf("federation-discovery-service-%s", cf.cfg.MeshPeers.Remote.Name), "istio-system"),
 		Spec: istionetv1alpha3.DestinationRule{
-			Host: cf.cfg.MeshPeers.Remote.Addresses[0],
+			Host: host,
 			TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
 				Tls: &istionetv1alpha3.ClientTLSSettings{
 					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-					Sni:  routerCompatibleSNI("federation-discovery-service", "istio-system", 15080),
+					Sni:  routerCompatibleSNI(fmt.Sprintf("federation-discovery-service-%s", cf.cfg.MeshPeers.Remote.Name), "istio-system", 15080),
 				},
 			},
 		},
@@ -130,6 +120,7 @@ func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      federationIngressGatewayName,
 			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 		},
 		Spec: istionetv1alpha3.Gateway{
 			Selector: cf.cfg.MeshPeers.Local.Gateways.Ingress.Selector,
@@ -167,6 +158,10 @@ func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
 }
 
 func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
+	if cf.cfg.MeshPeers.Remote.IngressType != config.OpenShiftRouter {
+		return nil
+	}
+
 	createEnvoyFilter := func(svcName, svcNamespace string, port int32) *v1alpha3.EnvoyFilter {
 		buildPatchStruct := func(config string) *structpb.Struct {
 			val := &structpb.Struct{}
@@ -207,7 +202,7 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 	}
 
 	envoyFilters := []*v1alpha3.EnvoyFilter{
-		createEnvoyFilter("federation-discovery-service", "istio-system", 15080),
+		createEnvoyFilter(fmt.Sprintf("federation-discovery-service-%s", cf.cfg.MeshPeers.Local.Name), "istio-system", 15080),
 	}
 	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
 		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
@@ -298,26 +293,41 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
 			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 		},
-		Spec: istionetv1alpha3.ServiceEntry{
+	}
+	if cf.cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
+		se.Spec = istionetv1alpha3.ServiceEntry{
+			Hosts:     []string{cf.cfg.MeshPeers.Remote.Addresses[0]},
+			Addresses: resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
 			Ports: []*istionetv1alpha3.ServicePort{{
 				Name:     "tls-passthrough",
 				Number:   cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort(),
 				Protocol: "TLS",
 			}},
-			Location: istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
-		},
-	}
-	if cf.cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
-		se.Spec.Hosts = []string{cf.cfg.MeshPeers.Remote.Addresses[0]}
-		se.Spec.Addresses = resolve(cf.cfg.MeshPeers.Remote.Addresses[0])
-		se.Spec.Resolution = istionetv1alpha3.ServiceEntry_DNS
+			Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
+			Resolution: istionetv1alpha3.ServiceEntry_DNS,
+		}
 	} else {
-		// TODO: this will not work for ingressType=nlb when the remote address is a hostname
-		se.Spec.Hosts = []string{fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.ControlPlane.Namespace)}
-		se.Spec.Endpoints = slices.Map(cf.cfg.MeshPeers.Remote.Addresses, func(addr string) *istionetv1alpha3.WorkloadEntry {
-			return &istionetv1alpha3.WorkloadEntry{Address: addr}
-		})
-		se.Spec.Resolution = istionetv1alpha3.ServiceEntry_STATIC
+		se.Spec = istionetv1alpha3.ServiceEntry{
+			// TODO: this will not work for ingressType=nlb when the remote address is a hostname
+			Hosts:     []string{fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", cf.cfg.MeshPeers.Remote.Name)},
+			Addresses: resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
+			Ports: []*istionetv1alpha3.ServicePort{{
+				Name:     "grpc",
+				Number:   15080,
+				Protocol: "GRPC",
+			}},
+			Endpoints: slices.Map(cf.cfg.MeshPeers.Remote.Addresses, func(addr string) *istionetv1alpha3.WorkloadEntry {
+				we := &istionetv1alpha3.WorkloadEntry{
+					Address: addr,
+					Labels:  map[string]string{"security.istio.io/tlsMode": "istio"},
+					Ports:   map[string]uint32{"grpc": cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort()},
+					Network: cf.cfg.MeshPeers.Remote.Network,
+				}
+				return we
+			}),
+			Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
+			Resolution: istionetv1alpha3.ServiceEntry_STATIC,
+		}
 	}
 	return se
 }

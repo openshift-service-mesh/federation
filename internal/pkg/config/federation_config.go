@@ -32,12 +32,14 @@ type MeshPeers struct {
 }
 
 type Local struct {
+	Name         string       `json:"name"`
 	ControlPlane ControlPlane `json:"controlPlane"`
 	Gateways     Gateways     `json:"gateway"`
 	IngressType  IngressType  `json:"ingressType"`
 }
 
 type Remote struct {
+	Name        string        `json:"name"`
 	Addresses   []string      `json:"addresses"`
 	IngressType IngressType   `json:"ingressType"`
 	Ports       *GatewayPorts `json:"ports,omitempty"`

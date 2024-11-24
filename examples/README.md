@@ -74,16 +74,10 @@ istioctl-east install -f examples/east-mesh.yaml -y
 istioctl-west install -f examples/west-mesh.yaml -y
 ```
 
-2. Enable mTLS:
+2. Deploy federation controller:
 ```shell
-keast apply -f examples/mtls.yaml -n istio-system
-kwest apply -f examples/mtls.yaml -n istio-system
-```
-
-3. Deploy federation controller:
-```shell
-helm-east install east-mesh chart -n istio-system --values examples/east-federation-controller.yaml
-helm-west install west-mesh chart -n istio-system --values examples/west-federation-controller.yaml
+helm-east install east chart -n istio-system --values examples/east-federation-controller.yaml
+helm-west install west chart -n istio-system --values examples/west-federation-controller.yaml
 ```
 
 ### Deploy and export services
@@ -96,6 +90,8 @@ keast apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/sample
 kwest label namespace default istio-injection=enabled
 kwest apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/bookinfo/platform/kube/bookinfo.yaml
 kwest apply -f https://raw.githubusercontent.com/istio/istio/release-1.22/samples/bookinfo/networking/bookinfo-gateway.yaml
+keast apply -f examples/mtls.yaml
+kwest apply -f examples/mtls.yaml
 ```
 
 2. Delete `details` from west cluster and `ratings` from east cluster:
@@ -144,4 +140,39 @@ curl -v "http://$WEST_INGRESS_IP:80/productpage"
 ```
 ```shell
 kwest logs deploy/istio-ingressgateway -n istio-system --tail=3 | grep "UPSTREAM_HOST"
+```
+
+#### Cleanup
+
+```shell
+helm-east uninstall east -n istio-system
+keast delete routes -n istio-system -l federation.istio-ecosystem.io/peer=todo  
+keast delete gateways -n istio-system -l federation.istio-ecosystem.io/peer=todo
+keast delete serviceentries -n istio-system -l federation.istio-ecosystem.io/peer=todo
+keast delete workloadentries -n istio-system -l federation.istio-ecosystem.io/peer=todo
+keast delete envoyfilters -n istio-system -l federation.istio-ecosystem.io/peer=todo  
+keast delete destinationrules -n istio-system -l federation.istio-ecosystem.io/peer=todo  
+keast delete peerauthentications -n istio-system -l federation.istio-ecosystem.io/peer=todo
+keast delete routes -l federation.istio-ecosystem.io/peer=todo  
+keast delete gateways -l federation.istio-ecosystem.io/peer=todo
+keast delete serviceentries -l federation.istio-ecosystem.io/peer=todo
+keast delete workloadentries -l federation.istio-ecosystem.io/peer=todo
+keast delete envoyfilters -l federation.istio-ecosystem.io/peer=todo  
+keast delete destinationrules -l federation.istio-ecosystem.io/peer=todo  
+keast delete peerauthentications -l federation.istio-ecosystem.io/peer=todo
+helm-west uninstall west -n istio-system
+kwest delete routes -n istio-system -l federation.istio-ecosystem.io/peer=todo  
+kwest delete gateways -n istio-system -l federation.istio-ecosystem.io/peer=todo
+kwest delete serviceentries -n istio-system -l federation.istio-ecosystem.io/peer=todo
+kwest delete workloadentries -n istio-system -l federation.istio-ecosystem.io/peer=todo
+kwest delete envoyfilters -n istio-system -l federation.istio-ecosystem.io/peer=todo  
+kwest delete destinationrules -n istio-system -l federation.istio-ecosystem.io/peer=todo  
+kwest delete peerauthentications -n istio-system -l federation.istio-ecosystem.io/peer=todo
+kwest delete routes -l federation.istio-ecosystem.io/peer=todo  
+kwest delete gateways -l federation.istio-ecosystem.io/peer=todo
+kwest delete serviceentries -l federation.istio-ecosystem.io/peer=todo
+kwest delete workloadentries -l federation.istio-ecosystem.io/peer=todo
+kwest delete envoyfilters -l federation.istio-ecosystem.io/peer=todo  
+kwest delete destinationrules -l federation.istio-ecosystem.io/peer=todo  
+kwest delete peerauthentications -l federation.istio-ecosystem.io/peer=todo
 ```

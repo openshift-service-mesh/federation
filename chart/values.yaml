@@ -10,6 +10,9 @@ istio:
 federation:
   meshPeers:
     local:
+      # Name is a unique identifier of the peer used as its service name suffix.
+      # Defaults to helm release name.
+      # name: "east"
       controlPlane:
         # Local control plane namespace is used to create local Istio configs (ServiceEntry for imported services,
         # Gateway for exported services, etc.).
@@ -17,6 +20,8 @@ federation:
       # Allowed values: [nlb, openshift-router].
       ingressType: nlb
 #    remote:
+#      # Name is a unique identifier of the peer used as its service name suffix.
+#      name: "west"
 #      addresses:
 #      - "192.168.0.1"
 #      ports:
