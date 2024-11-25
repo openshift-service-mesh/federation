@@ -20,8 +20,8 @@ import (
 	"reflect"
 
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
-	applyconfigurationv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
-	v1alpha4 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
+	applymetav1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
+	applyv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 	"istio.io/istio/pkg/kube"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,12 +79,12 @@ func (r *WorkloadEntryReconciler) Reconcile(ctx context.Context) error {
 		if !ok || !reflect.DeepEqual(&oldWE.Spec, &we.Spec) {
 			// Workload entry does not currently exist or requires update
 			newWE, err := r.client.Istio().NetworkingV1alpha3().WorkloadEntries(we.GetNamespace()).Apply(ctx,
-				&v1alpha4.WorkloadEntryApplyConfiguration{
-					TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
+				&applyv1alpha3.WorkloadEntryApplyConfiguration{
+					TypeMetaApplyConfiguration: applymetav1.TypeMetaApplyConfiguration{
 						Kind:       &kind,
 						APIVersion: &apiVersion,
 					},
-					ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
+					ObjectMetaApplyConfiguration: &applymetav1.ObjectMetaApplyConfiguration{
 						Name:      &we.Name,
 						Namespace: &we.Namespace,
 						Labels:    we.Labels,
