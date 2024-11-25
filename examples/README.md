@@ -146,33 +146,13 @@ kwest logs deploy/istio-ingressgateway -n istio-system --tail=3 | grep "UPSTREAM
 
 ```shell
 helm-east uninstall east -n istio-system
-keast delete routes -n istio-system -l federation.istio-ecosystem.io/peer=todo  
-keast delete gateways -n istio-system -l federation.istio-ecosystem.io/peer=todo
-keast delete serviceentries -n istio-system -l federation.istio-ecosystem.io/peer=todo
-keast delete workloadentries -n istio-system -l federation.istio-ecosystem.io/peer=todo
-keast delete envoyfilters -n istio-system -l federation.istio-ecosystem.io/peer=todo  
-keast delete destinationrules -n istio-system -l federation.istio-ecosystem.io/peer=todo  
-keast delete peerauthentications -n istio-system -l federation.istio-ecosystem.io/peer=todo
-keast delete routes -l federation.istio-ecosystem.io/peer=todo  
-keast delete gateways -l federation.istio-ecosystem.io/peer=todo
-keast delete serviceentries -l federation.istio-ecosystem.io/peer=todo
-keast delete workloadentries -l federation.istio-ecosystem.io/peer=todo
-keast delete envoyfilters -l federation.istio-ecosystem.io/peer=todo  
-keast delete destinationrules -l federation.istio-ecosystem.io/peer=todo  
-keast delete peerauthentications -l federation.istio-ecosystem.io/peer=todo
 helm-west uninstall west -n istio-system
-kwest delete routes -n istio-system -l federation.istio-ecosystem.io/peer=todo  
-kwest delete gateways -n istio-system -l federation.istio-ecosystem.io/peer=todo
-kwest delete serviceentries -n istio-system -l federation.istio-ecosystem.io/peer=todo
-kwest delete workloadentries -n istio-system -l federation.istio-ecosystem.io/peer=todo
-kwest delete envoyfilters -n istio-system -l federation.istio-ecosystem.io/peer=todo  
-kwest delete destinationrules -n istio-system -l federation.istio-ecosystem.io/peer=todo  
-kwest delete peerauthentications -n istio-system -l federation.istio-ecosystem.io/peer=todo
-kwest delete routes -l federation.istio-ecosystem.io/peer=todo  
-kwest delete gateways -l federation.istio-ecosystem.io/peer=todo
-kwest delete serviceentries -l federation.istio-ecosystem.io/peer=todo
-kwest delete workloadentries -l federation.istio-ecosystem.io/peer=todo
-kwest delete envoyfilters -l federation.istio-ecosystem.io/peer=todo  
-kwest delete destinationrules -l federation.istio-ecosystem.io/peer=todo  
-kwest delete peerauthentications -l federation.istio-ecosystem.io/peer=todo
+for resource in "routes" "gateways" "serviceentries" "workloadentries" "envoyfilters" "destinationrules" "peerauthentications"
+do
+  for ns in "istio-system" "default"
+  do
+    keast delete "$resource" -n "$ns" -l federation.istio-ecosystem.io/peer=todo
+    kwest delete "$resource" -n "$ns" -l federation.istio-ecosystem.io/peer=todo
+  done
+done
 ```
