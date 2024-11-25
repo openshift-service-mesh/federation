@@ -65,7 +65,6 @@ func (r *EnvoyFilterReconciler) Reconcile(ctx context.Context) error {
 
 	oldEnvoyFilters, err := r.client.Istio().NetworkingV1alpha3().EnvoyFilters(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{
-			// TODO: Add the label in the factory
 			MatchLabels: map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 		}),
 	})

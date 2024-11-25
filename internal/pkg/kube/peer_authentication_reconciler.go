@@ -73,6 +73,7 @@ func (r *PeerAuthResourceReconciler) Reconcile(ctx context.Context) error {
 		ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
 			Name:      &pa.Name,
 			Namespace: &pa.Namespace,
+			Labels:    pa.Labels,
 		},
 		Spec: &pa.Spec,
 	}, metav1.ApplyOptions{
