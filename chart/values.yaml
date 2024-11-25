@@ -17,6 +17,17 @@ federation:
         # Local control plane namespace is used to create local Istio configs (ServiceEntry for imported services,
         # Gateway for exported services, etc.).
         namespace: istio-system
+      gateways:
+        ingress:
+          # Ingress gateway selector specifies to which workloads Gateway configurations will be applied.
+          # selector:
+          #   app: federation-ingress-gateway
+          port:
+            # Port name of the ingress gateway Service.
+            # This is relevant only when the ingressType is openshift-router, but it cannot be empty.
+            name: tls-passthrough
+            # Port of the ingress gateway Service.
+            number: 15443
       # Allowed values: [nlb, openshift-router].
       ingressType: nlb
 #    remote:

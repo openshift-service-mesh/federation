@@ -127,8 +127,8 @@ func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
 			Servers: []*istionetv1alpha3.Server{{
 				Hosts: []string{},
 				Port: &istionetv1alpha3.Port{
-					Number:   cf.cfg.MeshPeers.Local.Gateways.Ingress.Ports.GetDataPlanePort(),
-					Name:     "tls-passthrough",
+					Number:   cf.cfg.MeshPeers.Local.Gateways.Ingress.Port.Number,
+					Name:     cf.cfg.MeshPeers.Local.Gateways.Ingress.Port.Name,
 					Protocol: "TLS",
 				},
 				Tls: &istionetv1alpha3.ServerTLSSettings{
@@ -300,7 +300,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 			Addresses: resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
 			Ports: []*istionetv1alpha3.ServicePort{{
 				Name:     "tls-passthrough",
-				Number:   cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort(),
+				Number:   cf.cfg.MeshPeers.Remote.GetPort(),
 				Protocol: "TLS",
 			}},
 			Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
@@ -320,7 +320,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 				we := &istionetv1alpha3.WorkloadEntry{
 					Address: addr,
 					Labels:  map[string]string{"security.istio.io/tlsMode": "istio"},
-					Ports:   map[string]uint32{"grpc": cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort()},
+					Ports:   map[string]uint32{"grpc": cf.cfg.MeshPeers.Remote.GetPort()},
 					Network: cf.cfg.MeshPeers.Remote.Network,
 				}
 				return we
@@ -345,7 +345,7 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 			// enable Istio mTLS
 			we.Labels["security.istio.io/tlsMode"] = "istio"
 			for _, p := range ports {
-				we.Ports[p.Name] = cf.cfg.MeshPeers.Remote.Ports.GetDataPlanePort()
+				we.Ports[p.Name] = cf.cfg.MeshPeers.Remote.GetPort()
 			}
 			workloadEntries = append(workloadEntries, we)
 		}

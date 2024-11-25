@@ -42,7 +42,7 @@ func (cf *ConfigFactory) Routes() ([]*routev1.Route, error) {
 					Name: "federation-ingress-gateway",
 				},
 				Port: &routev1.RoutePort{
-					TargetPort: intstr.FromString("tls-passthrough"),
+					TargetPort: intstr.FromString(cf.cfg.MeshPeers.Local.Gateways.Ingress.Port.Name),
 				},
 				TLS: &routev1.TLSConfig{
 					Termination: routev1.TLSTerminationPassthrough,
