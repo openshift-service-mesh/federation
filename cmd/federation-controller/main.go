@@ -169,12 +169,12 @@ func main() {
 	}
 	serviceController.RunAndWait(ctx.Done())
 
-	var controllerServiceFQDN string
-	if controllerServiceFQDN = env.GetString("CONTROLLER_SERVICE_FQDN", ""); controllerServiceFQDN == "" {
-		log.Fatalf("did not find environment variable CONTROLLER_SERVICE_FQDN")
+	var namespace string
+	if namespace = env.GetString("NAMESPACE", ""); namespace == "" {
+		log.Fatalf("did not find environment variable NAMESPACE")
 	}
 	importedServiceStore := fds.NewImportedServiceStore()
-	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, controllerServiceFQDN)
+	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, namespace)
 
 	triggerFDSPushOnNewSubscription := func() {
 		fdsPushRequests <- xds.PushRequest{TypeUrl: xds.ExportedServiceTypeUrl}
@@ -216,7 +216,7 @@ func main() {
 		kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
 		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
-		kube.NewPeerAuthResourceReconciler(istioClient),
+		kube.NewPeerAuthResourceReconciler(istioClient, namespace),
 	}
 	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
 		routeClient, err := routev1client.NewForConfig(kubeConfig)

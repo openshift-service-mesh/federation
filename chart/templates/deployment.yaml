@@ -34,8 +34,8 @@ spec:
         - '--meshPeers={{ .Values.federation.meshPeers | toJson }}'
         - '--exportedServiceSet={{ .Values.federation.exportedServiceSet | toJson }}'
         env:
-        - name: CONTROLLER_SERVICE_FQDN
-          value: "{{ include "chart.serviceName" . }}.{{ .Release.Namespace }}.svc.cluster.local"
+        - name: NAMESPACE
+          value: {{ .Release.Namespace }}
         ports:
         - name: grpc-fds
           containerPort: 15080

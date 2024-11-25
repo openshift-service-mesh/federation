@@ -39,23 +39,23 @@ const (
 )
 
 type ConfigFactory struct {
-	cfg                                 config.Federation
-	serviceLister                       v1.ServiceLister
-	importedServiceStore                *fds.ImportedServiceStore
-	localFederationDiscoveryServiceFQDN string
+	cfg                  config.Federation
+	serviceLister        v1.ServiceLister
+	importedServiceStore *fds.ImportedServiceStore
+	namespace            string
 }
 
 func NewConfigFactory(
 	cfg config.Federation,
 	serviceLister v1.ServiceLister,
 	importedServiceStore *fds.ImportedServiceStore,
-	localFederationDiscoveryServiceFQDN string,
+	namespace string,
 ) *ConfigFactory {
 	return &ConfigFactory{
-		cfg:                                 cfg,
-		serviceLister:                       serviceLister,
-		importedServiceStore:                importedServiceStore,
-		localFederationDiscoveryServiceFQDN: localFederationDiscoveryServiceFQDN,
+		cfg:                  cfg,
+		serviceLister:        serviceLister,
+		importedServiceStore: importedServiceStore,
+		namespace:            namespace,
 	}
 }
 
@@ -138,7 +138,7 @@ func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
 		},
 	}
 
-	hosts := []string{cf.localFederationDiscoveryServiceFQDN}
+	hosts := []string{fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.Name, cf.namespace)}
 	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
 		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
 		services, err := cf.serviceLister.List(matchLabels)

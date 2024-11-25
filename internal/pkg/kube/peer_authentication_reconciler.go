@@ -31,12 +31,14 @@ import (
 var _ Reconciler = (*PeerAuthResourceReconciler)(nil)
 
 type PeerAuthResourceReconciler struct {
-	client kube.Client
+	client    kube.Client
+	namespace string
 }
 
-func NewPeerAuthResourceReconciler(client kube.Client) *PeerAuthResourceReconciler {
+func NewPeerAuthResourceReconciler(client kube.Client, namespace string) *PeerAuthResourceReconciler {
 	return &PeerAuthResourceReconciler{
-		client: client,
+		client:    client,
+		namespace: namespace,
 	}
 }
 
@@ -48,7 +50,7 @@ func (r *PeerAuthResourceReconciler) Reconcile(ctx context.Context) error {
 	pa := &v1.PeerAuthentication{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "fds-strict-mtls",
-			Namespace: "istio-system", // TODO: {{.Release.Namespace}}
+			Namespace: r.namespace,
 			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 		},
 		Spec: securityv1.PeerAuthentication{
