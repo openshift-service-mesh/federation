@@ -216,8 +216,6 @@ func main() {
 		kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
 		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
-		kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory),
-		kube.NewEnvoyFilterReconciler(istioClient, istioConfigFactory),
 		kube.NewPeerAuthResourceReconciler(istioClient),
 	}
 	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
@@ -225,8 +223,10 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to create Route client: %v", err)
 		}
-		openshiftConfigFactory := openshift.NewConfigFactory(*cfg, serviceLister)
-		reconcilers = append(reconcilers, kube.NewRouteReconciler(routeClient, openshiftConfigFactory))
+
+		reconcilers = append(reconcilers, kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory))
+		reconcilers = append(reconcilers, kube.NewEnvoyFilterReconciler(istioClient, istioConfigFactory))
+		reconcilers = append(reconcilers, kube.NewRouteReconciler(routeClient, openshift.NewConfigFactory(*cfg, serviceLister)))
 	}
 
 	rm := kube.NewReconcilerManager(meshConfigPushRequests, reconcilers...)

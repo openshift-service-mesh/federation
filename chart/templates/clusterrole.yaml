@@ -7,13 +7,16 @@ rules:
   resources: ["services"]
   verbs: ["get", "watch", "list"]
 - apiGroups: ["networking.istio.io"]
-  resources: ["gateways", "serviceentries", "workloadentries", "destinationrules", "envoyfilters"]
+  resources: ["gateways", "serviceentries", "workloadentries"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 - apiGroups: ["security.istio.io"]
   resources: ["peerauthentications"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 {{- if eq .Values.federation.meshPeers.local.ingressType "openshift-router" }}
+- apiGroups: ["networking.istio.io"]
+  resources: ["destinationrules", "envoyfilters"]
+  verbs: ["get", "list", "create", "update", "patch", "delete"]
 - apiGroups: ["route.openshift.io"]
   resources: ["routes", "routes/custom-host"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
-{{-  end }}
+{{- end }}
