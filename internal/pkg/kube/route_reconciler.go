@@ -20,8 +20,8 @@ import (
 var _ Reconciler = (*RouteReconciler)(nil)
 
 type RouteReconciler struct {
-	client versioned.Interface      // OpenShift Route client
-	cf     *openshift.ConfigFactory // Custom factory for desired Route definitions
+	client versioned.Interface
+	cf     *openshift.ConfigFactory
 }
 
 func NewRouteReconciler(client versioned.Interface, cf *openshift.ConfigFactory) *RouteReconciler {
@@ -82,6 +82,9 @@ func (r *RouteReconciler) Reconcile(ctx context.Context) error {
 						To: &routev1apply.RouteTargetReferenceApplyConfiguration{
 							Kind: &route.Spec.To.Kind,
 							Name: &route.Spec.To.Name,
+						},
+						Port: &routev1apply.RoutePortApplyConfiguration{
+							TargetPort: &route.Spec.Port.TargetPort,
 						},
 						TLS: &routev1apply.TLSConfigApplyConfiguration{
 							Termination: &route.Spec.TLS.Termination,
