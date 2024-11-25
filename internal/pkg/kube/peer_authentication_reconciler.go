@@ -17,9 +17,10 @@ package kube
 import (
 	"context"
 	"fmt"
+
 	securityv1 "istio.io/api/security/v1"
 	v1beta1 "istio.io/api/type/v1beta1"
-	"istio.io/client-go/pkg/apis/security/v1"
+	v1 "istio.io/client-go/pkg/apis/security/v1"
 	applyconfigurationv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
 	applyv1 "istio.io/client-go/pkg/applyconfiguration/security/v1"
 	"istio.io/istio/pkg/kube"

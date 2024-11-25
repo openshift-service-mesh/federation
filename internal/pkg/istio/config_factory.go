@@ -185,7 +185,7 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 					Match: &istionetv1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
 						ObjectTypes: &istionetv1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
 							Listener: &istionetv1alpha3.EnvoyFilter_ListenerMatch{
-								Name: "0.0.0.0_15443",
+								Name: fmt.Sprintf("0.0.0.0_%d", cf.cfg.MeshPeers.Local.Gateways.Ingress.Port.Number),
 								FilterChain: &istionetv1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
 									Sni: fmt.Sprintf("outbound_.%d_._.%s.%s.svc.cluster.local", port, svcName, svcNamespace),
 								},
