@@ -66,19 +66,64 @@ e2e: build-test-image kind-clusters ## Runs end-to-end tests against KinD cluste
 			--istio.test.kube.networkTopology=0:east-network,1:west-network\
 			--istio.test.onlyWorkloads=standard;)
 
+##@ Tooling
+
+LOCALBIN := $(PROJECT_DIR)/bin
+GOIMPORTS := $(LOCALBIN)/goimports
+HELM := $(LOCALBIN)/helm
+PROTOC := $(LOCALBIN)/protoc
+PROTOC_GEN_GO := $(LOCALBIN)/protoc-gen-go
+PROTOC_GEN_GRPC := $(LOCALBIN)/protoc-gen-go-grpc
+PROTOC_GEN_DEEPCOPY := $(LOCALBIN)/protoc-gen-golang-deepcopy
+
+$(LOCALBIN):
+	@mkdir -p $(LOCALBIN)
+
+$(GOIMPORTS): $(LOCALBIN)
+	@GOBIN=$(LOCALBIN) go install -mod=readonly golang.org/x/tools/cmd/goimports@latest
+
+$(HELM): $(LOCALBIN)
+	@curl -sSL https://get.helm.sh/helm-v3.14.2-linux-amd64.tar.gz -o $(LOCALBIN)/helm.tar.gz
+	@tar -xzf $(LOCALBIN)/helm.tar.gz -C $(LOCALBIN) --strip-components=1 linux-amd64/helm
+	@rm -f $(LOCALBIN)/helm.tar.gz
+
+$(PROTOC): $(LOCALBIN)
+	@curl -sSL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip -o $(LOCALBIN)/protoc.zip
+	@unzip -q -j -o $(LOCALBIN)/protoc.zip "bin/protoc" -d $(LOCALBIN)
+	@rm -f $(LOCALBIN)/protoc.zip
+
+$(PROTOC_GEN_GO): $(LOCALBIN)
+	@GOBIN=$(LOCALBIN) go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+
+$(PROTOC_GEN_GRPC): $(LOCALBIN)
+	@GOBIN=$(LOCALBIN) go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+$(PROTOC_GEN_DEEPCOPY): $(LOCALBIN)
+	@GOBIN=$(LOCALBIN) go install istio.io/tools/cmd/protoc-gen-golang-deepcopy@latest
+
+.PHONY: tools 
+tools: $(GOIMPORTS) 
+tools: $(HELM) 
+tools: $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY)
+tools: ## Installs all required tools
+
+.PHONY: clean
+clean: 
+	@rm -rf $(LOCALBIN) $(PROJECT_DIR)/$(OUT_DIR)
+
 ##@ Code Gen
 
 PROTO_DIR=$(PROJECT_DIR)/api/proto/federation
 API_GEN_DIR=$(PROJECT_DIR)/internal/api
 
 .PHONY: proto
-proto: ## Generates Go files from protobuf-based API files
-	protoc --proto_path=$(PROTO_DIR) --go_out=$(API_GEN_DIR) --go-grpc_out=$(API_GEN_DIR) --golang-deepcopy_out=:$(API_GEN_DIR) $(PROTO_DIR)/**/*.proto
+proto: $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY) ## Generates Go files from protobuf-based API files
+	@PATH=$(LOCALBIN):$$PATH $(PROTOC) --proto_path=$(PROTO_DIR) --go_out=$(API_GEN_DIR) --go-grpc_out=$(API_GEN_DIR) --golang-deepcopy_out=:$(API_GEN_DIR) $(PROTO_DIR)/**/*.proto
 
 
 .PHONY: fix-imports
-fix-imports: ## Fixes imports
-	goimports -local "github.com/openshift-service-mesh/federation" -w $(PROJECT_DIR)/
+fix-imports: $(GOIMPORTS) ## Fixes imports
+	$(GOIMPORTS) -local "github.com/openshift-service-mesh/federation" -w $(PROJECT_DIR)/
 
 LICENSE_FILE := /tmp/license.txt
 GO_FILES := $(shell find $(PROJECT_DIR)/ -name '*.go')
