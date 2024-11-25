@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 	"time"
 
@@ -29,12 +30,14 @@ import (
 	"github.com/spf13/cobra"
 	istiokube "istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
+	"istio.io/istio/pkg/slices"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/env"
 
+	"github.com/openshift-service-mesh/federation/internal/pkg/common"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
@@ -227,6 +230,23 @@ func main() {
 		reconcilers = append(reconcilers, kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory))
 		reconcilers = append(reconcilers, kube.NewEnvoyFilterReconciler(istioClient, istioConfigFactory))
 		reconcilers = append(reconcilers, kube.NewRouteReconciler(routeClient, openshift.NewConfigFactory(*cfg, serviceLister)))
+
+		go func() {
+			log.Debugf("Resolving %s", cfg.MeshPeers.Remote.Addresses[0])
+			lastIPs := common.Resolve(cfg.MeshPeers.Remote.Addresses[0])
+			for {
+				log.Debugf("Resolving %s", cfg.MeshPeers.Remote.Addresses[0])
+				ips := common.Resolve(cfg.MeshPeers.Remote.Addresses[0])
+				sort.Strings(ips)
+				if !slices.Equal(lastIPs, ips) {
+					log.Infof("IP addresses of %s have changed", cfg.MeshPeers.Remote.Addresses[0])
+					lastIPs = ips
+					meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.ServiceEntryTypeUrl}
+					meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.WorkloadEntryTypeUrl}
+				}
+				time.Sleep(1 * time.Second)
+			}
+		}()
 	}
 
 	rm := kube.NewReconcilerManager(meshConfigPushRequests, reconcilers...)

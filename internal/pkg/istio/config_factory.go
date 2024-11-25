@@ -16,7 +16,6 @@ package istio
 
 import (
 	"fmt"
-	"net"
 	"sort"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -30,6 +29,7 @@ import (
 	v1 "k8s.io/client-go/listers/core/v1"
 
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/pkg/common"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 )
@@ -297,7 +297,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 	if cf.cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
 		se.Spec = istionetv1alpha3.ServiceEntry{
 			Hosts:     []string{cf.cfg.MeshPeers.Remote.Addresses[0]},
-			Addresses: resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
+			Addresses: common.Resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
 			Ports: []*istionetv1alpha3.ServicePort{{
 				Name:     "tls-passthrough",
 				Number:   cf.cfg.MeshPeers.Remote.GetPort(),
@@ -310,7 +310,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 		se.Spec = istionetv1alpha3.ServiceEntry{
 			// TODO: this will not work for ingressType=nlb when the remote address is a hostname
 			Hosts:     []string{fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", cf.cfg.MeshPeers.Remote.Name)},
-			Addresses: resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
+			Addresses: common.Resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
 			Ports: []*istionetv1alpha3.ServicePort{{
 				Name:     "grpc",
 				Number:   15080,
@@ -335,7 +335,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
 	var workloadEntries []*istionetv1alpha3.WorkloadEntry
 	for _, hostnameOrIP := range cf.cfg.MeshPeers.Remote.Addresses {
-		for _, addr := range resolve(hostnameOrIP) {
+		for _, addr := range common.Resolve(hostnameOrIP) {
 			we := &istionetv1alpha3.WorkloadEntry{
 				Address: addr,
 				Network: cf.cfg.MeshPeers.Remote.Network,
@@ -356,18 +356,4 @@ func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, l
 // routerCompatibleSNI returns SNI compatible with https://datatracker.ietf.org/doc/html/rfc952 required by OpenShift Router.
 func routerCompatibleSNI(svcName, svcNs string, port int32) string {
 	return fmt.Sprintf("%s-%d.%s.svc.cluster.local", svcName, port, svcNs)
-}
-
-func resolve(addr string) []string {
-	if ip := net.ParseIP(addr); ip != nil {
-		return []string{addr}
-	}
-
-	ips, err := net.LookupIP(addr)
-	if err != nil {
-		fmt.Printf("Failed to resolve '%s': %v\n", addr, err)
-	}
-	return slices.Map(ips, func(ip net.IP) string {
-		return ip.String()
-	})
 }
