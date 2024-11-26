@@ -19,13 +19,13 @@ helm-west upgrade --install spire spiffe-hardened/spire -n spire --create-namesp
 
 3. Federate bundles:
 ```shell
+# east
 spire_bundle_endpoint_west=$(kwest get svc spire-server -n spire -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 west_bundle=$(kwest exec -c spire-server -n spire --stdin spire-server-0  -- spire-server bundle show -format spiffe)
 indented_west_bundle=$(echo "$west_bundle" | jq -r '.' | sed 's/^/    /')
 echo -e "  trustDomainBundle: |-\n$indented_west_bundle" >> examples/spire/east/trust-bundle-federation.yaml
 sed "s/<remote_bundle_endpoint_ip>/$spire_bundle_endpoint_west/g" examples/spire/east/trust-bundle-federation.yaml | keast apply -f -
-```
-```shell
+# west
 spire_bundle_endpoint_east=$(keast get svc spire-server -n spire -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 east_bundle=$(keast exec -c spire-server -n spire --stdin spire-server-0  -- /opt/spire/bin/spire-server bundle show -format spiffe -socketPath /tmp/spire-server/private/api.sock)
 indented_east_bundle=$(echo "$east_bundle" | jq -r '.' | sed 's/^/    /')
@@ -57,8 +57,8 @@ MIIDxzCCAq+gAwIBAgIRAOSC+9AxMNaNqWdzd3QfbucwDQYJKoZIhvcNAQELBQAw
 
 4. Deploy Istio:
 ```shell
-sed -e "s/<local_cluster_name>/east/g" -e "s/<remote_cluster_name>/west/g" examples/spire/istio.yaml | istioctl --kubeconfig=east.kubeconfig install -y -f -
-sed -e "s/<local_cluster_name>/west/g" -e "s/<remote_cluster_name>/east/g" examples/spire/istio.yaml | istioctl --kubeconfig=west.kubeconfig install -y -f -
+sed -e "s/<local_cluster_name>/east/g" -e "s/<remote_cluster_name>/west/g" examples/spire/istio.yaml | istioctl-east install -y -f -
+sed -e "s/<local_cluster_name>/west/g" -e "s/<remote_cluster_name>/east/g" examples/spire/istio.yaml | istioctl-west install -y -f -
 ```
 Verify Spire's registry:
 ```shell
