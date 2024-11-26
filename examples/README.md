@@ -1,21 +1,37 @@
 ## Demo
 
-### Setup clusters
+### Create clusters:
 
-1. Create KinD clusters:
+#### KinD
+
 ```shell
 make kind-clusters
+mkdir -p east
+mkdir -p west
+kind get kubeconfig --name east > east/kubeconfig
+kind get kubeconfig --name west > west/kubeconfig
+export EAST_AUTH_PATH=east
+export WEST_AUTH_PATH=west
 ```
 
-2. Prepare contexts:
+#### OpenShift
+
 ```shell
-kind get kubeconfig --name east > east.kubeconfig
+mkdir -p east
+mkdir -p west
+openshift-install create cluster --dir east
+openshift-install create cluster --dir west
+export EAST_AUTH_PATH=$(pwd)/east/auth
+export WEST_AUTH_PATH=$(pwd)/west/auth
+```
+
+And prepare aliases:
+```shell
 alias keast="KUBECONFIG=$EAST_AUTH_PATH/kubeconfig kubectl"
 alias helm-east="KUBECONFIG=$EAST_AUTH_PATH/kubeconfig helm"
-kind get kubeconfig --name west > west.kubeconfig
+alias istioctl-east="istioctl --kubeconfig=$EAST_AUTH_PATH/kubeconfig"
 alias kwest="KUBECONFIG=$WEST_AUTH_PATH/kubeconfig kubectl"
 alias helm-west="KUBECONFIG=$WEST_AUTH_PATH/kubeconfig helm"
-alias istioctl-east="istioctl --kubeconfig=$EAST_AUTH_PATH/kubeconfig"
 alias istioctl-west="istioctl --kubeconfig=$WEST_AUTH_PATH/kubeconfig"
 ```
 
@@ -66,18 +82,46 @@ kwest create secret generic cacerts -n istio-system \
   --from-file=cert-chain.pem=west/cert-chain.pem
 ```
 
-### Deploy control planes and federation controllers
+### Deploy Istio control planes and gateways
 
-1. Deploy Istio control planes and gateways:
+On KinD:
 ```shell
-istioctl-east install -f examples/east-mesh.yaml -y
-istioctl-west install -f examples/west-mesh.yaml -y
+istioctl-east install -f examples/kind/east-mesh.yaml -y
+istioctl-west install -f examples/kind/west-mesh.yaml -y
 ```
 
-2. Deploy federation controller:
+On OpenShift:
 ```shell
-helm-east install east chart -n istio-system --values examples/east-federation-controller.yaml
-helm-west install west chart -n istio-system --values examples/west-federation-controller.yaml
+keast create namespace istio-cni
+keast apply -f examples/openshift/east-mesh.yaml
+keast apply -f examples/openshift/east-federation-ingress-gateway.yaml
+kwest create namespace istio-cni
+kwest apply -f examples/openshift/west-mesh.yaml
+kwest apply -f examples/openshift/west-federation-ingress-gateway.yaml
+```
+
+### Deploy federation controllers:
+
+On KinD:
+```shell
+WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+helm-east install east chart -n istio-system \
+  --values examples/kind/east-federation-controller.yaml \
+  --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP"
+EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+helm-west install west chart -n istio-system \
+  --values examples/kind/west-federation-controller.yaml \
+  --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP"
+```
+
+On OpenShift:
+```shell
+WEST_CONSOLE_URL=$(kwest get routes console -n openshift-console -o jsonpath='{.spec.host}')
+helm-east install east chart -n istio-system --values examples/openshift/east-federation-controller.yaml \
+  --set "federation.meshPeers.remote.addresses[0]=$WEST_CONSOLE_URL"
+EAST_CONSOLE_URL=$(keast get routes console -n openshift-console -o jsonpath='{.spec.host}')
+helm-west install west chart -n istio-system --values examples/openshift/west-federation-controller.yaml \
+  --set "federation.meshPeers.remote.addresses[0]=$EAST_CONSOLE_URL"
 ```
 
 ### Deploy and export services
@@ -94,13 +138,17 @@ keast apply -f examples/mtls.yaml
 kwest apply -f examples/mtls.yaml
 ```
 
+On OpenShift create also the ingress gateway and route:
+```shell
+keast apply -f examples/openshift/ingress-gateway.yaml
+kwest apply -f examples/openshift/ingress-gateway.yaml
+```
+
 2. Delete `details` from west cluster and `ratings` from east cluster:
 ```shell
 kwest delete svc details
 kwest delete deploy details-v1
 kwest delete sa bookinfo-details
-```
-```shell
 keast delete svc ratings
 keast delete deploy ratings-v1
 keast delete sa bookinfo-ratings
@@ -111,32 +159,40 @@ keast delete sa bookinfo-ratings
 kwest label svc productpage export-service=true
 kwest label svc reviews export-service=true
 kwest label svc ratings export-service=true
-```
-```shell
 keast label svc productpage export-service=true
 keast label svc reviews export-service=true
 keast label svc details export-service=true
 ```
 
-4. Send a few requests to the east ingress gateway and check access log:
+4. Get gateway addresses:
+On KinD:
 ```shell
-EAST_INGRESS_IP=$(keast get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-curl -v "http://$EAST_INGRESS_IP:80/productpage"
+EAST_INGRESS_ADDR=$(keast get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+WEST_INGRESS_ADDR=$(kwest get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+```
+On OpenShift:
+```shell
+EAST_INGRESS_ADDR=$(keast get routes productpage-route -n istio-system -o jsonpath='{.spec.host}')
+WEST_INGRESS_ADDR=$(kwest get routes productpage-route -n istio-system -o jsonpath='{.spec.host}')
+```
+
+5. Send a few requests to the east ingress gateway and check access log:
+```shell
+while true; do curl -v "http://$EAST_INGRESS_ADDR:80/productpage" > /dev/null; sleep 1; done
 ```
 ```shell
 keast logs deploy/istio-ingressgateway -n istio-system --tail=3 | grep "UPSTREAM_HOST"
 ```
-You should see an output like this:
+You should see internal and external IP addresses in `UPSTREAM_HOST` field:
 ```shell
 [ 2024-09-17T18:35:29.769Z ] "GET /productpage HTTP/1.1" 200 - via_upstream - "-" 0 4294 543 542 "10.244.0.1" "curl/8.2.1" "e5d1f558-adf2-4c84-b22b-dc75b482778b" "172.18.128.2" UPSTREAM_HOST="10.244.0.17:9080" outbound|9080||productpage.default.svc.cluster.local 10.244.0.9:60828 10.244.0.9:8080 10.244.0.1:47000 - -
 [ 2024-09-17T18:35:39.743Z ] "GET /productpage HTTP/1.1" 200 - via_upstream - "-" 0 5293 679 679 "10.244.0.1" "curl/8.2.1" "1eadd5f7-9c65-4485-9851-517db2f90fa1" "172.18.128.2" UPSTREAM_HOST="172.18.64.1:15443" outbound|9080||productpage.default.svc.cluster.local 10.244.0.9:42642 10.244.0.9:8080 10.244.0.1:64376 - -
 [ 2024-09-17T18:35:43.594Z ] "GET /productpage HTTP/1.1" 200 - via_upstream - "-" 0 4294 28 28 "10.244.0.1" "curl/8.2.1" "1c949a71-02f5-4b63-a62b-64dece63aa9f" "172.18.128.2" UPSTREAM_HOST="10.244.0.17:9080" outbound|9080||productpage.default.svc.cluster.local 10.244.0.9:48950 10.244.0.9:8080 10.244.0.1:2917 - -
 ```
 
-Repeat for west cluster:
+Do the same for west cluster:
 ```shell
-WEST_INGRESS_IP=$(kwest get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-curl -v "http://$WEST_INGRESS_IP:80/productpage"
+while true; do curl -v "http://$WEST_INGRESS_ADDR:80/productpage" > /dev/null; sleep 1; done
 ```
 ```shell
 kwest logs deploy/istio-ingressgateway -n istio-system --tail=3 | grep "UPSTREAM_HOST"

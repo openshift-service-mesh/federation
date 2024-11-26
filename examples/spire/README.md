@@ -84,11 +84,13 @@ Hint             : istio-system
 ```shell
 WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-east install east-mesh chart -n istio-system \
-    --values examples/spire/federation-controller.yaml \
+    --values examples/kind/east-federation-controller.yaml \
+    --set "istio.spire.enabled=true" \
     --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP"
 EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-west install west-mesh chart -n istio-system \
-    --values examples/spire/federation-controller.yaml \
+    --values examples/kind/west-federation-controller.yaml \
+    --set "istio.spire.enabled=true" \
     --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP"
 ```
 

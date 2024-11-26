@@ -1,15 +1,17 @@
-istio:
-  spire:
-    enabled: true
+image:
+  repository: quay.io/jewertow/federation-controller
+  tag: openshift-router-28
 federation:
   meshPeers:
     local:
-      controlPlane:
-        namespace: istio-system
+      name: east
       gateways:
         ingress:
           selector:
             app: federation-ingress-gateway
+    remote:
+      name: west
+      network: west
   exportedServiceSet:
     rules:
     - type: LabelSelector
