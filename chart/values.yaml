@@ -11,7 +11,7 @@ federation:
   meshPeers:
     local:
       # Name is a unique identifier of the peer used as its service name suffix.
-      # Defaults to helm release name.
+      # Defaults to the helm release name.
       # name: "east"
       controlPlane:
         # Local control plane namespace is used to create local Istio configs (ServiceEntry for imported services,
@@ -28,7 +28,14 @@ federation:
             name: tls-passthrough
             # Port of the ingress gateway Service.
             number: 15443
-      # Allowed values: [istio, openshift-router].
+      # Local ingress type specifies how to expose exported services.
+      # Currently, only two types are supported: istio and openshift-router.
+      # If "istio" is set, then the controller assumes that the Service associated with federation ingress gateway
+      # is LoadBalancer or NodePort and is directly accessible for remote peers, and then it only creates
+      # an auto-passthrough Gateway to expose exported Services.
+      # When "openshift-router" is enabled, then the controller creates also OpenShift Routes and applies EnvoyFilters
+      # to customize the SNI filter in the auto-passthrough Gateway, because the default SNI DNAT format used by Istio
+      # is not supported by OpenShift Router.
       ingressType: istio
 #    remote:
 #      # Name is a unique identifier of the peer used as its service name suffix.
@@ -38,7 +45,11 @@ federation:
 #      ports:
 #        dataPlane: 15443 # default
 #        discovery: 15080 # default
-#      # Allowed values: [istio, openshift-router].
+#      # Remote ingress type specifies how to manage client mTLS.
+#      # Currently, only two types are supported: istio and openshift-router.
+#      # If "openshift-router" is set the controller applies DestinationRules with SNI compatible with OpenShift Router.
+#      # If "istio" is set client mTLS settings are not modified.
+#      # Defaults to "istio"
 #      ingressType: istio
 #      # Unique network name ensures that importing and exporting the same services will not result
 #      # in routing requests to the cluster where the requests come from.
