@@ -1,6 +1,3 @@
-image:
-  repository: quay.io/jewertow/federation-controller
-  tag: openshift-router-28
 federation:
   meshPeers:
     local:
