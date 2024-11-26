@@ -225,9 +225,11 @@ func main() {
 
 	if fdsClient != nil {
 		go func() {
-			if err := fdsClient.Run(); err != nil {
+			if err := fdsClient.Run(ctx); err != nil {
 				log.Errorf("failed to start FDS client, will reconnect in %s: %v", reconnectDelay, err)
-				time.AfterFunc(reconnectDelay, fdsClient.Restart)
+				time.AfterFunc(reconnectDelay, func() {
+					fdsClient.Restart(ctx)
+				})
 			}
 		}()
 	}
