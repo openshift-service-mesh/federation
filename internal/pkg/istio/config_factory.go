@@ -308,7 +308,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 		}
 	} else {
 		se.Spec = istionetv1alpha3.ServiceEntry{
-			// TODO: this will not work for ingressType=nlb when the remote address is a hostname
+			// TODO: this will not work for ingressType=istio when the remote address is a hostname
 			Hosts:     []string{fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", cf.cfg.MeshPeers.Remote.Name)},
 			Addresses: common.Resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
 			Ports: []*istionetv1alpha3.ServicePort{{

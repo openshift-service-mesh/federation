@@ -28,8 +28,8 @@ federation:
             name: tls-passthrough
             # Port of the ingress gateway Service.
             number: 15443
-      # Allowed values: [nlb, openshift-router].
-      ingressType: nlb
+      # Allowed values: [istio, openshift-router].
+      ingressType: istio
 #    remote:
 #      # Name is a unique identifier of the peer used as its service name suffix.
 #      name: "west"
@@ -38,8 +38,8 @@ federation:
 #      ports:
 #        dataPlane: 15443 # default
 #        discovery: 15080 # default
-#      # Allowed values: [nlb, openshift-router].
-#      ingressType: nlb
+#      # Allowed values: [istio, openshift-router].
+#      ingressType: istio
 #      # Unique network name ensures that importing and exporting the same services will not result
 #      # in routing requests to the cluster where the requests come from.
 #      network: west-network

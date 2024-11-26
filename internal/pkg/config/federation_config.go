@@ -109,6 +109,6 @@ type MatchExpressions struct {
 type IngressType string
 
 const (
-	NLB             IngressType = "nlb"
+	Istio           IngressType = "istio"
 	OpenShiftRouter IngressType = "openshift-router"
 )

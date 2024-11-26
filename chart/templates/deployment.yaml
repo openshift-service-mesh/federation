@@ -15,7 +15,7 @@ spec:
       {{- if .Values.istio.spire.enabled }}
         inject.istio.io/templates: "sidecar,{{ .Values.istio.spire.templateName }}"
       {{- end }}
-      {{- if eq ( default "nlb" .Values.federation.meshPeers.remote.ingressType ) "openshift-router" }}
+      {{- if eq ( default "istio" .Values.federation.meshPeers.remote.ingressType ) "openshift-router" }}
         proxy.istio.io/config: |
           proxyMetadata:
             ISTIO_META_DNS_AUTO_ALLOCATE: "false"
