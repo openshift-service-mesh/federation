@@ -10,8 +10,8 @@ mkdir -p east
 mkdir -p west
 kind get kubeconfig --name east > east/kubeconfig
 kind get kubeconfig --name west > west/kubeconfig
-export EAST_AUTH_PATH=east
-export WEST_AUTH_PATH=west
+export EAST_AUTH_PATH=$(pwd)/east
+export WEST_AUTH_PATH=$(pwd)/west
 ```
 
 #### OpenShift
@@ -165,11 +165,13 @@ keast label svc details export-service=true
 ```
 
 4. Get gateway addresses:
+
 On KinD:
 ```shell
 EAST_INGRESS_ADDR=$(keast get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 WEST_INGRESS_ADDR=$(kwest get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 ```
+
 On OpenShift:
 ```shell
 EAST_INGRESS_ADDR=$(keast get routes productpage-route -n istio-system -o jsonpath='{.spec.host}')
