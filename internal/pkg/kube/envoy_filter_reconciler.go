@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
-	v1alpha4 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
+	applyv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 
 	"reflect"
 
@@ -83,8 +83,7 @@ func (r *EnvoyFilterReconciler) Reconcile(ctx context.Context) error {
 		if !ok || !reflect.DeepEqual(&oldEF.Spec, &ef.Spec) {
 			// Envoy filter does not currently exist or requires update
 			newEF, err := r.client.Istio().NetworkingV1alpha3().EnvoyFilters(ef.GetNamespace()).Apply(ctx,
-				// TODO v1alpha4?
-				&v1alpha4.EnvoyFilterApplyConfiguration{
+				&applyv1alpha3.EnvoyFilterApplyConfiguration{
 					TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
 						Kind:       &kind,
 						APIVersion: &apiVersion,
