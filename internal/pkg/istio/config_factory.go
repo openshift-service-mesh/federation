@@ -59,8 +59,8 @@ func NewConfigFactory(
 	}
 }
 
-// DestinationRules returns destination rules to customize SNI in the mTLS connection to remote services.
-// TODO: namespace in the SNI should come from remote.identity.namespace
+// DestinationRules customize SNI in the client mTLS connection when the remote ingress is openshift-router,
+// because that ingress requires hosts compatible with https://datatracker.ietf.org/doc/html/rfc952.
 func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 	if cf.cfg.MeshPeers.Remote.IngressType != config.OpenShiftRouter {
 		return nil
