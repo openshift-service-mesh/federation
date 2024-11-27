@@ -23,9 +23,9 @@ import (
 	applymetav1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
 	applyv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 	"istio.io/istio/pkg/kube"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
@@ -110,7 +110,7 @@ func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
 	for k, oldSE := range oldServiceEntriesMap {
 		if _, ok := serviceEntriesMap[k]; !ok {
 			err := r.client.Istio().NetworkingV1alpha3().ServiceEntries(oldSE.GetNamespace()).Delete(ctx, oldSE.GetName(), metav1.DeleteOptions{})
-			if err != nil && !errors.IsNotFound(err) {
+			if client.IgnoreNotFound(err) != nil {
 				return fmt.Errorf("failed to delete old service entry: %w", err)
 			}
 			log.Infof("Deleted service entry: %v", oldSE)

@@ -8,10 +8,10 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	routev1apply "github.com/openshift/client-go/route/applyconfigurations/route/v1"
 	"github.com/openshift/client-go/route/clientset/versioned"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
@@ -110,7 +110,7 @@ func (r *RouteReconciler) Reconcile(ctx context.Context) error {
 	for k, oldRoute := range oldRoutesMap {
 		if _, ok := routesMap[k]; !ok {
 			err := r.client.RouteV1().Routes(oldRoute.Namespace).Delete(ctx, oldRoute.Name, metav1.DeleteOptions{})
-			if err != nil && !errors.IsNotFound(err) {
+			if client.IgnoreNotFound(err) != nil {
 				return fmt.Errorf("failed to delete old route: %w", err)
 			}
 			log.Infof("Deleted route: %v", oldRoute)

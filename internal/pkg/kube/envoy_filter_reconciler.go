@@ -17,18 +17,15 @@ package kube
 import (
 	"context"
 	"fmt"
-
-	"istio.io/client-go/pkg/apis/networking/v1alpha3"
-	applyv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
-
 	"reflect"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-
+	"istio.io/client-go/pkg/apis/networking/v1alpha3"
 	applyconfigurationv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
+	applyv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 	"istio.io/istio/pkg/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
@@ -114,7 +111,7 @@ func (r *EnvoyFilterReconciler) Reconcile(ctx context.Context) error {
 	for k, oldEF := range oldEnvoyFiltersMap {
 		if _, ok := envoyFiltersMap[k]; !ok {
 			err := r.client.Istio().NetworkingV1alpha3().EnvoyFilters(oldEF.GetNamespace()).Delete(ctx, oldEF.GetName(), metav1.DeleteOptions{})
-			if err != nil && !errors.IsNotFound(err) {
+			if client.IgnoreNotFound(err) != nil {
 				return fmt.Errorf("failed to delete old envoy filter: %w", err)
 			}
 			log.Infof("Deleted envoy filter: %v", oldEF)
