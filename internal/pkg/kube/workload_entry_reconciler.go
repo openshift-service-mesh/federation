@@ -50,7 +50,7 @@ func (r *WorkloadEntryReconciler) GetTypeUrl() string {
 }
 
 func (r *WorkloadEntryReconciler) Reconcile(ctx context.Context) error {
-	workloadEntries, err := r.cf.GetWorkloadEntries()
+	workloadEntries, err := r.cf.WorkloadEntries()
 	if err != nil {
 		return fmt.Errorf("error generating workload entries: %w", err)
 	}

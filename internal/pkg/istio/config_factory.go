@@ -260,7 +260,7 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 	return serviceEntries, nil
 }
 
-func (cf *ConfigFactory) GetWorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
+func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 	var workloadEntries []*v1alpha3.WorkloadEntry
 	for _, importedSvc := range cf.importedServiceStore.GetAll() {
 		_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
