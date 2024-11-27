@@ -8,7 +8,7 @@ federation:
             app: federation-ingress-gateway
     remote:
       name: west
-      network: west
+      network: west-network
   exportedServiceSet:
     rules:
     - type: LabelSelector

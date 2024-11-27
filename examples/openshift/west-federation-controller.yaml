@@ -11,7 +11,7 @@ federation:
       name: east
       ingressType: openshift-router
       port: 443
-      network: east
+      network: east-network
   exportedServiceSet:
     rules:
     - type: LabelSelector
