@@ -37,12 +37,12 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/env"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/common"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/kube"
+	"github.com/openshift-service-mesh/federation/internal/pkg/networking"
 	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
@@ -233,10 +233,10 @@ func main() {
 
 		go func() {
 			log.Debugf("Resolving %s", cfg.MeshPeers.Remote.Addresses[0])
-			lastIPs := common.Resolve(cfg.MeshPeers.Remote.Addresses[0])
+			lastIPs := networking.Resolve(cfg.MeshPeers.Remote.Addresses[0])
 			for {
 				log.Debugf("Resolving %s", cfg.MeshPeers.Remote.Addresses[0])
-				ips := common.Resolve(cfg.MeshPeers.Remote.Addresses[0])
+				ips := networking.Resolve(cfg.MeshPeers.Remote.Addresses[0])
 				sort.Strings(ips)
 				if !slices.Equal(lastIPs, ips) {
 					log.Infof("IP addresses of %s have changed", cfg.MeshPeers.Remote.Addresses[0])

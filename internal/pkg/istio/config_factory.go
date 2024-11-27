@@ -29,9 +29,9 @@ import (
 	v1 "k8s.io/client-go/listers/core/v1"
 
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
-	"github.com/openshift-service-mesh/federation/internal/pkg/common"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/networking"
 )
 
 const (
@@ -297,7 +297,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 	if cf.cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
 		se.Spec = istionetv1alpha3.ServiceEntry{
 			Hosts:     []string{cf.cfg.MeshPeers.Remote.Addresses[0]},
-			Addresses: common.Resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
+			Addresses: networking.Resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
 			Ports: []*istionetv1alpha3.ServicePort{{
 				Name:     "tls-passthrough",
 				Number:   cf.cfg.MeshPeers.Remote.GetPort(),
@@ -310,7 +310,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 		se.Spec = istionetv1alpha3.ServiceEntry{
 			// TODO: this will not work for ingressType=istio when the remote address is a hostname
 			Hosts:     []string{fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", cf.cfg.MeshPeers.Remote.Name)},
-			Addresses: common.Resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
+			Addresses: networking.Resolve(cf.cfg.MeshPeers.Remote.Addresses[0]),
 			Ports: []*istionetv1alpha3.ServicePort{{
 				Name:     "grpc",
 				Number:   15080,
@@ -335,7 +335,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 func (cf *ConfigFactory) makeWorkloadEntrySpecs(ports []*v1alpha1.ServicePort, labels map[string]string) []*istionetv1alpha3.WorkloadEntry {
 	var workloadEntries []*istionetv1alpha3.WorkloadEntry
 	for _, hostnameOrIP := range cf.cfg.MeshPeers.Remote.Addresses {
-		for _, addr := range common.Resolve(hostnameOrIP) {
+		for _, addr := range networking.Resolve(hostnameOrIP) {
 			we := &istionetv1alpha3.WorkloadEntry{
 				Address: addr,
 				Network: cf.cfg.MeshPeers.Remote.Network,
