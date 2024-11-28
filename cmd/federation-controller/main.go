@@ -195,9 +195,11 @@ func main() {
 
 	var fdsClient *adsc.ADSC
 	if len(cfg.MeshPeers.Remote.Addresses) > 0 {
-		discoveryAddr := fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local:15080", cfg.MeshPeers.Remote.Name, cfg.MeshPeers.Local.ControlPlane.Namespace)
+		var discoveryAddr string
 		if cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
 			discoveryAddr = cfg.MeshPeers.Remote.Addresses[0]
+		} else {
+			discoveryAddr = fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local:15080", cfg.MeshPeers.Remote.Name, cfg.MeshPeers.Local.ControlPlane.Namespace)
 		}
 		var err error
 		fdsClient, err = adsc.New(&adsc.ADSCConfig{
