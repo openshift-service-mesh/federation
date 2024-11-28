@@ -1,0 +1,25 @@
+name: linters
+on:
+  pull_request:
+    branches:
+    - master
+jobs:
+  check-license:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Check licenses
+      run: | 
+        make add-license
+        clean=$(git status --porcelain --untracked-files=no | awk '{print $NF}')
+        if [[ -n "${clean}" ]]; then
+          files=$(printf "%s\n" "${clean}" | sed 's/^/- /')
+          {
+            echo "### :warning: Files Without License Found"
+            echo "Run `make add-license` and update your PR."
+            echo ""
+            echo "${files}"
+            echo ""
+          } >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
