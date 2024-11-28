@@ -134,20 +134,18 @@ func main() {
 	}()
 
 	var fdsClient *adsc.ADSC
-
 	remote := cfg.MeshPeers.Remote
-
 	if len(remote.Addresses) > 0 {
-		remoteName := remote.Name
 		var discoveryAddr string
-		if remote.IngressType == config.OpenShiftRouter {
-			discoveryAddr = remote.Addresses[0]
+		if networking.IsIP(remote.Addresses[0]) {
+			discoveryAddr = fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local:15080", remote.Name, cfg.MeshPeers.Local.ControlPlane.Namespace)
 		} else {
-			discoveryAddr = fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local:15080", remoteName, cfg.MeshPeers.Local.ControlPlane.Namespace)
+			discoveryAddr = fmt.Sprintf("%s:15080", remote.Addresses[0])
 		}
+
 		var err error
 		fdsClient, err = adsc.New(&adsc.ADSCConfig{
-			PeerName:      remoteName,
+			PeerName:      remote.Name,
 			DiscoveryAddr: discoveryAddr,
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
@@ -158,7 +156,7 @@ func main() {
 			ReconnectDelay: reconnectDelay,
 		})
 		if err != nil {
-			log.Fatalf("failed to create FDS client to remote %s: %v", remoteName, err)
+			log.Fatalf("failed to create FDS client to remote %s: %v", remote.Name, err)
 		}
 	}
 
@@ -168,16 +166,26 @@ func main() {
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewPeerAuthResourceReconciler(istioClient, namespace),
 	}
+	if cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
+		reconcilers = append(reconcilers, kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory))
+	}
 	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
 		routeClient, err := routev1client.NewForConfig(kubeConfig)
 		if err != nil {
 			log.Fatalf("failed to create Route client: %v", err)
 		}
 
-		reconcilers = append(reconcilers, kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory))
 		reconcilers = append(reconcilers, kube.NewEnvoyFilterReconciler(istioClient, istioConfigFactory))
 		reconcilers = append(reconcilers, kube.NewRouteReconciler(routeClient, openshift.NewConfigFactory(*cfg, serviceLister)))
+	}
 
+	rm := kube.NewReconcilerManager(meshConfigPushRequests, reconcilers...)
+	if err := rm.ReconcileAll(ctx); err != nil {
+		log.Fatalf("initial Istio resource reconciliation failed: %v", err)
+	}
+	go rm.Start(ctx)
+
+	if !networking.IsIP(cfg.MeshPeers.Remote.Addresses[0]) {
 		go func() {
 			log.Debugf("Resolving %s", remote.Addresses[0])
 			lastIPs := networking.Resolve(remote.Addresses[0])
@@ -188,19 +196,12 @@ func main() {
 				if !slices.Equal(lastIPs, ips) {
 					log.Infof("IP addresses of %s have changed", remote.Addresses[0])
 					lastIPs = ips
-					meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.ServiceEntryTypeUrl}
 					meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.WorkloadEntryTypeUrl}
 				}
 				time.Sleep(1 * time.Second)
 			}
 		}()
 	}
-
-	rm := kube.NewReconcilerManager(meshConfigPushRequests, reconcilers...)
-	if err := rm.ReconcileAll(ctx); err != nil {
-		log.Fatalf("initial Istio resource reconciliation failed: %v", err)
-	}
-	go rm.Start(ctx)
 
 	if fdsClient != nil {
 		go func() {
