@@ -18,11 +18,11 @@ import (
 	"context"
 	"fmt"
 
-	securityv1 "istio.io/api/security/v1"
-	v1beta1 "istio.io/api/type/v1beta1"
-	v1 "istio.io/client-go/pkg/apis/security/v1"
+	securityv1beta1 "istio.io/api/security/v1beta1"
+	typev1beta1 "istio.io/api/type/v1beta1"
+	"istio.io/client-go/pkg/apis/security/v1beta1"
 	applyconfigurationv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
-	applyv1 "istio.io/client-go/pkg/applyconfiguration/security/v1"
+	applyv1beta "istio.io/client-go/pkg/applyconfiguration/security/v1beta1"
 	"istio.io/istio/pkg/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -48,27 +48,27 @@ func (r *PeerAuthResourceReconciler) GetTypeUrl() string {
 }
 
 func (r *PeerAuthResourceReconciler) Reconcile(ctx context.Context) error {
-	pa := &v1.PeerAuthentication{
+	pa := &v1beta1.PeerAuthentication{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "fds-strict-mtls",
 			Namespace: r.namespace,
 			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 		},
-		Spec: securityv1.PeerAuthentication{
-			Selector: &v1beta1.WorkloadSelector{
+		Spec: securityv1beta1.PeerAuthentication{
+			Selector: &typev1beta1.WorkloadSelector{
 				MatchLabels: map[string]string{
 					"app.kubernetes.io/name": "federation-controller",
 				},
 			},
-			Mtls: &securityv1.PeerAuthentication_MutualTLS{
-				Mode: securityv1.PeerAuthentication_MutualTLS_STRICT,
+			Mtls: &securityv1beta1.PeerAuthentication_MutualTLS{
+				Mode: securityv1beta1.PeerAuthentication_MutualTLS_STRICT,
 			},
 		},
 	}
 
 	kind := "PeerAuthentication"
-	apiVersion := "security.istio.io/v1"
-	newPA, err := r.client.Istio().SecurityV1().PeerAuthentications(pa.GetNamespace()).Apply(ctx, &applyv1.PeerAuthenticationApplyConfiguration{
+	apiVersion := "security.istio.io/v1beta1"
+	newPA, err := r.client.Istio().SecurityV1beta1().PeerAuthentications(pa.GetNamespace()).Apply(ctx, &applyv1beta.PeerAuthenticationApplyConfiguration{
 		TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
 			Kind:       &kind,
 			APIVersion: &apiVersion,
