@@ -1,15 +1,14 @@
-istio:
-  spire:
-    enabled: true
 federation:
   meshPeers:
     local:
-      controlPlane:
-        namespace: istio-system
+      name: west
       gateways:
         ingress:
           selector:
             app: federation-ingress-gateway
+    remote:
+      name: east
+      network: east-network
   exportedServiceSet:
     rules:
     - type: LabelSelector

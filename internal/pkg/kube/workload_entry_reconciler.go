@@ -20,12 +20,12 @@ import (
 	"reflect"
 
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
-	applyconfigurationv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
-	v1alpha4 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
+	applymetav1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
+	applyv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 	"istio.io/istio/pkg/kube"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
@@ -50,7 +50,7 @@ func (r *WorkloadEntryReconciler) GetTypeUrl() string {
 }
 
 func (r *WorkloadEntryReconciler) Reconcile(ctx context.Context) error {
-	workloadEntries, err := r.cf.GetWorkloadEntries()
+	workloadEntries, err := r.cf.WorkloadEntries()
 	if err != nil {
 		return fmt.Errorf("error generating workload entries: %w", err)
 	}
@@ -79,12 +79,12 @@ func (r *WorkloadEntryReconciler) Reconcile(ctx context.Context) error {
 		if !ok || !reflect.DeepEqual(&oldWE.Spec, &we.Spec) {
 			// Workload entry does not currently exist or requires update
 			newWE, err := r.client.Istio().NetworkingV1alpha3().WorkloadEntries(we.GetNamespace()).Apply(ctx,
-				&v1alpha4.WorkloadEntryApplyConfiguration{
-					TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
+				&applyv1alpha3.WorkloadEntryApplyConfiguration{
+					TypeMetaApplyConfiguration: applymetav1.TypeMetaApplyConfiguration{
 						Kind:       &kind,
 						APIVersion: &apiVersion,
 					},
-					ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
+					ObjectMetaApplyConfiguration: &applymetav1.ObjectMetaApplyConfiguration{
 						Name:      &we.Name,
 						Namespace: &we.Namespace,
 						Labels:    we.Labels,
@@ -111,7 +111,7 @@ func (r *WorkloadEntryReconciler) Reconcile(ctx context.Context) error {
 	for k, oldWE := range oldWorkloadEntriesMap {
 		if _, ok := workloadEntriesMap[k]; !ok {
 			err := r.client.Istio().NetworkingV1alpha3().WorkloadEntries(oldWE.GetNamespace()).Delete(ctx, oldWE.GetName(), metav1.DeleteOptions{})
-			if err != nil && !errors.IsNotFound(err) {
+			if client.IgnoreNotFound(err) != nil {
 				return fmt.Errorf("failed to delete old workload entry: %w", err)
 			}
 			log.Infof("Deleted workload entry: %v", oldWE)

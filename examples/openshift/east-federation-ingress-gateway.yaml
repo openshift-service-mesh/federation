@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: federation-ingress-gateway
+  namespace: istio-system
+  labels:
+    app: federation-ingress-gateway
+    topology.istio.io/network: east-network
+spec:
+  type: ClusterIP
+  selector:
+    app: federation-ingress-gateway
+  ports:
+  - port: 15443
+    name: tls-passthrough
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: federation-ingress-gateway
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: federation-ingress-gateway
+  template:
+    metadata:
+      annotations:
+        inject.istio.io/templates: gateway
+      labels:
+        app: federation-ingress-gateway
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+      - name: istio-proxy
+        image: auto
+        env:
+        - name: ISTIO_META_REQUESTED_NETWORK_VIEW
+          value: east-network

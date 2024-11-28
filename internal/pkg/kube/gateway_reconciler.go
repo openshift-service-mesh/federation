@@ -46,7 +46,7 @@ func (r *GatewayResourceReconciler) GetTypeUrl() string {
 }
 
 func (r *GatewayResourceReconciler) Reconcile(ctx context.Context) error {
-	gw, err := r.cf.GetIngressGateway()
+	gw, err := r.cf.IngressGateway()
 	if err != nil {
 		return fmt.Errorf("error generating ingress gateway: %w", err)
 	}
@@ -61,6 +61,7 @@ func (r *GatewayResourceReconciler) Reconcile(ctx context.Context) error {
 		ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
 			Name:      &gw.Name,
 			Namespace: &gw.Namespace,
+			Labels:    gw.Labels,
 		},
 		Spec:   &gw.Spec,
 		Status: nil,

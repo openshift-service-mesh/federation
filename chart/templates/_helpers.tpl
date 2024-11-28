@@ -12,6 +12,10 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{- define "chart.serviceName" -}}
+{{- printf "federation-discovery-service-%s" (default .Release.Name .Values.federation.meshPeers.local.name) }}
+{{- end }}
+
 {{/*
 Common labels
 */}}

@@ -15,8 +15,7 @@
 package config
 
 const (
-	defaultDataPlanePort = 15443
-	defaultDiscoveryPort = 15080
+	defaultGatewayPort = 15443
 )
 
 type Federation struct {
@@ -32,14 +31,25 @@ type MeshPeers struct {
 }
 
 type Local struct {
+	Name         string       `json:"name"`
 	ControlPlane ControlPlane `json:"controlPlane"`
-	Gateways     Gateways     `json:"gateway"`
+	Gateways     Gateways     `json:"gateways"`
+	IngressType  IngressType  `json:"ingressType"`
 }
 
 type Remote struct {
-	Addresses []string      `json:"addresses"`
-	Ports     *GatewayPorts `json:"ports,omitempty"`
-	Network   string        `json:"network"`
+	Name        string      `json:"name"`
+	Addresses   []string    `json:"addresses"`
+	IngressType IngressType `json:"ingressType"`
+	Port        *uint32     `json:"port,omitempty"`
+	Network     string      `json:"network"`
+}
+
+func (r *Remote) GetPort() uint32 {
+	if r != nil && r.Port != nil {
+		return *r.Port
+	}
+	return defaultGatewayPort
 }
 
 type ControlPlane struct {
@@ -52,26 +62,17 @@ type Gateways struct {
 
 type LocalGateway struct {
 	Selector map[string]string `json:"selector"`
-	Ports    *GatewayPorts     `json:"ports,omitempty"`
+	Port     *GatewayPort      `json:"port,omitempty"`
+}
+
+type GatewayPort struct {
+	Name   string `json:"name"`
+	Number uint32 `json:"number"`
 }
 
 type GatewayPorts struct {
 	DataPlane uint32 `json:"dataPlane"`
 	Discovery uint32 `json:"discovery"`
-}
-
-func (g *GatewayPorts) GetDataPlanePort() uint32 {
-	if g != nil && g.DataPlane != 0 {
-		return g.DataPlane
-	}
-	return defaultDataPlanePort
-}
-
-func (g *GatewayPorts) GetDiscoveryPort() uint32 {
-	if g != nil && g.Discovery != 0 {
-		return g.Discovery
-	}
-	return defaultDiscoveryPort
 }
 
 type ExportedServiceSet struct {
@@ -104,3 +105,10 @@ type MatchExpressions struct {
 	Operator string   `json:"operator"`
 	Values   []string `json:"values"`
 }
+
+type IngressType string
+
+const (
+	Istio           IngressType = "istio"
+	OpenShiftRouter IngressType = "openshift-router"
+)
