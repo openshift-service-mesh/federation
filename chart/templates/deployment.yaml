@@ -22,7 +22,6 @@ spec:
       {{- end }}
       labels:
         {{- include "chart.labels" . | nindent 8 }}
-        app.kubernetes.io/name: federation-controller
         sidecar.istio.io/inject: "true"
     spec:
       serviceAccountName: {{ include "chart.name" . }}
