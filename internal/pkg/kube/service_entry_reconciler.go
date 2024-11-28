@@ -20,12 +20,12 @@ import (
 	"reflect"
 
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
-	applyconfigurationv1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
-	v1alpha4 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
+	applymetav1 "istio.io/client-go/pkg/applyconfiguration/meta/v1"
+	applyv1alpha3 "istio.io/client-go/pkg/applyconfiguration/networking/v1alpha3"
 	"istio.io/istio/pkg/kube"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
@@ -50,7 +50,7 @@ func (r *ServiceEntryReconciler) GetTypeUrl() string {
 }
 
 func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
-	serviceEntries, err := r.cf.GetServiceEntries()
+	serviceEntries, err := r.cf.ServiceEntries()
 	if err != nil {
 		return fmt.Errorf("error generating service entries: %w", err)
 	}
@@ -79,12 +79,12 @@ func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
 		if !ok || !reflect.DeepEqual(&oldSE.Spec, &se.Spec) {
 			// Service entry does not currently exist or requires update
 			newSE, err := r.client.Istio().NetworkingV1alpha3().ServiceEntries(se.GetNamespace()).Apply(ctx,
-				&v1alpha4.ServiceEntryApplyConfiguration{
-					TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
+				&applyv1alpha3.ServiceEntryApplyConfiguration{
+					TypeMetaApplyConfiguration: applymetav1.TypeMetaApplyConfiguration{
 						Kind:       &kind,
 						APIVersion: &apiVersion,
 					},
-					ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
+					ObjectMetaApplyConfiguration: &applymetav1.ObjectMetaApplyConfiguration{
 						Name:      &se.Name,
 						Namespace: &se.Namespace,
 						Labels:    se.Labels,
@@ -110,7 +110,7 @@ func (r *ServiceEntryReconciler) Reconcile(ctx context.Context) error {
 	for k, oldSE := range oldServiceEntriesMap {
 		if _, ok := serviceEntriesMap[k]; !ok {
 			err := r.client.Istio().NetworkingV1alpha3().ServiceEntries(oldSE.GetNamespace()).Delete(ctx, oldSE.GetName(), metav1.DeleteOptions{})
-			if err != nil && !errors.IsNotFound(err) {
+			if client.IgnoreNotFound(err) != nil {
 				return fmt.Errorf("failed to delete old service entry: %w", err)
 			}
 			log.Infof("Deleted service entry: %v", oldSE)

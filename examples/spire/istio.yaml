@@ -12,11 +12,8 @@ spec:
     - <remote_cluster_name>.local
     defaultConfig:
       proxyMetadata:
-        # Enable basic DNS proxying
         ISTIO_META_DNS_CAPTURE: "true"
         ISTIO_META_DNS_AUTO_ALLOCATE: "true"
-    outboundTrafficPolicy:
-      mode: REGISTRY_ONLY
   values:
     global:
       meshID: <local_cluster_name>-mesh
@@ -92,9 +89,6 @@ spec:
           value: <local_cluster_name>-network
         service:
           ports:
-          - name: discovery
-            port: 15080
-            targetPort: 15080
           - name: data-plane
             port: 15443
             targetPort: 15443

@@ -21,12 +21,15 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 	"time"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	routev1client "github.com/openshift/client-go/route/clientset/versioned"
 	istiokube "istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
+	"istio.io/istio/pkg/slices"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -38,6 +41,8 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/kube"
+	"github.com/openshift-service-mesh/federation/internal/pkg/networking"
+	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
@@ -132,6 +137,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create Kubernetes clientset: %v", err.Error())
 	}
+	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
+	if err != nil {
+		log.Fatalf("failed to create Istio client: %v", err)
+	}
 
 	fdsPushRequests := make(chan xds.PushRequest)
 	meshConfigPushRequests := make(chan xds.PushRequest)
@@ -148,18 +157,15 @@ func main() {
 	}
 	serviceController.RunAndWait(ctx.Done())
 
-	importedServiceStore := fds.NewImportedServiceStore()
-
-	var controllerServiceFQDN string
-	if controllerServiceFQDN = env.GetString("CONTROLLER_SERVICE_FQDN", ""); controllerServiceFQDN == "" {
-		log.Fatalf("did not find environment variable CONTROLLER_SERVICE_FQDN")
+	var namespace string
+	if namespace = env.GetString("NAMESPACE", ""); namespace == "" {
+		log.Fatalf("did not find environment variable NAMESPACE")
 	}
-	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, controllerServiceFQDN)
+	importedServiceStore := fds.NewImportedServiceStore()
+	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, namespace)
 
 	triggerFDSPushOnNewSubscription := func() {
-		fdsPushRequests <- xds.PushRequest{
-			TypeUrl: xds.ExportedServiceTypeUrl,
-		}
+		fdsPushRequests <- xds.PushRequest{TypeUrl: xds.ExportedServiceTypeUrl}
 	}
 	federationServer := adss.NewServer(
 		fdsPushRequests,
@@ -174,9 +180,15 @@ func main() {
 
 	var fdsClient *adsc.ADSC
 	if len(cfg.MeshPeers.Remote.Addresses) > 0 {
+		var discoveryAddr string
+		if cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
+			discoveryAddr = cfg.MeshPeers.Remote.Addresses[0]
+		} else {
+			discoveryAddr = fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local:15080", cfg.MeshPeers.Remote.Name, cfg.MeshPeers.Local.ControlPlane.Namespace)
+		}
 		var err error
 		fdsClient, err = adsc.New(&adsc.ADSCConfig{
-			DiscoveryAddr: fmt.Sprintf("remote-federation-controller.%s.svc.cluster.local:15080", cfg.MeshPeers.Local.ControlPlane.Namespace),
+			DiscoveryAddr: discoveryAddr,
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
@@ -190,19 +202,41 @@ func main() {
 		}
 	}
 
-	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
-	if err != nil {
-		log.Fatalf("failed to create Istio client: %v", err)
-	}
-
-	rm := kube.NewReconcilerManager(
-		meshConfigPushRequests,
+	reconcilers := []kube.Reconciler{
 		kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
 		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
-		kube.NewVirtualServiceReconciler(istioClient, istioConfigFactory),
-		kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory),
-	)
+		kube.NewPeerAuthResourceReconciler(istioClient, namespace),
+	}
+	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
+		routeClient, err := routev1client.NewForConfig(kubeConfig)
+		if err != nil {
+			log.Fatalf("failed to create Route client: %v", err)
+		}
+
+		reconcilers = append(reconcilers, kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory))
+		reconcilers = append(reconcilers, kube.NewEnvoyFilterReconciler(istioClient, istioConfigFactory))
+		reconcilers = append(reconcilers, kube.NewRouteReconciler(routeClient, openshift.NewConfigFactory(*cfg, serviceLister)))
+
+		go func() {
+			log.Debugf("Resolving %s", cfg.MeshPeers.Remote.Addresses[0])
+			lastIPs := networking.Resolve(cfg.MeshPeers.Remote.Addresses[0])
+			for {
+				log.Debugf("Resolving %s", cfg.MeshPeers.Remote.Addresses[0])
+				ips := networking.Resolve(cfg.MeshPeers.Remote.Addresses[0])
+				sort.Strings(ips)
+				if !slices.Equal(lastIPs, ips) {
+					log.Infof("IP addresses of %s have changed", cfg.MeshPeers.Remote.Addresses[0])
+					lastIPs = ips
+					meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.ServiceEntryTypeUrl}
+					meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.WorkloadEntryTypeUrl}
+				}
+				time.Sleep(1 * time.Second)
+			}
+		}()
+	}
+
+	rm := kube.NewReconcilerManager(meshConfigPushRequests, reconcilers...)
 	if err := rm.ReconcileAll(ctx); err != nil {
 		log.Fatalf("initial Istio resource reconciliation failed: %v", err)
 	}
@@ -210,9 +244,11 @@ func main() {
 
 	if fdsClient != nil {
 		go func() {
-			if err := fdsClient.Run(); err != nil {
+			if err := fdsClient.Run(ctx); err != nil {
 				log.Errorf("failed to start FDS client, will reconnect in %s: %v", reconnectDelay, err)
-				time.AfterFunc(reconnectDelay, fdsClient.Restart)
+				time.AfterFunc(reconnectDelay, func() {
+					fdsClient.Restart(ctx)
+				})
 			}
 		}()
 	}

@@ -56,5 +56,6 @@ func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
 	// TODO: push only if current state != received imported services (this can happen on reconnection)
 	h.pushRequests <- xds.PushRequest{TypeUrl: xds.ServiceEntryTypeUrl}
 	h.pushRequests <- xds.PushRequest{TypeUrl: xds.WorkloadEntryTypeUrl}
+	h.pushRequests <- xds.PushRequest{TypeUrl: xds.DestinationRuleTypeUrl}
 	return nil
 }

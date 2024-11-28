@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"math"
 	"time"
 
@@ -46,8 +45,6 @@ type ADSCConfig struct {
 
 type ADSC struct {
 	stream discovery.AggregatedDiscoveryService_StreamAggregatedResourcesClient
-	// xds client used to create a stream
-	client discovery.AggregatedDiscoveryServiceClient
 	conn   *grpc.ClientConn
 	cfg    *ADSCConfig
 }
@@ -64,27 +61,33 @@ func New(opts *ADSCConfig) (*ADSC, error) {
 	return adsc, nil
 }
 
-func (a *ADSC) Run() error {
+func (a *ADSC) Run(ctx context.Context) error {
 	var err error
-	a.client = discovery.NewAggregatedDiscoveryServiceClient(a.conn)
-	a.stream, err = a.client.StreamAggregatedResources(context.Background())
+
+	client := discovery.NewAggregatedDiscoveryServiceClient(a.conn)
+	a.stream, err = client.StreamAggregatedResources(ctx)
 	if err != nil {
 		return err
 	}
-	// Send the initial requests
+
 	for _, r := range a.cfg.InitialDiscoveryRequests {
-		_ = a.send(r)
+		if sendErr := a.send(r); sendErr != nil {
+			log.Errorf("failed sending initial discovery request: %+v", sendErr)
+		}
 	}
 
-	go a.handleRecv()
+	go a.handleRecv(ctx)
+
 	return nil
 }
 
-func (a *ADSC) Restart() {
+func (a *ADSC) Restart(ctx context.Context) {
 	log.Infof("reconnecting to ADS server %s", a.cfg.DiscoveryAddr)
-	if err := a.Run(); err != nil {
+	if err := a.Run(ctx); err != nil {
 		log.Errorf("failed to connect to ADS server %s, will reconnect in %s: %v", a.cfg.DiscoveryAddr, a.cfg.ReconnectDelay, err)
-		time.AfterFunc(a.cfg.ReconnectDelay, a.Restart)
+		time.AfterFunc(a.cfg.ReconnectDelay, func() {
+			a.Restart(ctx)
+		})
 	}
 }
 
@@ -116,13 +119,15 @@ func (a *ADSC) dial() error {
 	return nil
 }
 
-func (a *ADSC) handleRecv() {
+func (a *ADSC) handleRecv(ctx context.Context) {
 	for {
 		var err error
 		msg, err := a.stream.Recv()
 		if err != nil {
 			log.Errorf("connection closed with err: %v", err)
-			time.AfterFunc(a.cfg.ReconnectDelay, a.Restart)
+			time.AfterFunc(a.cfg.ReconnectDelay, func() {
+				a.Restart(ctx)
+			})
 			return
 		}
 		log.Infof("received response for %s: %v", msg.TypeUrl, msg.Resources)
