@@ -27,7 +27,6 @@ import (
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	routev1client "github.com/openshift/client-go/route/clientset/versioned"
-	"github.com/spf13/cobra"
 	istiokube "istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/slices"
@@ -59,35 +58,6 @@ var (
 
 const reconnectDelay = time.Second * 5
 
-// NewRootCommand returns the root cobra command of federation-controller
-func NewRootCommand() *cobra.Command {
-	rootCmd := &cobra.Command{
-		Use:          "federation-controller",
-		Short:        "Istio Federation.",
-		Long:         "Federation controller provides discovery service for Istio mesh federation.",
-		SilenceUsage: true,
-		PreRunE: func(c *cobra.Command, args []string) error {
-			c.PersistentFlags().AddGoFlagSet(flag.CommandLine)
-			return nil
-		},
-	}
-	addFlags(rootCmd)
-	return rootCmd
-}
-
-func addFlags(c *cobra.Command) {
-	// Process commandline args.
-	c.PersistentFlags().StringVar(&meshPeers, "meshPeers", "",
-		"Mesh peers that include address ip/hostname to remote Peer, and the ports for dataplane and discovery")
-	c.PersistentFlags().StringVar(&exportedServiceSet, "exportedServiceSet", "",
-		"ExportedServiceSet that include selectors to match the services that will be exported")
-	c.PersistentFlags().StringVar(&importedServiceSet, "importedServiceSet", "",
-		"ImportedServiceSet that include selectors to match the services that will be imported")
-
-	// Attach the Istio logging options to the command.
-	loggingOptions.AttachCobraFlags(c)
-}
-
 // unmarshalJSON is a utility function to unmarshal a YAML string into a struct
 // and return an error if the unmarshalling fails.
 func unmarshalJSON(input string, out interface{}) error {
@@ -97,9 +67,27 @@ func unmarshalJSON(input string, out interface{}) error {
 	return nil
 }
 
-// Parse the command line arguments by using the flag package
-// Export the parsed arguments to the AppConfig variable
-func parse() (*config.Federation, error) {
+// parseFlags parses command-line flags using the standard flag package.
+func parseFlags() {
+	flag.StringVar(&meshPeers, "meshPeers", "",
+		"Mesh peers that include address ip/hostname to remote Peer, and the ports for dataplane and discovery")
+	flag.StringVar(&exportedServiceSet, "exportedServiceSet", "",
+		"ExportedServiceSet that includes selectors to match the services that will be exported")
+	flag.StringVar(&importedServiceSet, "importedServiceSet", "",
+		"ImportedServiceSet that includes selectors to match the services that will be imported")
+
+	// Attach Istio logging options to the flag set
+	loggingOptions.AttachFlags(func(_ *[]string, _ string, _ []string, _ string) {
+		// unused and not available out-of-the box in flag package
+	},
+		flag.StringVar,
+		flag.IntVar,
+		flag.BoolVar)
+
+	flag.Parse()
+}
+
+func parseConfiguration(meshPeers, exportedServiceSet, importedServiceSet string) (*config.Federation, error) {
 	var (
 		peers    config.MeshPeers
 		exported config.ExportedServiceSet
@@ -126,20 +114,17 @@ func parse() (*config.Federation, error) {
 }
 
 func main() {
-	rootCmd := NewRootCommand()
-	if err := rootCmd.Execute(); err != nil {
-		log.Fatalf("failed to execute root command: %v", err)
-	}
-
-	cfg, err := parse()
-	if err != nil {
-		log.Fatalf("failed to parse configuration passed to the program arguments: %v", err)
-	}
-	log.Infof("Configuration: %v", cfg)
+	parseFlags()
 
 	if err := istiolog.Configure(loggingOptions); err != nil {
 		log.Fatalf("failed to configure logging options: %v", err)
 	}
+
+	cfg, err := parseConfiguration(meshPeers, exportedServiceSet, importedServiceSet)
+	if err != nil {
+		log.Fatalf("failed to parse configuration passed to the program arguments: %v", err)
+	}
+	log.Infof("Configuration: %v", cfg)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

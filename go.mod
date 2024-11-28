@@ -9,7 +9,6 @@ require (
 	github.com/envoyproxy/go-control-plane v0.12.1-0.20240415211714-57c85e1829e6
 	github.com/openshift/api v0.0.0-20240404200104-96ed2d49b255
 	github.com/openshift/client-go v0.0.0-20231212205830-0ab0864ec8c2
-	github.com/spf13/cobra v1.8.0
 	golang.org/x/net v0.27.0
 	golang.org/x/sync v0.7.0
 	google.golang.org/grpc v1.65.0
@@ -153,6 +152,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
+	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.18.2 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
