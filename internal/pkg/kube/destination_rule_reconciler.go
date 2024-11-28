@@ -69,8 +69,8 @@ func (r *DestinationRuleReconciler) Reconcile(ctx context.Context) error {
 		return fmt.Errorf("failed to list destination rules: %w", err)
 	}
 	oldDestinationRulesMap := make(map[types.NamespacedName]*v1alpha3.DestinationRule, len(oldDestinationRules.Items))
-	for _, se := range oldDestinationRules.Items {
-		oldDestinationRulesMap[types.NamespacedName{Namespace: se.Namespace, Name: se.Name}] = se
+	for _, dr := range oldDestinationRules.Items {
+		oldDestinationRulesMap[types.NamespacedName{Namespace: dr.Namespace, Name: dr.Name}] = dr
 	}
 
 	kind := "DestinationRule"
