@@ -1,16 +1,6 @@
 #!/bin/bash
 
-function upload_image {
-  local cluster=$1
-  local hub=${2:-${HUB:-quay.io/maistra-dev}}
-  local tag=${3:-${TAG:-latest}}
-
-  kind load docker-image --nodes "${cluster}-control-plane" \
-        --name "$cluster" \
-        ${hub}/federation-controller:${tag}
-}
-
-function retry {
+retry() {
   local n=1
   local max=5
   local delay=5
