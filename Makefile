@@ -1,13 +1,10 @@
 PROJECT_DIR:=$(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 OUT_DIR:=out
 
+export ISTIO_VERSION ?= 1.23.0
+
 .PHONY: default
 default: build test
-
-export HUB ?= quay.io/maistra-dev
-export TAG ?= latest
-export ISTIO_VERSION ?= 1.23.0
-export USE_LOCAL_IMAGE ?= true
 
 .PHONY: help
 help:
@@ -26,6 +23,12 @@ test: build ## Runs tests
 	go test $(PROJECT_DIR)/...
 
 CONTAINER_CLI ?= docker
+## Image settings need to be exported.
+## KinD scripts rely on them to determine which images should be used
+## and if they should be pushed to node's repository (USE_LOCAL_IMAGE).
+export USE_LOCAL_IMAGE ?= true
+export TAG ?= latest
+export HUB ?= quay.io/maistra-dev
 
 .PHONY: docker-build
 docker-build: build ## Builds container image
@@ -40,26 +43,24 @@ docker: docker-build docker-push ## Combines build and push targets
 
 ##@ Development
 
-.PHONY: kind-clusters
-kind-clusters: build-test-image ## Provisions KinD clusters for local development or testing
-	bash $(PROJECT_DIR)/test/scripts/kind_provisioner.sh $(ISTIO_VERSION)
+define local_tag
+$(TAG)$(shell [ "$(USE_LOCAL_IMAGE)" = "true" ] && echo "-local")
+endef
 
-.PHONY: build-test-image
-build-test-image: ## Builds test image
-ifeq ($(USE_LOCAL_IMAGE), true)
-	$(MAKE) docker-build -e TAG=test
-endif
+.PHONY: kind-clusters
+kind-clusters: ## Provisions KinD clusters for local development or testing
+	@local_tag=$(call local_tag); \
+	$(MAKE) docker-build -e TAG=$$local_tag; \
+	export TAG=$$local_tag; \
+	$(PROJECT_DIR)/test/scripts/kind_provisioner.sh
 
 .PHONY: e2e
 TEST_SUITES ?= k8s spire
-ifeq ($(USE_LOCAL_IMAGE),true)
-	TEST_TAG := test
-else
-	TEST_TAG := $(TAG)
-endif
-e2e: build-test-image kind-clusters ## Runs end-to-end tests against KinD clusters
-	@$(foreach suite, $(TEST_SUITES), \
-		TAG=$(TEST_TAG) go test -tags=integ -run TestTraffic $(PROJECT_DIR)/test/e2e/$(suite) \
+e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
+	@local_tag=$(call local_tag); \
+	$(foreach suite, $(TEST_SUITES), \
+		TAG=$$local_tag \
+		go test -tags=integ -run TestTraffic $(PROJECT_DIR)/test/e2e/$(suite) \
 			--istio.test.hub=docker.io/istio\
 			--istio.test.tag=$(ISTIO_VERSION)\
 			--istio.test.kube.config=$(PROJECT_DIR)/test/east.kubeconfig,$(PROJECT_DIR)/test/west.kubeconfig\
