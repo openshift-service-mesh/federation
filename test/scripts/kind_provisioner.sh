@@ -26,7 +26,7 @@ if [ "$matching_clusters" -eq 0 ]; then
   done
 
   for pid in "${pids[@]}"; do
-    wait "$pid" || echo "Process $pid failed"
+    wait "$pid" || { echo "Failed provisioning kind cluster (pid: $pid)"; exit 1; };
   done
 
 elif [ "$matching_clusters" -ne "${#clusters[@]}" ]; then
@@ -34,7 +34,6 @@ elif [ "$matching_clusters" -ne "${#clusters[@]}" ]; then
   echo "Suggested command: kind delete clusters ${clusters[*]}"
   exit 1
 fi
-
 
 USE_LOCAL_IMAGE=${USE_LOCAL_IMAGE:-false}
 if [ "$USE_LOCAL_IMAGE" == "true" ]; then
