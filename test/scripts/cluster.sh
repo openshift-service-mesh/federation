@@ -5,11 +5,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 provision_kind_cluster() {
   local cluster=$1
 
-  kind create cluster --name "$cluster" --config=<<EOF
-apiVersion: kind.x-k8s.io/v1alpha4
-kind: Cluster
-EOF
-
+  kind create cluster --name "$cluster"
   kind get kubeconfig --name "${cluster}" > $ROOT/${cluster}.kubeconfig
 
   retry install_metallb $cluster
