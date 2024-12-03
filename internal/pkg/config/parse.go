@@ -17,7 +17,7 @@ package config
 import (
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/util/json"
+	"encoding/json"
 )
 
 // ParseArgs parses input arguments passed in JSON format to the config.Federation struct.
