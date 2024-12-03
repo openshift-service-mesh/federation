@@ -91,8 +91,11 @@ $(HELM): $(LOCALBIN)
 
 $(PROTOC): $(LOCALBIN)
 	@curl -sSL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip -o $(LOCALBIN)/protoc.zip
-	@unzip -q -j -o $(LOCALBIN)/protoc.zip "bin/protoc" -d $(LOCALBIN)
+	@python3 -c "import zipfile; z=zipfile.ZipFile('$(LOCALBIN)/protoc.zip'); z.extract('bin/protoc', '$(LOCALBIN)')"
+	@mv $(LOCALBIN)/bin/protoc $(LOCALBIN)
+	@rm -rf $(LOCALBIN)/bin
 	@rm -f $(LOCALBIN)/protoc.zip
+	@chmod +x $(PROTOC)
 
 $(PROTOC_GEN_GO): $(LOCALBIN)
 	@GOBIN=$(LOCALBIN) go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
