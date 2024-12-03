@@ -56,9 +56,10 @@ kind-clusters: ## Provisions KinD clusters for local development or testing
 
 .PHONY: e2e
 TEST_SUITES ?= k8s spire
-e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
+e2e: tools kind-clusters ## Runs end-to-end tests against KinD clusters
 	@local_tag=$(call local_tag); \
 	$(foreach suite, $(TEST_SUITES), \
+		PATH=$(LOCALBIN):$$PATH \
 		TAG=$$local_tag \
 		go test -tags=integ -run TestTraffic $(PROJECT_DIR)/test/e2e/$(suite) \
 			--istio.test.hub=docker.io/istio\
