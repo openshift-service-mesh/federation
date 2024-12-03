@@ -16,12 +16,12 @@ package istio
 
 import (
 	"fmt"
-	"istio.io/istio/pkg/maps"
 	"sort"
 
 	"google.golang.org/protobuf/types/known/structpb"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
+	"istio.io/istio/pkg/maps"
 	"istio.io/istio/pkg/slices"
 	"istio.io/istio/pkg/util/protomarshal"
 	"k8s.io/apimachinery/pkg/api/errors"
