@@ -17,36 +17,44 @@ package fds
 import (
 	"sync"
 
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
 )
 
 // ImportedServiceStore is a thread-safe wrapper for current state of imported services
 type ImportedServiceStore struct {
 	mu               sync.RWMutex
-	importedServices []*v1alpha1.ExportedService
+	importedServices map[string][]*v1alpha1.ExportedService
 }
 
 func NewImportedServiceStore() *ImportedServiceStore {
 	return &ImportedServiceStore{}
 }
 
-func (s *ImportedServiceStore) Update(importedServices []*v1alpha1.ExportedService) {
+func (s *ImportedServiceStore) Update(importedServices map[string][]*v1alpha1.ExportedService) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	newImportedServices := make([]*v1alpha1.ExportedService, 0, len(importedServices))
-	for _, svc := range importedServices {
-		newImportedServices = append(newImportedServices, svc.DeepCopy())
+
+	newImportedServices := make(map[string][]*v1alpha1.ExportedService)
+	for source, services := range importedServices {
+		for _, svc := range services {
+			newImportedServices[source] = append(newImportedServices[source], svc.DeepCopy())
+		}
 	}
+
 	s.importedServices = newImportedServices
 }
 
-// GetAll returns copy of the current state
-func (s *ImportedServiceStore) GetAll() []*v1alpha1.ExportedService {
+// From returns copy of all services exported from given remote peer.
+func (s *ImportedServiceStore) From(remote config.Remote) []*v1alpha1.ExportedService {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	out := make([]*v1alpha1.ExportedService, 0, len(s.importedServices))
-	for _, svc := range s.importedServices {
+	for _, svc := range s.importedServices[remote.Name] {
 		out = append(out, svc.DeepCopy())
 	}
+
 	return out
 }

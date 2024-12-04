@@ -121,7 +121,7 @@ func (adss *adsServer) generateResources(typeUrl string) ([]*anypb.Any, error) {
 		log.Infof("Generating config snapshot for type %s", typeUrl)
 		if resources, err := handler.GenerateResponse(); err != nil {
 			log.Errorf("error generating resources of type %s: %v", typeUrl, err)
-			return []*anypb.Any{}, err
+			return []*anypb.Any{}, fmt.Errorf("error generating resources of type %s: %w", typeUrl, err)
 		} else {
 			return resources, nil
 		}

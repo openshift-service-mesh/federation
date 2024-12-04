@@ -32,6 +32,11 @@ import (
 
 var (
 	federationConfig = config.Federation{
+		MeshPeers: config.MeshPeers{
+			Local: config.Local{
+				Name: "cluster-local",
+			},
+		},
 		ExportedServiceSet: config.ExportedServiceSet{
 			Rules: []config.Rules{{
 				Type: "LabelSelector",

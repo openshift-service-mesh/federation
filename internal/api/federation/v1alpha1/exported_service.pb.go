@@ -21,10 +21,11 @@
 package v1alpha1
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -34,13 +35,15 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// ExportedService represents a service with a name and namespace.
+// ExportedService represents a service available across federated meshes with a name and namespace.
 type ExportedService struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name      string            `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Name of the exported service
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Namespace where exported service is defined
 	Namespace string            `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	Ports     []*ServicePort    `protobuf:"bytes,3,rep,name=ports,proto3" json:"ports,omitempty"`
 	Labels    map[string]string `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
