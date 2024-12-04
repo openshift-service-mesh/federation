@@ -161,8 +161,11 @@ func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
 	return gateway, nil
 }
 
+// EnvoyFilters returns patches for SNI filters matching SNIs of exported services in federation ingress gateway.
+// These patches add SNI compatible with https://datatracker.ietf.org/doc/html/rfc952 required by OpenShift Router.
+// This function returns empty list when the local ingress type is "istio".
 func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
-	if cf.cfg.MeshPeers.Remote.IngressType != config.OpenShiftRouter {
+	if cf.cfg.MeshPeers.Local.IngressType != config.OpenShiftRouter {
 		return nil
 	}
 
