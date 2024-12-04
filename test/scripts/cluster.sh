@@ -20,7 +20,7 @@ install_metallb() {
   kubectl --kubeconfig="$ROOT/$cluster.kubeconfig" wait -n metallb-system pod --timeout=120s -l app=metallb --for=condition=Ready
 
   local docker_kind_ipv4_subnet="$(docker inspect kind | jq '.[0].IPAM.Config' -r | jq -r '.[] | select(.Subnet | test("^[0-9]+\\.")) | .Subnet')"
-  local cidr=$(python3 "$ROOT/scripts/find_smaller_subnets.py" --network "$docker_kind_ipv4_subnet" --region "$cluster")
+  local cidr=$(python3 "$ROOT/scripts/find_subnets.py" --network "$docker_kind_ipv4_subnet" --region "$cluster")
 
   echo '
 apiVersion: metallb.io/v1beta1
