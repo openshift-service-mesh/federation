@@ -18,17 +18,7 @@ matching_clusters=$(echo "$all_clusters" | grep -c -E "$(printf '%s|' "${cluster
 
 if [ "$matching_clusters" -eq 0 ]; then
   echo "No required clusters found. Provisioning..."
-
-  pids=()
-  for cluster in "${clusters[@]}"; do
-    provision_kind_cluster "${cluster}" &
-    pids+=($!)
-  done
-
-  for pid in "${pids[@]}"; do
-    wait "$pid" || { echo "Failed provisioning kind cluster (pid: $pid)"; exit 1; };
-  done
-
+  provision_kind_clusters "${clusters[@]}"
 elif [ "$matching_clusters" -ne "${#clusters[@]}" ]; then
   echo "Partial cluster setup detected. Please clean up the environment and retry."
   echo "Suggested command: kind delete clusters ${clusters[*]}"

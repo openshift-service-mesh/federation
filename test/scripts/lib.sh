@@ -1,17 +1,18 @@
 #!/bin/bash
 
 retry() {
+  local command=$@
   local n=1
   local max=5
-  local delay=5
+  local delay=10
   while true; do
     "$@" && break
     if [[ $n -lt $max ]]; then
       ((n++))
-      echo "Command failed. Attempt $n/$max:"
+      echo "'$command' failed. Attempt $n/$max:"
       sleep $delay;
     else
-      echo "The command has failed after $n attempts."  >&2
+      echo "'$command' failed after $n attempts."  >&2
       return 2
     fi
   done

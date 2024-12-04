@@ -1,58 +1,47 @@
 import ipaddress
 import argparse
+import math
 import sys
 
-def find_subnet_with_required_mask(network):
+def find_subnets(network, required_subnets):
     try:
-        # Parse the network address
-        net = ipaddress.ip_network(network, strict=False)
+        # Create additional subnets to avoid overlapping
+        required_subnets += 2
+        bits_needed = math.ceil(math.log2(required_subnets))
+        
+        network = ipaddress.ip_network(network, strict=False)
 
-        # Determine the required new mask
-        current_mask = net.prefixlen
-        # We need 2 subnets, and we leave the first one to avoid potential overlapping
-        required_subnets = 4
-        new_mask = current_mask
+        new_mask = network.prefixlen + bits_needed
+        if new_mask > network.max_prefixlen:
+            raise ValueError("Cannot create that many subnets with the given network.")
 
-        # Calculate the new mask to provide at least 4 subnets
-        while (2 ** (new_mask - current_mask)) < required_subnets:
-            new_mask += 1
+        return list(network.subnets(new_prefix=new_mask))[1:required_subnets-1]
 
-        # Generate subnets with the new mask
-        subnets = list(net.subnets(new_prefix=new_mask))
-
-        # Ensure at least 4 subnets are available
-        if len(subnets) < required_subnets:
-            raise ValueError(f"Unable to create {required_subnets} subnets with mask {new_mask}.")
-
-        return subnets[1], subnets[2]
     except ValueError as e:
         print(f"Error: {e}")
-        return None
+        sys.exit(1)
 
 def main():
-    # Set up argument parsing
-    parser = argparse.ArgumentParser(description='Find a CIDR range for a given network address and mask.')
-    parser.add_argument('--network', type=str, help='The network address in CIDR notation (e.g., 172.18.0.0/16)')
-    parser.add_argument('--region', type=str, help='The k8s cluster region')
+    parser = argparse.ArgumentParser(description='Find CIDR subnets for a given network address.')
+    parser.add_argument('--network', type=str, required=True, help='The network address in CIDR notation (e.g., 172.18.0.0/16)')
+    parser.add_argument('--region', type=str, required=True, help='The k8s cluster region (e.g., west, east, etc.)')
+    parser.add_argument('--regions', nargs='+', required=True, help='Comma-separated list of regions (e.g., west,east,central)')
 
-    # Parse the arguments
     args = parser.parse_args()
 
-    if args.region != "west" and args.region != "east":
-        print(f"unknown region: {args.region}")
+    if args.region not in args.regions:
+        print(f"Unknown region: {args.region}")
         sys.exit(1)
 
-    # Find the required subnet
-    west_subnet, east_subnet = find_subnet_with_required_mask(args.network)
+    required_subnets = len(args.regions)
+    subnets = find_subnets(args.network, required_subnets)
 
-    if not west_subnet or not east_subnet:
-        print(f"failed to generate subnets: [west-subnet={west_subnet},east-subnet={east_subnet}]")
+    if not subnets or len(subnets) < required_subnets:
+        print(f"Failed to generate subnets: {subnets}")
         sys.exit(1)
 
-    if args.region == "west":
-        print(west_subnet)
-    else:
-        print(east_subnet)
+    region_index = args.regions.index(args.region)
+    print(subnets[region_index])
 
 if __name__ == "__main__":
     main()
