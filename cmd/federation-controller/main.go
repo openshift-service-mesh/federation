@@ -16,7 +16,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -58,15 +57,6 @@ var (
 
 const reconnectDelay = time.Second * 5
 
-// unmarshalJSON is a utility function to unmarshal a YAML string into a struct
-// and return an error if the unmarshalling fails.
-func unmarshalJSON(input string, out interface{}) error {
-	if err := json.Unmarshal([]byte(input), out); err != nil {
-		return fmt.Errorf("failed to unmarshal JSON: %w", err)
-	}
-	return nil
-}
-
 // parseFlags parses command-line flags using the standard flag package.
 func parseFlags() {
 	flag.StringVar(&meshPeers, "meshPeers", "",
@@ -87,32 +77,6 @@ func parseFlags() {
 	flag.Parse()
 }
 
-func parseConfiguration(meshPeers, exportedServiceSet, importedServiceSet string) (*config.Federation, error) {
-	var (
-		peers    config.MeshPeers
-		exported config.ExportedServiceSet
-		imported config.ImportedServiceSet
-	)
-
-	if err := unmarshalJSON(meshPeers, &peers); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal mesh peers: %w", err)
-	}
-	if err := unmarshalJSON(exportedServiceSet, &exported); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal exported services: %w", err)
-	}
-	if importedServiceSet != "" {
-		if err := unmarshalJSON(importedServiceSet, &imported); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal imported services: %w", err)
-		}
-	}
-
-	return &config.Federation{
-		MeshPeers:          peers,
-		ExportedServiceSet: exported,
-		ImportedServiceSet: imported,
-	}, nil
-}
-
 func main() {
 	parseFlags()
 
@@ -120,11 +84,10 @@ func main() {
 		log.Fatalf("failed to configure logging options: %v", err)
 	}
 
-	cfg, err := parseConfiguration(meshPeers, exportedServiceSet, importedServiceSet)
+	cfg, err := config.ParseArgs(meshPeers, exportedServiceSet, importedServiceSet)
 	if err != nil {
 		log.Fatalf("failed to parse configuration passed to the program arguments: %v", err)
 	}
-	log.Infof("Configuration: %v", cfg)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
