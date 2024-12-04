@@ -5,18 +5,14 @@ import sys
 
 def find_subnets(network, required_subnets):
     try:
-        # Create additional subnets to avoid overlapping
-        required_subnets += 2
-        bits_needed = math.ceil(math.log2(required_subnets))
-        
         network = ipaddress.ip_network(network, strict=False)
+        bits_needed = math.ceil(math.log2(required_subnets))
 
         new_mask = network.prefixlen + bits_needed
         if new_mask > network.max_prefixlen:
             raise ValueError("Cannot create that many subnets with the given network.")
 
-        return list(network.subnets(new_prefix=new_mask))[1:required_subnets-1]
-
+        return list(network.subnets(new_prefix=new_mask))
     except ValueError as e:
         print(f"Error: {e}")
         sys.exit(1)
