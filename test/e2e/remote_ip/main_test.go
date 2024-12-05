@@ -15,7 +15,7 @@
 //go:build integ
 // +build integ
 
-package k8s
+package remote_ip
 
 import (
 	"testing"
