@@ -39,19 +39,22 @@ func NewImportedServiceHandler(store *ImportedServiceStore, pushRequests chan<- 
 	}
 }
 
-func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
-	var importedServices []*v1alpha1.ExportedService
+func (h *ImportedServiceHandler) Handle(source string, resources []*anypb.Any) error {
+	importedServices := make(map[string][]*v1alpha1.ExportedService)
 	for _, res := range resources {
 		exportedService := &v1alpha1.ExportedService{}
 		if err := proto.Unmarshal(res.Value, exportedService); err != nil {
 			return fmt.Errorf("unable to unmarshal exported service: %w", err)
 		}
+
 		// TODO: replace with full validation that returns an error on invalid request
 		if exportedService.Name == "" || exportedService.Namespace == "" {
 			continue
 		}
-		importedServices = append(importedServices, exportedService)
+
+		importedServices[source] = append(importedServices[source], exportedService)
 	}
+
 	h.store.Update(importedServices)
 	// TODO: push only if current state != received imported services (this can happen on reconnection)
 	h.pushRequests <- xds.PushRequest{TypeUrl: xds.ServiceEntryTypeUrl}

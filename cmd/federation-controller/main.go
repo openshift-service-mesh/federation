@@ -134,15 +134,20 @@ func main() {
 	}()
 
 	var fdsClient *adsc.ADSC
-	if len(cfg.MeshPeers.Remote.Addresses) > 0 {
+
+	remote := cfg.MeshPeers.Remote
+
+	if len(remote.Addresses) > 0 {
+		remoteName := remote.Name
 		var discoveryAddr string
-		if cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
-			discoveryAddr = cfg.MeshPeers.Remote.Addresses[0]
+		if remote.IngressType == config.OpenShiftRouter {
+			discoveryAddr = remote.Addresses[0]
 		} else {
-			discoveryAddr = fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local:15080", cfg.MeshPeers.Remote.Name, cfg.MeshPeers.Local.ControlPlane.Namespace)
+			discoveryAddr = fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local:15080", remoteName, cfg.MeshPeers.Local.ControlPlane.Namespace)
 		}
 		var err error
 		fdsClient, err = adsc.New(&adsc.ADSCConfig{
+			PeerName:      remoteName,
 			DiscoveryAddr: discoveryAddr,
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
@@ -153,7 +158,7 @@ func main() {
 			ReconnectDelay: reconnectDelay,
 		})
 		if err != nil {
-			log.Fatalf("failed to create FDS client: %v", err)
+			log.Fatalf("failed to create FDS client to remote %s: %v", remoteName, err)
 		}
 	}
 
@@ -174,14 +179,14 @@ func main() {
 		reconcilers = append(reconcilers, kube.NewRouteReconciler(routeClient, openshift.NewConfigFactory(*cfg, serviceLister)))
 
 		go func() {
-			log.Debugf("Resolving %s", cfg.MeshPeers.Remote.Addresses[0])
-			lastIPs := networking.Resolve(cfg.MeshPeers.Remote.Addresses[0])
+			log.Debugf("Resolving %s", remote.Addresses[0])
+			lastIPs := networking.Resolve(remote.Addresses[0])
 			for {
-				log.Debugf("Resolving %s", cfg.MeshPeers.Remote.Addresses[0])
-				ips := networking.Resolve(cfg.MeshPeers.Remote.Addresses[0])
+				log.Debugf("Resolving %s", remote.Addresses[0])
+				ips := networking.Resolve(remote.Addresses[0])
 				sort.Strings(ips)
 				if !slices.Equal(lastIPs, ips) {
-					log.Infof("IP addresses of %s have changed", cfg.MeshPeers.Remote.Addresses[0])
+					log.Infof("IP addresses of %s have changed", remote.Addresses[0])
 					lastIPs = ips
 					meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.ServiceEntryTypeUrl}
 					meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.WorkloadEntryTypeUrl}

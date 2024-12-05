@@ -37,6 +37,7 @@ const (
 var log = istiolog.RegisterScope("adsc", "Aggregated Discovery Service Client")
 
 type ADSCConfig struct {
+	PeerName                 string
 	DiscoveryAddr            string
 	InitialDiscoveryRequests []*discovery.DiscoveryRequest
 	Handlers                 map[string]ResponseHandler
@@ -132,7 +133,7 @@ func (a *ADSC) handleRecv(ctx context.Context) {
 		}
 		log.Infof("received response for %s: %v", msg.TypeUrl, msg.Resources)
 		if handler, found := a.cfg.Handlers[msg.TypeUrl]; found {
-			if err := handler.Handle(msg.Resources); err != nil {
+			if err := handler.Handle(a.cfg.PeerName, msg.Resources); err != nil {
 				log.Infof("error handling resource %s: %v", msg.TypeUrl, err)
 			}
 		} else {

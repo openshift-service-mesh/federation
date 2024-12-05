@@ -62,7 +62,9 @@ func NewConfigFactory(
 // DestinationRules customize SNI in the client mTLS connection when the remote ingress is openshift-router,
 // because that ingress requires hosts compatible with https://datatracker.ietf.org/doc/html/rfc952.
 func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
-	if cf.cfg.MeshPeers.Remote.IngressType != config.OpenShiftRouter {
+	remote := cf.cfg.MeshPeers.Remote
+
+	if remote.IngressType != config.OpenShiftRouter {
 		return nil
 	}
 
@@ -74,24 +76,25 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 		}
 	}
 
-	host := fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", cf.cfg.MeshPeers.Remote.Name)
+	host := fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", remote.Name)
 	if cf.cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
-		host = cf.cfg.MeshPeers.Remote.Addresses[0]
+		host = remote.Addresses[0]
 	}
 
 	destinationRules := []*v1alpha3.DestinationRule{{
-		ObjectMeta: createObjectMeta(fmt.Sprintf("federation-discovery-service-%s", cf.cfg.MeshPeers.Remote.Name), "istio-system"),
+		ObjectMeta: createObjectMeta(fmt.Sprintf("federation-discovery-service-%s", remote.Name), "istio-system"),
 		Spec: istionetv1alpha3.DestinationRule{
 			Host: host,
 			TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
 				Tls: &istionetv1alpha3.ClientTLSSettings{
 					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-					Sni:  routerCompatibleSNI(fmt.Sprintf("federation-discovery-service-%s", cf.cfg.MeshPeers.Remote.Name), "istio-system", 15080),
+					Sni:  routerCompatibleSNI(fmt.Sprintf("federation-discovery-service-%s", remote.Name), "istio-system", 15080),
 				},
 			},
 		},
 	}}
-	for _, svc := range cf.importedServiceStore.GetAll() {
+
+	for _, svc := range cf.importedServiceStore.From(remote) {
 		dr := &v1alpha3.DestinationRule{
 			ObjectMeta: createObjectMeta(svc.Name, svc.Namespace),
 			Spec: istionetv1alpha3.DestinationRule{
@@ -220,12 +223,14 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 }
 
 func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
-	if len(cf.cfg.MeshPeers.Remote.Addresses) == 0 {
+	remote := cf.cfg.MeshPeers.Remote
+
+	if len(remote.Addresses) == 0 {
 		return nil, nil
 	}
 
 	serviceEntries := []*v1alpha3.ServiceEntry{cf.serviceEntryForRemoteFederationController()}
-	for _, importedSvc := range cf.importedServiceStore.GetAll() {
+	for _, importedSvc := range cf.importedServiceStore.From(remote) {
 		_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
 		if err != nil {
 			if !errors.IsNotFound(err) {
@@ -261,8 +266,11 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 }
 
 func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
+	remote := cf.cfg.MeshPeers.Remote
+
 	var workloadEntries []*v1alpha3.WorkloadEntry
-	for _, importedSvc := range cf.importedServiceStore.GetAll() {
+
+	for _, importedSvc := range cf.importedServiceStore.From(remote) {
 		_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
 		if err != nil {
 			if !errors.IsNotFound(err) {
