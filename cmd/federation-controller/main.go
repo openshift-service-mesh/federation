@@ -25,16 +25,6 @@ import (
 	"time"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	routev1client "github.com/openshift/client-go/route/clientset/versioned"
-	istiokube "istio.io/istio/pkg/kube"
-	istiolog "istio.io/istio/pkg/log"
-	"istio.io/istio/pkg/slices"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/utils/env"
-
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
@@ -45,6 +35,13 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
+	routev1client "github.com/openshift/client-go/route/clientset/versioned"
+	istiokube "istio.io/istio/pkg/kube"
+	istiolog "istio.io/istio/pkg/log"
+	"istio.io/istio/pkg/slices"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/rest"
 )
 
 var (
@@ -80,6 +77,8 @@ func parseFlags() {
 func main() {
 	parseFlags()
 
+	namespace := config.Namespace()
+
 	if err := istiolog.Configure(loggingOptions); err != nil {
 		log.Fatalf("failed to configure logging options: %v", err)
 	}
@@ -96,10 +95,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create in-cluster config: %v", err)
 	}
-	clientset, err := kubernetes.NewForConfig(kubeConfig)
-	if err != nil {
-		log.Fatalf("failed to create Kubernetes clientset: %v", err.Error())
-	}
+
 	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
 	if err != nil {
 		log.Fatalf("failed to create Istio client: %v", err)
@@ -108,7 +104,7 @@ func main() {
 	fdsPushRequests := make(chan xds.PushRequest)
 	meshConfigPushRequests := make(chan xds.PushRequest)
 
-	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
+	informerFactory := informers.NewSharedInformerFactory(istioClient.Kube(), 0)
 	serviceInformer := informerFactory.Core().V1().Services().Informer()
 	serviceLister := informerFactory.Core().V1().Services().Lister()
 	informerFactory.Start(ctx.Done())
@@ -120,10 +116,6 @@ func main() {
 	}
 	serviceController.RunAndWait(ctx.Done())
 
-	var namespace string
-	if namespace = env.GetString("NAMESPACE", ""); namespace == "" {
-		log.Fatalf("did not find environment variable NAMESPACE")
-	}
 	importedServiceStore := fds.NewImportedServiceStore()
 	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, namespace)
 
