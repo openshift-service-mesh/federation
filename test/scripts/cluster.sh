@@ -52,8 +52,6 @@ install_metallb() {
 
   local docker_kind_ipv4_subnet="$(docker inspect kind | jq '.[0].IPAM.Config' -r | jq -r '.[] | select(.Subnet | test("^[0-9]+\\.")) | .Subnet')"
   local cidr=$(python3 "$ROOT/scripts/find_subnets.py" --network "$docker_kind_ipv4_subnet" --region $cluster --regions $clusters)
-  local federation_ingress_ip=$(python3 "$ROOT/scripts/find_last_host_ip.py" --network "$cidr")
-  export "federation_ingress_ip_$cluster"="$federation_ingress_ip"
 
   echo '
 apiVersion: metallb.io/v1beta1
@@ -67,15 +65,6 @@ spec:
   avoidBuggyIPs: true
 ---
 apiVersion: metallb.io/v1beta1
-kind: IPAddressPool
-metadata:
-  name: federation-ingress-pool
-  namespace: metallb-system
-spec:
-  addresses:
-  - '"$federation_ingress_ip-$federation_ingress_ip"'
----
-apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
 metadata:
   name: default-l2
@@ -83,7 +72,6 @@ metadata:
 spec:
   ipAddressPools:
   - default-pool
-  - federation-ingress-ip
 ' | kubectl apply --kubeconfig="$ROOT/$cluster.kubeconfig" -f -
 }
 
