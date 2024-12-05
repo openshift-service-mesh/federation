@@ -33,9 +33,6 @@ spec:
         args:
         - '--meshPeers={{ .Values.federation.meshPeers | toJson }}'
         - '--exportedServiceSet={{ .Values.federation.exportedServiceSet | toJson }}'
-        env:
-        - name: NAMESPACE
-          value: {{ .Release.Namespace }}
         ports:
         - name: grpc-fds
           containerPort: 15080
