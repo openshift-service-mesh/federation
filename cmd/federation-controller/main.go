@@ -151,7 +151,8 @@ func main() {
 		}
 		var err error
 		fdsClient, err = adsc.New(&adsc.ADSCConfig{
-			DiscoveryAddr: discoveryAddr,
+			RemotePeerName: cfg.MeshPeers.Remote.Name,
+			DiscoveryAddr:  discoveryAddr,
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},

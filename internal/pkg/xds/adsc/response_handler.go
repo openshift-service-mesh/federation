@@ -14,9 +14,12 @@
 
 package adsc
 
-import "google.golang.org/protobuf/types/known/anypb"
+import (
+	"context"
+	"google.golang.org/protobuf/types/known/anypb"
+)
 
 // ResponseHandler handles response received from an XDS server.
 type ResponseHandler interface {
-	Handle(resources []*anypb.Any) error
+	Handle(ctx context.Context, resources []*anypb.Any) error
 }

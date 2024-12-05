@@ -15,6 +15,8 @@
 package fds
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"google.golang.org/protobuf/proto"
@@ -39,7 +41,12 @@ func NewImportedServiceHandler(store *ImportedServiceStore, pushRequests chan<- 
 	}
 }
 
-func (h *ImportedServiceHandler) Handle(resources []*anypb.Any) error {
+func (h *ImportedServiceHandler) Handle(ctx context.Context, resources []*anypb.Any) error {
+	sourcePeerName, found := ctx.Value("source").(string)
+	if !found {
+		return errors.New("source not found in context")
+	}
+
 	var importedServices []*v1alpha1.ExportedService
 	for _, res := range resources {
 		exportedService := &v1alpha1.ExportedService{}
