@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 		Setup(installSpire).
 		Setup(enableTrustDomainFederation).
 		Setup(common.DeployControlPlanes("spire")).
-		Setup(common.InstallOrUpgradeFederationControllers(true)).
+		Setup(common.InstallOrUpgradeFederationControllers(common.InstallOptions{EnableSpire: true})).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry
