@@ -39,6 +39,7 @@ var log = istiolog.RegisterScope("adsc", "Aggregated Discovery Service Client")
 type ADSCConfig struct {
 	PeerName                 string
 	DiscoveryAddr            string
+	Authority                string
 	InitialDiscoveryRequests []*discovery.DiscoveryRequest
 	Handlers                 map[string]ResponseHandler
 	ReconnectDelay           time.Duration
@@ -105,6 +106,7 @@ func (a *ADSC) dial() error {
 	var err error
 	a.conn, err = grpc.NewClient(
 		a.cfg.DiscoveryAddr,
+		grpc.WithAuthority(a.cfg.Authority),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithInitialWindowSize(int32(defaultInitialWindowSize)),
 		grpc.WithInitialConnWindowSize(int32(defaultInitialConnWindowSize)),

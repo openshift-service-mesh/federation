@@ -324,6 +324,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 		},
 		Spec: istionetv1alpha3.ServiceEntry{
+			Hosts: []string{fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", cf.cfg.MeshPeers.Remote.Name)},
 			Ports: []*istionetv1alpha3.ServicePort{{
 				Name:     "grpc",
 				Number:   15080,
@@ -341,10 +342,8 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 		},
 	}
 	if networking.IsIP(cf.cfg.MeshPeers.Remote.Addresses[0]) {
-		se.Spec.Hosts = []string{fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", cf.cfg.MeshPeers.Remote.Name)}
 		se.Spec.Resolution = istionetv1alpha3.ServiceEntry_STATIC
 	} else {
-		se.Spec.Hosts = []string{cf.cfg.MeshPeers.Remote.Addresses[0]}
 		se.Spec.Resolution = istionetv1alpha3.ServiceEntry_DNS
 	}
 	return se
