@@ -15,9 +15,9 @@
 package networking
 
 import (
-	"fmt"
 	"net"
 
+	"istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/slices"
 )
 
@@ -31,7 +31,7 @@ func Resolve(addrs ...string) []string {
 
 		ips, err := net.LookupIP(addr)
 		if err != nil {
-			fmt.Printf("Failed to resolve '%s': %v\n", addr, err)
+			log.Errorf("failed to resolve '%s': %v\n", addr, err)
 		}
 		stringIPs := slices.Map(ips, func(ip net.IP) string {
 			return ip.String()
