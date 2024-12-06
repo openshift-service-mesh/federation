@@ -25,6 +25,14 @@ import (
 	"time"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
+	routev1client "github.com/openshift/client-go/route/clientset/versioned"
+	istiokube "istio.io/istio/pkg/kube"
+	istiolog "istio.io/istio/pkg/log"
+	"istio.io/istio/pkg/slices"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/rest"
+
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
@@ -35,13 +43,6 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
-	routev1client "github.com/openshift/client-go/route/clientset/versioned"
-	istiokube "istio.io/istio/pkg/kube"
-	istiolog "istio.io/istio/pkg/log"
-	"istio.io/istio/pkg/slices"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/rest"
 )
 
 var (
