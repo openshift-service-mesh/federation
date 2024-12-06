@@ -109,7 +109,7 @@ func TestIngressGateway(t *testing.T) {
 		existingServices []*corev1.Service
 		expectedGateway  *v1alpha3.Gateway
 	}{{
-		name:             "found 2 services matching configured label selector",
+		name:             "federation-ingress-gateway should expose FDS and exported services",
 		existingServices: []*corev1.Service{unexportedService, exportedService1, exportedService2},
 		expectedGateway: &v1alpha3.Gateway{
 			ObjectMeta: v1.ObjectMeta{
