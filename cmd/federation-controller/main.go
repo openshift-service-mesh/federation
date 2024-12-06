@@ -139,16 +139,16 @@ func main() {
 	if len(remote.Addresses) > 0 {
 		var discoveryAddr string
 		if networking.IsIP(remote.Addresses[0]) {
-			discoveryAddr = fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local:15080", remote.Name)
+			discoveryAddr = fmt.Sprintf("%s:%d", remote.ServiceFQDN(), remote.ServicePort())
 		} else {
-			discoveryAddr = fmt.Sprintf("%s:15080", remote.Addresses[0])
+			discoveryAddr = fmt.Sprintf("%s:%d", remote.Addresses[0], remote.ServicePort())
 		}
 
 		var err error
 		fdsClient, err = adsc.New(&adsc.ADSCConfig{
 			PeerName:      remote.Name,
 			DiscoveryAddr: discoveryAddr,
-			Authority:     fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", remote.Name),
+			Authority:     remote.ServiceFQDN(),
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},

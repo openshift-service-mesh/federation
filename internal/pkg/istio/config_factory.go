@@ -77,19 +77,21 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 		}
 	}
 
-	host := fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", remote.Name)
+	var host string
 	if cf.cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
 		host = remote.Addresses[0]
+	} else {
+		host = remote.ServiceFQDN()
 	}
 
 	destinationRules := []*v1alpha3.DestinationRule{{
-		ObjectMeta: createObjectMeta(fmt.Sprintf("federation-discovery-service-%s", remote.Name), "istio-system"),
+		ObjectMeta: createObjectMeta(remote.ServiceName(), "istio-system"),
 		Spec: istionetv1alpha3.DestinationRule{
 			Host: host,
 			TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
 				Tls: &istionetv1alpha3.ClientTLSSettings{
 					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-					Sni:  routerCompatibleSNI(fmt.Sprintf("federation-discovery-service-%s", remote.Name), "istio-system", 15080),
+					Sni:  routerCompatibleSNI(remote.ServiceName(), "istio-system", remote.ServicePort()),
 				},
 			},
 		},
@@ -110,7 +112,7 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 				Port: &istionetv1alpha3.PortSelector{Number: port.Number},
 				Tls: &istionetv1alpha3.ClientTLSSettings{
 					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-					Sni:  routerCompatibleSNI(svc.Name, svc.Namespace, int32(port.Number)),
+					Sni:  routerCompatibleSNI(svc.Name, svc.Namespace, port.Number),
 				},
 			})
 		}
@@ -201,7 +203,7 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 					},
 					Patch: &istionetv1alpha3.EnvoyFilter_Patch{
 						Operation: istionetv1alpha3.EnvoyFilter_Patch_MERGE,
-						Value:     buildPatchStruct(fmt.Sprintf(`{"filter_chain_match":{"server_names":["%s"]}}`, routerCompatibleSNI(svcName, svcNamespace, port))),
+						Value:     buildPatchStruct(fmt.Sprintf(`{"filter_chain_match":{"server_names":["%s"]}}`, routerCompatibleSNI(svcName, svcNamespace, uint32(port)))),
 					},
 				}},
 			},
@@ -317,31 +319,32 @@ func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 }
 
 func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
+	remote := cf.cfg.MeshPeers.Remote
 	se := &v1alpha3.ServiceEntry{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("federation-discovery-service-%s", cf.cfg.MeshPeers.Remote.Name),
+			Name:      remote.ServiceName(),
 			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
 			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
 		},
 		Spec: istionetv1alpha3.ServiceEntry{
-			Hosts: []string{fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", cf.cfg.MeshPeers.Remote.Name)},
+			Hosts: []string{remote.ServiceFQDN()},
 			Ports: []*istionetv1alpha3.ServicePort{{
 				Name:     "grpc",
-				Number:   15080,
+				Number:   remote.ServicePort(),
 				Protocol: "GRPC",
 			}},
-			Endpoints: slices.Map(cf.cfg.MeshPeers.Remote.Addresses, func(addr string) *istionetv1alpha3.WorkloadEntry {
+			Endpoints: slices.Map(remote.Addresses, func(addr string) *istionetv1alpha3.WorkloadEntry {
 				return &istionetv1alpha3.WorkloadEntry{
 					Address: addr,
 					Labels:  map[string]string{"security.istio.io/tlsMode": "istio"},
-					Ports:   map[string]uint32{"grpc": cf.cfg.MeshPeers.Remote.GetPort()},
-					Network: cf.cfg.MeshPeers.Remote.Network,
+					Ports:   map[string]uint32{"grpc": remote.GetPort()},
+					Network: remote.Network,
 				}
 			}),
 			Location: istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
 		},
 	}
-	if networking.IsIP(cf.cfg.MeshPeers.Remote.Addresses[0]) {
+	if networking.IsIP(remote.Addresses[0]) {
 		se.Spec.Resolution = istionetv1alpha3.ServiceEntry_STATIC
 	} else {
 		se.Spec.Resolution = istionetv1alpha3.ServiceEntry_DNS
@@ -350,7 +353,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 }
 
 // routerCompatibleSNI returns SNI compatible with https://datatracker.ietf.org/doc/html/rfc952 required by OpenShift Router.
-func routerCompatibleSNI(svcName, svcNs string, port int32) string {
+func routerCompatibleSNI(svcName, svcNs string, port uint32) string {
 	return fmt.Sprintf("%s-%d.%s.svc.cluster.local", svcName, port, svcNs)
 }
 
