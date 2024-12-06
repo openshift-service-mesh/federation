@@ -58,7 +58,7 @@ var (
 	testHub = env.GetString("HUB", "quay.io/maistra-dev")
 	testTag = env.GetString("TAG", "latest")
 
-	istioVersion = env.GetString("ISTIO_VERSION", "1.22.1")
+	istioVersion = env.GetString("ISTIO_VERSION", "1.23.0")
 )
 
 const (
@@ -284,6 +284,7 @@ func DeployApps(apps *echo.Instances, targetClusterName string, ns namespace.Get
 			appConfig := echo.Config{
 				Service:   name,
 				Namespace: ns.Get(),
+				Version:   istioVersion,
 				Ports: echo.Ports{
 					ports.HTTP,
 					ports.GRPC,
