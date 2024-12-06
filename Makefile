@@ -55,7 +55,7 @@ kind-clusters: ## Provisions KinD clusters for local development or testing
 	$(PROJECT_DIR)/test/scripts/kind_provisioner.sh
 
 .PHONY: e2e
-TEST_SUITES ?= k8s spire
+TEST_SUITES ?= remote_ip remote_dns_name spire
 e2e: tools kind-clusters ## Runs end-to-end tests against KinD clusters
 	@local_tag=$(call local_tag); \
 	$(foreach suite, $(TEST_SUITES), \

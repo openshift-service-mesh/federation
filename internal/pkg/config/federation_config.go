@@ -14,6 +14,8 @@
 
 package config
 
+import "fmt"
+
 const (
 	defaultGatewayPort = 15443
 )
@@ -43,6 +45,18 @@ type Remote struct {
 	IngressType IngressType `json:"ingressType"`
 	Port        *uint32     `json:"port,omitempty"`
 	Network     string      `json:"network"`
+}
+
+func (r *Remote) ServiceName() string {
+	return fmt.Sprintf("federation-discovery-service-%s", r.Name)
+}
+
+func (r *Remote) ServiceFQDN() string {
+	return fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", r.Name)
+}
+
+func (r *Remote) ServicePort() uint32 {
+	return 15080
 }
 
 func (r *Remote) GetPort() uint32 {
