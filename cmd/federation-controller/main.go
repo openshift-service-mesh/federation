@@ -138,7 +138,7 @@ func main() {
 	if len(remote.Addresses) > 0 {
 		var discoveryAddr string
 		if networking.IsIP(remote.Addresses[0]) {
-			discoveryAddr = fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local:15080", cfg.MeshPeers.Remote.Name)
+			discoveryAddr = fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local:15080", remote.Name)
 		} else {
 			discoveryAddr = fmt.Sprintf("%s:15080", remote.Addresses[0])
 		}
@@ -147,7 +147,7 @@ func main() {
 		fdsClient, err = adsc.New(&adsc.ADSCConfig{
 			PeerName:      remote.Name,
 			DiscoveryAddr: discoveryAddr,
-			Authority:     fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", cfg.MeshPeers.Remote.Name),
+			Authority:     fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", remote.Name),
 			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
 				TypeUrl: xds.ExportedServiceTypeUrl,
 			}},
@@ -186,7 +186,7 @@ func main() {
 	}
 	go rm.Start(ctx)
 
-	if !networking.IsIP(cfg.MeshPeers.Remote.Addresses[0]) {
+	if !networking.IsIP(remote.Addresses[0]) {
 		go func() {
 			log.Debugf("Resolving %s", remote.Addresses[0])
 			lastIPs := networking.Resolve(remote.Addresses[0])
