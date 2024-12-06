@@ -213,5 +213,5 @@ func main() {
 		}()
 	}
 
-	select {}
+	<-ctx.Done()
 }
