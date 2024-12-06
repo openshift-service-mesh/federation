@@ -68,7 +68,7 @@ var (
 		},
 	}
 
-	unexportService = &corev1.Service{
+	unexportedService = &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{Name: "a", Namespace: "ns1"},
 	}
 	exportedService1 = &corev1.Service{
@@ -110,7 +110,7 @@ func TestIngressGateway(t *testing.T) {
 		expectedGateway  *v1alpha3.Gateway
 	}{{
 		name:             "found 2 services matching configured label selector",
-		existingServices: []*corev1.Service{unexportService, exportedService1, exportedService2},
+		existingServices: []*corev1.Service{unexportedService, exportedService1, exportedService2},
 		expectedGateway: &v1alpha3.Gateway{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "federation-ingress-gateway",
@@ -205,12 +205,12 @@ func TestEnvoyFilters(t *testing.T) {
 	}{{
 		name:                     "EnvoyFilters should not return filters when local ingress type is istio",
 		localIngressType:         config.Istio,
-		existingServices:         []*corev1.Service{unexportService, exportedService1},
+		existingServices:         []*corev1.Service{unexportedService, exportedService1},
 		expectedEnvoyFilterFiles: []string{},
 	}, {
 		name:                     "EnvoyFilters should return filters for exported services and FDS",
 		localIngressType:         config.OpenShiftRouter,
-		existingServices:         []*corev1.Service{unexportService, exportedService1, exportedService2},
+		existingServices:         []*corev1.Service{unexportedService, exportedService1, exportedService2},
 		expectedEnvoyFilterFiles: []string{"fds-envoy-filter.yaml", "svc1-envoy-filter.yaml", "svc2-envoy-filter.yaml"},
 	}, {
 		name:                     "EnvoyFilters should return a filter for FDS even if no service is exported",
