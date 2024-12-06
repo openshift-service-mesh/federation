@@ -77,17 +77,10 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 		}
 	}
 
-	var host string
-	if cf.cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
-		host = remote.Addresses[0]
-	} else {
-		host = remote.ServiceFQDN()
-	}
-
 	destinationRules := []*v1alpha3.DestinationRule{{
 		ObjectMeta: createObjectMeta(remote.ServiceName(), "istio-system"),
 		Spec: istionetv1alpha3.DestinationRule{
-			Host: host,
+			Host: remote.ServiceFQDN(),
 			TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
 				Tls: &istionetv1alpha3.ClientTLSSettings{
 					Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
