@@ -15,13 +15,6 @@ spec:
       {{- if .Values.istio.spire.enabled }}
         inject.istio.io/templates: "sidecar,{{ .Values.istio.spire.templateName }}"
       {{- end }}
-      {{- $addresses := .Values.federation.meshPeers.remote.addresses -}}
-      {{- $hostnameRegex := `^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z]|[A-Za-z][A-Za-z0-9\-]*[A-Za-z0-9])$` -}}
-      {{- if and (not (empty $addresses)) (regexMatch $hostnameRegex (first $addresses)) }}
-        proxy.istio.io/config: |
-          proxyMetadata:
-            ISTIO_META_DNS_AUTO_ALLOCATE: "false"
-      {{- end }}
       labels:
         {{- include "chart.labels" . | nindent 8 }}
         app.kubernetes.io/name: federation-controller
