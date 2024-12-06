@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"istio.io/api/annotation"
@@ -59,6 +60,8 @@ var (
 	testTag = env.GetString("TAG", "latest")
 
 	istioVersion = env.GetString("ISTIO_VERSION", "1.22.1")
+
+	originalCorefilesPerCluster = map[string]string{}
 )
 
 const (
@@ -235,7 +238,7 @@ func InstallOrUpgradeFederationControllers(opts InstallOptions) resource.SetupFn
 			}
 			remoteAddr := gatewayIP
 			if opts.SetRemoteDNSName {
-				remoteAddr = fmt.Sprintf("%s.nip.io", remoteAddr)
+				remoteAddr = fmt.Sprintf("ingress.%s", remoteClusterName)
 			}
 			helmUpgradeCmd := exec.Command("helm", "upgrade", "--install", "--wait",
 				"-n", "istio-system",
@@ -248,7 +251,7 @@ func InstallOrUpgradeFederationControllers(opts InstallOptions) resource.SetupFn
 				"--set", fmt.Sprintf("federation.meshPeers.local.name=%s", ClusterNames[idx]),
 				"--set", fmt.Sprintf("federation.meshPeers.remote.name=%s", remoteClusterName),
 				"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", remoteAddr),
-				"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
+				"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s-network", remoteClusterName))
 			SetEnvAndKubeConfigPath(helmUpgradeCmd, idx)
 			g.Go(func() error {
 				if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
@@ -332,4 +335,114 @@ func RemoveServiceFromClusters(name string, ns namespace.Getter, targetClusterNa
 func SetEnvAndKubeConfigPath(cmd *exec.Cmd, clusterIndex int) {
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%s/test/%s.kubeconfig", RootDir, ClusterNames[clusterIndex]))
+}
+
+func PatchCoredns(ctx resource.Context) error {
+	rolloutRestartCoredns := func(c cluster.Cluster, clusterName string) error {
+		d, err := c.Kube().AppsV1().Deployments("kube-system").Get(context.Background(), "coredns", v1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get coredns deployment (cluster=%s): %w", clusterName, err)
+		}
+
+		// Modify the Deployment's spec.template.metadata.annotations to trigger a rollout restart
+		if d.Spec.Template.Annotations == nil {
+			d.Spec.Template.Annotations = make(map[string]string)
+		}
+		d.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+
+		_, err = c.Kube().AppsV1().Deployments("kube-system").Update(context.TODO(), d, v1.UpdateOptions{})
+		if err != nil {
+			panic(err.Error())
+		}
+		return nil
+	}
+
+	hosts := map[string]string{}
+	for idx, c := range ctx.Clusters() {
+		clusterName := ClusterNames[idx]
+		if err := retry.UntilSuccess(func() error {
+			gwIP, err := GetLoadBalancerIP(c, "federation-ingress-gateway", "istio-system")
+			if err != nil {
+				return err
+			}
+			hosts[fmt.Sprintf("ingress.%s", clusterName)] = gwIP
+			return nil
+		}, retry.Timeout(3*time.Minute), retry.Delay(5*time.Second)); err != nil {
+			return err
+		}
+	}
+	for idx, c := range ctx.Clusters() {
+		clusterName := ClusterNames[idx]
+		if err := retry.UntilSuccess(func() error {
+			cm, err := c.Kube().CoreV1().ConfigMaps("kube-system").Get(context.Background(), "coredns", v1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get coredns config map (cluster=%s): %w", clusterName, err)
+			}
+			if err := updateCorefile(cm, hosts, clusterName); err != nil {
+				return err
+			}
+			_, err = c.Kube().CoreV1().ConfigMaps("kube-system").Update(context.Background(), cm, v1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to update coredns config map (cluster=%s): %w", clusterName, err)
+			}
+			return rolloutRestartCoredns(c, clusterName)
+		}); err != nil {
+			return fmt.Errorf("failed to update configmap coredns (cluster=%s): %w", clusterName, err)
+		}
+	}
+	ctx.Cleanup(func() {
+		for idx, c := range ctx.Clusters() {
+			clusterName := ClusterNames[idx]
+			if err := retry.UntilSuccess(func() error {
+				cm, err := c.Kube().CoreV1().ConfigMaps("kube-system").Get(context.Background(), "coredns", v1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to get coredns config map (cluster=%s): %w", clusterName, err)
+				}
+				cm.Data["Corefile"] = originalCorefilesPerCluster[clusterName]
+				_, err = c.Kube().CoreV1().ConfigMaps("kube-system").Update(context.Background(), cm, v1.UpdateOptions{})
+				if err != nil {
+					return err
+				}
+				return rolloutRestartCoredns(c, clusterName)
+			}); err != nil {
+				scopes.Framework.Errorf("failed to restore configmap coredns (cluster=%s): %v", clusterName, err)
+			}
+		}
+	})
+	return nil
+}
+
+func updateCorefile(coredns *corev1.ConfigMap, hosts map[string]string, clusterName string) error {
+	const hostsTemplate = `
+    hosts {
+%s
+      fallthrough
+    }`
+
+	var hostsEntries []string
+	for name, ip := range hosts {
+		hostsEntries = append(hostsEntries, fmt.Sprintf("      %s %s", ip, name))
+	}
+	hostsBlock := fmt.Sprintf(hostsTemplate, strings.Join(hostsEntries, "\n"))
+
+	corefile, ok := coredns.Data["Corefile"]
+	if !ok {
+		return fmt.Errorf("Corefile not found in coredns config map (cluster=%s)", clusterName)
+	}
+	originalCorefilesPerCluster[clusterName] = corefile
+
+	// Add the hosts block after the "ready" plugin
+	lines := strings.Split(corefile, "\n")
+	var updatedCorefile []string
+	var prevLine string
+	for _, line := range lines {
+		if strings.TrimSpace(prevLine) == "ready" {
+			updatedCorefile = append(updatedCorefile, hostsBlock)
+		}
+		updatedCorefile = append(updatedCorefile, line)
+		prevLine = line
+	}
+	coredns.Data["Corefile"] = strings.Join(updatedCorefile, "\n")
+
+	return nil
 }

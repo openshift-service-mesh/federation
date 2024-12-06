@@ -15,7 +15,7 @@
 //go:build integ
 // +build integ
 
-package remote_ip
+package remote_dns_name
 
 import (
 	"testing"
@@ -34,6 +34,7 @@ func TestMain(m *testing.M) {
 		Setup(common.RecreateControlPlaneNamespace).
 		Setup(common.CreateCACertsSecret).
 		Setup(common.DeployControlPlanes("k8s")).
+		Setup(common.PatchCoredns).
 		Setup(common.InstallOrUpgradeFederationControllers(common.InstallOptions{SetRemoteDNSName: true})).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
