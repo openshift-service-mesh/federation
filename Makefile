@@ -14,7 +14,7 @@ help:
 
 EXTRA_BUILD_ARGS?=
 .PHONY: build
-build: proto add-license ## Builds the project
+build: proto add-license fix-imports ## Builds the project
 	go get $(PROJECT_DIR)/...
 	go build -C $(PROJECT_DIR)/cmd/federation-controller -o $(PROJECT_DIR)/$(OUT_DIR)/federation-controller $(EXTRA_BUILD_ARGS)
 
