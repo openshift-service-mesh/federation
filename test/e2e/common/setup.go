@@ -66,6 +66,11 @@ const (
 	WestClusterName = "cluster-1"
 )
 
+type InstallOptions struct {
+	EnableSpire      bool
+	SetRemoteDNSName bool
+}
+
 func RecreateControlPlaneNamespace(ctx resource.Context) error {
 	createNamespace := func(cluster cluster.Cluster) error {
 		if _, err := cluster.Kube().CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
@@ -91,7 +96,7 @@ func RecreateControlPlaneNamespace(ctx resource.Context) error {
 				return fmt.Errorf("failed to delete namespace: %w", err)
 			}
 			return createNamespace(c)
-		}, retry.Timeout(30*time.Second), retry.Delay(1*time.Second)); err != nil {
+		}, retry.Timeout(3*time.Minute), retry.Delay(1*time.Second)); err != nil {
 			return err
 		}
 	}
@@ -199,7 +204,7 @@ func DeployControlPlanes(config string) resource.SetupFn {
 	}
 }
 
-func InstallOrUpgradeFederationControllers(spireEnabled bool) resource.SetupFn {
+func InstallOrUpgradeFederationControllers(opts InstallOptions) resource.SetupFn {
 	getRemoteNetworkAndIngressIP := func(ctx resource.Context, localCluster cluster.Cluster) (string, string, error) {
 		var gatewayIP string
 		var remoteClusterName string
@@ -228,6 +233,12 @@ func InstallOrUpgradeFederationControllers(spireEnabled bool) resource.SetupFn {
 			if err != nil {
 				return err
 			}
+			var remoteAddr string
+			if opts.SetRemoteDNSName {
+				remoteAddr = fmt.Sprintf("ingress.%s", remoteClusterName)
+			} else {
+				remoteAddr = gatewayIP
+			}
 			helmUpgradeCmd := exec.Command("helm", "upgrade", "--install", "--wait",
 				"-n", "istio-system",
 				"federation",
@@ -235,11 +246,11 @@ func InstallOrUpgradeFederationControllers(spireEnabled bool) resource.SetupFn {
 				fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", RootDir),
 				"--set", fmt.Sprintf("image.repository=%s/federation-controller", testHub),
 				"--set", fmt.Sprintf("image.tag=%s", testTag),
-				"--set", fmt.Sprintf("istio.spire.enabled=%t", spireEnabled),
+				"--set", fmt.Sprintf("istio.spire.enabled=%t", opts.EnableSpire),
 				"--set", fmt.Sprintf("federation.meshPeers.local.name=%s", ClusterNames[idx]),
 				"--set", fmt.Sprintf("federation.meshPeers.remote.name=%s", remoteClusterName),
-				"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", gatewayIP),
-				"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteClusterName))
+				"--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", remoteAddr),
+				"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s-network", remoteClusterName))
 			SetEnvAndKubeConfigPath(helmUpgradeCmd, idx)
 			g.Go(func() error {
 				if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {

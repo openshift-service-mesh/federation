@@ -15,7 +15,7 @@
 //go:build integ
 // +build integ
 
-package k8s
+package remote_dns_name
 
 import (
 	"testing"
@@ -24,6 +24,7 @@ import (
 	"istio.io/istio/pkg/test/framework/components/namespace"
 
 	"github.com/openshift-service-mesh/federation/test/e2e/common"
+	"github.com/openshift-service-mesh/federation/test/e2e/common/coredns"
 )
 
 func TestMain(m *testing.M) {
@@ -34,7 +35,8 @@ func TestMain(m *testing.M) {
 		Setup(common.RecreateControlPlaneNamespace).
 		Setup(common.CreateCACertsSecret).
 		Setup(common.DeployControlPlanes("k8s")).
-		Setup(common.InstallOrUpgradeFederationControllers(false)).
+		Setup(coredns.PatchHosts).
+		Setup(common.InstallOrUpgradeFederationControllers(common.InstallOptions{SetRemoteDNSName: true})).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry

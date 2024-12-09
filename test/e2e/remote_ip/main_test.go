@@ -15,7 +15,7 @@
 //go:build integ
 // +build integ
 
-package spire
+package remote_ip
 
 import (
 	"testing"
@@ -31,17 +31,16 @@ func TestMain(m *testing.M) {
 		NewSuite(m).
 		RequireMinClusters(2).
 		RequireMaxClusters(2).
-		Setup(installSpireCRDs).
-		Setup(installSpire).
-		Setup(enableTrustDomainFederation).
-		Setup(common.DeployControlPlanes("spire")).
-		Setup(common.InstallOrUpgradeFederationControllers(common.InstallOptions{EnableSpire: true})).
+		Setup(common.RecreateControlPlaneNamespace).
+		Setup(common.CreateCACertsSecret).
+		Setup(common.DeployControlPlanes("k8s")).
+		Setup(common.InstallOrUpgradeFederationControllers(common.InstallOptions{})).
 		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry
 		// c - service available only in west cluster - covers importing with ServiceEntry
-		Setup(common.DeployApps(&common.EastApps, common.EastClusterName, namespace.Future(&common.AppNs), true, "a", "b")).
-		Setup(common.DeployApps(&common.WestApps, common.WestClusterName, namespace.Future(&common.AppNs), true, "b", "c")).
+		Setup(common.DeployApps(&common.EastApps, common.EastClusterName, namespace.Future(&common.AppNs), false, "a", "b")).
+		Setup(common.DeployApps(&common.WestApps, common.WestClusterName, namespace.Future(&common.AppNs), false, "b", "c")).
 		// c must be removed from the east cluster, because we want to test importing a service
 		// that exists only in the remote cluster.
 		Setup(common.RemoveServiceFromClusters("c", namespace.Future(&common.AppNs), common.EastClusterName)).
