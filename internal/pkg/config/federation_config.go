@@ -52,7 +52,7 @@ func (r *Remote) ServiceName() string {
 }
 
 func (r *Remote) ServiceFQDN() string {
-	return fmt.Sprintf("federation-discovery-service-%s.istio-system.svc.cluster.local", r.Name)
+	return fmt.Sprintf("%s.istio-system.svc.cluster.local", r.ServiceName())
 }
 
 func (r *Remote) ServicePort() uint32 {
