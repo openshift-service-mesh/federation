@@ -233,9 +233,11 @@ func InstallOrUpgradeFederationControllers(opts InstallOptions) resource.SetupFn
 			if err != nil {
 				return err
 			}
-			remoteAddr := gatewayIP
+			var remoteAddr string
 			if opts.SetRemoteDNSName {
 				remoteAddr = fmt.Sprintf("ingress.%s", remoteClusterName)
+			} else {
+				remoteAddr = gatewayIP
 			}
 			helmUpgradeCmd := exec.Command("helm", "upgrade", "--install", "--wait",
 				"-n", "istio-system",
