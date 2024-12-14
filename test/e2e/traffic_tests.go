@@ -15,12 +15,15 @@
 //go:build integ
 // +build integ
 
-package common
+package e2e
 
 import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/openshift-service-mesh/federation/test/e2e/setup"
 
 	"google.golang.org/grpc/codes"
 	"istio.io/istio/pkg/test/echo/common/scheme"
@@ -31,43 +34,26 @@ import (
 	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
 	"istio.io/istio/pkg/test/framework/components/echo/match"
 	"istio.io/istio/pkg/test/util/retry"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const strictMTLS = `
-apiVersion: security.istio.io/v1
-kind: PeerAuthentication
-metadata:
-  name: default
-spec:
-  mtls:
-    mode: STRICT
-`
-
 func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
-	for _, c := range ctx.Clusters() {
-		if err := c.ApplyYAMLContents("istio-system", strictMTLS); err != nil {
-			t.Errorf("failed to apply peer authentication in cluster %s: %v", c.Name(), err)
-		}
-	}
-
-	a := match.ServiceName(echo.NamespacedName{Name: "a", Namespace: AppNs}).GetMatches(EastApps)
+	a := match.ServiceName(echo.NamespacedName{Name: "a", Namespace: setup.Namespace}).GetMatches(setup.Clusters.East.Apps)
 	if len(a) == 0 {
 		ctx.Fatalf("failed to find a match for a")
 	}
 
 	ctx.NewSubTest("requests to b should be routed only to local instances").Run(func(ctx framework.TestContext) {
 		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fmt.Sprintf("b.%s.svc.cluster.local", AppNs.Name()),
+			Address: fmt.Sprintf("b.%s.svc.cluster.local", setup.Namespace.Name()),
 			Port:    ports.HTTP,
-			Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), cluster.Clusters{ctx.Clusters().GetByName(EastClusterName)})),
+			Check:   check.And(check.OK(), check.ReachedClusters(ctx.AllClusters(), cluster.Clusters{setup.Clusters.East})),
 			Count:   5,
 		})
 	})
 
-	ctx.NewSubTest("requests to c should fail").Run(func(ctx framework.TestContext) {
+	ctx.NewSubTest("requests to c should fail before exporting").Run(func(ctx framework.TestContext) {
 		res, err := a[0].Call(echo.CallOptions{
-			Address: fmt.Sprintf("c.%s.svc.cluster.local", AppNs.Name()),
+			Address: fmt.Sprintf("c.%s.svc.cluster.local", setup.Namespace.Name()),
 			Port:    ports.HTTP,
 		})
 		if err == nil || res.Responses.Len() != 0 {
@@ -75,11 +61,12 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 		}
 	})
 
-	if err := exportService(ctx.Clusters().GetByName(WestClusterName), "b", AppNs.Name()); err != nil {
-		t.Errorf("failed to export service b in cluster %s: %v", WestClusterName, err)
+	if err := setup.Clusters.West.ExportService("b", setup.Namespace.Name()); err != nil {
+		t.Error(err)
 	}
-	if err := exportService(ctx.Clusters().GetByName(WestClusterName), "c", AppNs.Name()); err != nil {
-		t.Errorf("failed to export service c in cluster %s: %v", WestClusterName, err)
+
+	if err := setup.Clusters.West.ExportService("c", setup.Namespace.Name()); err != nil {
+		t.Error(err)
 	}
 
 	ctx.NewSubTest("requests to b should be routed to local and remote instances").Run(func(ctx framework.TestContext) {
@@ -87,9 +74,9 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 			return check.And(statusCheck, check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters()))
 		}
 		for _, host := range []string{
-			fmt.Sprintf("b.%s", AppNs.Name()),
-			fmt.Sprintf("b.%s.svc", AppNs.Name()),
-			fmt.Sprintf("b.%s.svc.cluster.local", AppNs.Name()),
+			fmt.Sprintf("b.%s", setup.Namespace.Name()),
+			fmt.Sprintf("b.%s.svc", setup.Namespace.Name()),
+			fmt.Sprintf("b.%s.svc.cluster.local", setup.Namespace.Name()),
 		} {
 			a[0].CallOrFail(t, echo.CallOptions{
 				Address: host,
@@ -128,8 +115,8 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 	// is generated from those hostnames, and at the same time, east-west gateways configure SNI routing
 	// only for FQDNs, so mTLS connections to <service-name>.<namespace> or <service-name>.<namespace>.svc
 	// fail, because there are no filters matching such SNIs.
-	ctx.NewSubTest("requests to c should succeed").Run(func(ctx framework.TestContext) {
-		fqdnC := fmt.Sprintf("c.%s.svc.cluster.local", AppNs.Name())
+	ctx.NewSubTest("requests to c should succeed when using FQDN").Run(func(ctx framework.TestContext) {
+		fqdnC := fmt.Sprintf("c.%s.svc.cluster.local", setup.Namespace.Name())
 		a[0].CallOrFail(t, echo.CallOptions{
 			Address: fqdnC,
 			Port:    ports.HTTP,
@@ -159,17 +146,17 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 
 func exportService(c cluster.Cluster, svcName, svcNs string) error {
 	if err := retry.UntilSuccess(func() error {
-		svc, err := c.Kube().CoreV1().Services(svcNs).Get(context.Background(), svcName, v1.GetOptions{})
+		svc, err := c.Kube().CoreV1().Services(svcNs).Get(context.Background(), svcName, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to get service %s/%s: %w", svcNs, svcName, err)
 		}
 		svc.Labels["export-service"] = "true"
-		_, err = c.Kube().CoreV1().Services(svcNs).Update(context.Background(), svc, v1.UpdateOptions{})
+		_, err = c.Kube().CoreV1().Services(svcNs).Update(context.Background(), svc, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to update service %s/%s: %w", svcNs, svcName, err)
 		}
 		return nil
-	}); err != nil {
+	}, retry.Timeout(30*time.Second), retry.Delay(200*time.Millisecond)); err != nil {
 		return fmt.Errorf("failed to export service %s/%s: %w", svcNs, svcName, err)
 	}
 	return nil

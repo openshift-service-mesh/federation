@@ -15,15 +15,18 @@
 //go:build integ
 // +build integ
 
-package remote_ip
+package remote_dns_name
 
 import (
 	"testing"
 
+	"github.com/openshift-service-mesh/federation/test/e2e"
+	"github.com/openshift-service-mesh/federation/test/e2e/setup"
+
+	"github.com/openshift-service-mesh/federation/test/e2e/setup/coredns"
+
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/namespace"
-
-	"github.com/openshift-service-mesh/federation/test/e2e/common"
 )
 
 func TestMain(m *testing.M) {
@@ -31,24 +34,28 @@ func TestMain(m *testing.M) {
 		NewSuite(m).
 		RequireMinClusters(2).
 		RequireMaxClusters(2).
-		Setup(common.RecreateControlPlaneNamespace).
-		Setup(common.CreateCACertsSecret).
-		Setup(common.DeployControlPlanes("k8s")).
-		Setup(common.InstallOrUpgradeFederationControllers(common.InstallOptions{})).
-		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
+		Setup(setup.RecreateControlPlaneNamespace).
+		Setup(setup.CreateCACertsSecret).
+		Setup(setup.DeployControlPlanes("k8s")).
+		Setup(coredns.PatchHosts).
+		Setup(setup.InstallOrUpgradeFederationControllers(setup.RemoteAddressDNSName{})).
+		Setup(namespace.Setup(&setup.Namespace, namespace.Config{Prefix: "app", Inject: true})).
 		// a - client
 		// b - service available in east and west clusters - covers importing with WorkloadEntry
 		// c - service available only in west cluster - covers importing with ServiceEntry
-		Setup(common.DeployApps(&common.EastApps, common.EastClusterName, namespace.Future(&common.AppNs), false, "a", "b")).
-		Setup(common.DeployApps(&common.WestApps, common.WestClusterName, namespace.Future(&common.AppNs), false, "b", "c")).
+		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "a", setup.WithAllPorts{})).
+		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithAllPorts{})).
+		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithAllPorts{})).
+		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "c", setup.WithAllPorts{})).
 		// c must be removed from the east cluster, because we want to test importing a service
 		// that exists only in the remote cluster.
-		Setup(common.RemoveServiceFromClusters("c", namespace.Future(&common.AppNs), common.EastClusterName)).
+		Setup(setup.RemoveServiceFromClusters("c", namespace.Future(&setup.Namespace), &setup.Clusters.East)).
+		Setup(setup.EnsureStrictMutualTLS).
 		Run()
 }
 
 func TestTraffic(t *testing.T) {
 	framework.NewTest(t).Run(func(ctx framework.TestContext) {
-		common.RunTrafficTests(t, ctx)
+		e2e.RunTrafficTests(t, ctx)
 	})
 }

@@ -20,10 +20,11 @@ package spire
 import (
 	"testing"
 
+	"github.com/openshift-service-mesh/federation/test/e2e"
+	"github.com/openshift-service-mesh/federation/test/e2e/setup"
+
 	"istio.io/istio/pkg/test/framework"
 	"istio.io/istio/pkg/test/framework/components/namespace"
-
-	"github.com/openshift-service-mesh/federation/test/e2e/common"
 )
 
 func TestMain(m *testing.M) {
@@ -34,22 +35,22 @@ func TestMain(m *testing.M) {
 		Setup(installSpireCRDs).
 		Setup(installSpire).
 		Setup(enableTrustDomainFederation).
-		Setup(common.DeployControlPlanes("spire")).
-		Setup(common.InstallOrUpgradeFederationControllers(common.InstallOptions{EnableSpire: true})).
-		Setup(namespace.Setup(&common.AppNs, namespace.Config{Prefix: "app", Inject: true})).
-		// a - client
-		// b - service available in east and west clusters - covers importing with WorkloadEntry
-		// c - service available only in west cluster - covers importing with ServiceEntry
-		Setup(common.DeployApps(&common.EastApps, common.EastClusterName, namespace.Future(&common.AppNs), true, "a", "b")).
-		Setup(common.DeployApps(&common.WestApps, common.WestClusterName, namespace.Future(&common.AppNs), true, "b", "c")).
+		Setup(setup.DeployControlPlanes("spire")).
+		Setup(setup.InstallOrUpgradeFederationControllers(setup.WithSpire{})).
+		Setup(namespace.Setup(&setup.Namespace, namespace.Config{Prefix: "app", Inject: true})).
+		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "a", setup.WithAllPorts{}, setup.WithSpire{})).
+		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithAllPorts{}, setup.WithSpire{})).
+		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithAllPorts{}, setup.WithSpire{})).
+		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "c", setup.WithAllPorts{}, setup.WithSpire{})).
 		// c must be removed from the east cluster, because we want to test importing a service
 		// that exists only in the remote cluster.
-		Setup(common.RemoveServiceFromClusters("c", namespace.Future(&common.AppNs), common.EastClusterName)).
+		Setup(setup.RemoveServiceFromClusters("c", namespace.Future(&setup.Namespace), &setup.Clusters.East)).
+		Setup(setup.EnsureStrictMutualTLS).
 		Run()
 }
 
 func TestTraffic(t *testing.T) {
 	framework.NewTest(t).Run(func(ctx framework.TestContext) {
-		common.RunTrafficTests(t, ctx)
+		e2e.RunTrafficTests(t, ctx)
 	})
 }
