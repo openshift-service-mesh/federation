@@ -83,7 +83,7 @@ e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
 	$(foreach suite, $(TEST_SUITES), \
 		PATH=$(LOCALBIN):$$PATH \
 		TAG=$$local_tag \
-		go test -tags=integ -run TestTraffic $(PROJECT_DIR)/test/e2e/$(suite) \
+		go test -tags=integ -run TestTraffic $(PROJECT_DIR)/test/e2e/scenarios/$(suite) \
 			--istio.test.hub=docker.io/istio\
 			--istio.test.tag=$(ISTIO_VERSION)\
 			--istio.test.kube.config=$(PROJECT_DIR)/test/east.kubeconfig,$(PROJECT_DIR)/test/west.kubeconfig\
