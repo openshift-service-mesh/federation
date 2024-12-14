@@ -23,14 +23,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openshift-service-mesh/federation/test/e2e/setup"
+
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/resource"
 	"istio.io/istio/pkg/test/scopes"
 	"istio.io/istio/pkg/test/util/retry"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/openshift-service-mesh/federation/test/e2e/common"
 )
 
 var originalCorefilesPerCluster = map[string]string{}
@@ -40,10 +40,11 @@ var originalCorefilesPerCluster = map[string]string{}
 // This function restores the original state of the coredns config maps.
 func PatchHosts(ctx resource.Context) error {
 	hosts := map[string]string{}
-	for idx, c := range ctx.Clusters() {
-		clusterName := common.ClusterNames[idx]
+	for _, c := range ctx.Clusters() {
+		appCluster := setup.Resolve(c)
+		clusterName := appCluster.ContextName
 		if err := retry.UntilSuccess(func() error {
-			gwIP, err := common.GetLoadBalancerIP(c, "federation-ingress-gateway", "istio-system")
+			gwIP, err := setup.GetLoadBalancerIP(c, "federation-ingress-gateway", "istio-system")
 			if err != nil {
 				return err
 			}
@@ -53,8 +54,10 @@ func PatchHosts(ctx resource.Context) error {
 			return err
 		}
 	}
-	for idx, c := range ctx.Clusters() {
-		clusterName := common.ClusterNames[idx]
+
+	for _, c := range ctx.Clusters() {
+		appCluster := setup.Resolve(c)
+		clusterName := appCluster.ContextName
 		if err := retry.UntilSuccess(func() error {
 			cm, err := c.Kube().CoreV1().ConfigMaps("kube-system").Get(context.Background(), "coredns", v1.GetOptions{})
 			if err != nil {
@@ -67,14 +70,17 @@ func PatchHosts(ctx resource.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to update coredns config map (cluster=%s): %w", clusterName, err)
 			}
+
 			return rolloutRestartDeployment(c, clusterName)
 		}); err != nil {
 			return fmt.Errorf("failed to update configmap coredns (cluster=%s): %w", clusterName, err)
 		}
 	}
+
 	ctx.Cleanup(func() {
-		for idx, c := range ctx.Clusters() {
-			clusterName := common.ClusterNames[idx]
+		for _, c := range ctx.Clusters() {
+			appCluster := setup.Resolve(c)
+			clusterName := appCluster.ContextName
 			if err := retry.UntilSuccess(func() error {
 				cm, err := c.Kube().CoreV1().ConfigMaps("kube-system").Get(context.Background(), "coredns", v1.GetOptions{})
 				if err != nil {
