@@ -12,7 +12,7 @@ rules:
 - apiGroups: ["security.istio.io"]
   resources: ["peerauthentications"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
-{{- if eq .Values.federation.meshPeers.remote.ingressType "openshift-router" }}
+{{- if (include "remotes.hasOpenshiftRouterPeer" .) }}
 - apiGroups: ["networking.istio.io"]
   resources: ["destinationrules"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]

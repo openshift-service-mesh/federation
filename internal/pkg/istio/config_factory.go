@@ -63,7 +63,7 @@ func NewConfigFactory(
 // DestinationRules customize SNI in the client mTLS connection when the remote ingress is openshift-router,
 // because that ingress requires hosts compatible with https://datatracker.ietf.org/doc/html/rfc952.
 func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
-	remote := cf.cfg.MeshPeers.Remote
+	remote := cf.cfg.MeshPeers.Remotes[0]
 
 	if remote.IngressType != config.OpenShiftRouter {
 		return nil
@@ -222,14 +222,15 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 }
 
 func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
-	remote := cf.cfg.MeshPeers.Remote
+
+	remote := cf.cfg.MeshPeers.Remotes[0]
 
 	if len(remote.Addresses) == 0 {
 		return nil, nil
 	}
 
 	var resolution istionetv1alpha3.ServiceEntry_Resolution
-	if networking.IsIP(cf.cfg.MeshPeers.Remote.Addresses[0]) {
+	if networking.IsIP(remote.Addresses[0]) {
 		resolution = istionetv1alpha3.ServiceEntry_STATIC
 	} else {
 		resolution = istionetv1alpha3.ServiceEntry_DNS
@@ -261,12 +262,12 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 				Spec: istionetv1alpha3.ServiceEntry{
 					Hosts: []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
 					Ports: ports,
-					Endpoints: slices.Map(cf.cfg.MeshPeers.Remote.Addresses, func(addr string) *istionetv1alpha3.WorkloadEntry {
+					Endpoints: slices.Map(remote.Addresses, func(addr string) *istionetv1alpha3.WorkloadEntry {
 						return &istionetv1alpha3.WorkloadEntry{
 							Address: addr,
 							Labels:  maps.MergeCopy(importedSvc.Labels, map[string]string{"security.istio.io/tlsMode": "istio"}),
-							Ports:   makePortsMap(importedSvc.Ports, cf.cfg.MeshPeers.Remote.GetPort()),
-							Network: cf.cfg.MeshPeers.Remote.Network,
+							Ports:   makePortsMap(importedSvc.Ports, remote.GetPort()),
+							Network: remote.Network,
 						}
 					}),
 					Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
@@ -279,7 +280,7 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 }
 
 func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
-	remote := cf.cfg.MeshPeers.Remote
+	remote := cf.cfg.MeshPeers.Remotes[0]
 
 	var workloadEntries []*v1alpha3.WorkloadEntry
 
@@ -291,7 +292,7 @@ func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 			}
 		} else {
 			// Service already exists - create WorkloadEntries.
-			for idx, ip := range networking.Resolve(cf.cfg.MeshPeers.Remote.Addresses...) {
+			for idx, ip := range networking.Resolve(remote.Addresses...) {
 				workloadEntries = append(workloadEntries, &v1alpha3.WorkloadEntry{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      fmt.Sprintf("import-%s-%d", importedSvc.Name, idx),
@@ -301,8 +302,8 @@ func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 					Spec: istionetv1alpha3.WorkloadEntry{
 						Address: ip,
 						Labels:  maps.MergeCopy(importedSvc.Labels, map[string]string{"security.istio.io/tlsMode": "istio"}),
-						Ports:   makePortsMap(importedSvc.Ports, cf.cfg.MeshPeers.Remote.GetPort()),
-						Network: cf.cfg.MeshPeers.Remote.Network,
+						Ports:   makePortsMap(importedSvc.Ports, remote.GetPort()),
+						Network: remote.Network,
 					},
 				})
 			}
@@ -312,7 +313,7 @@ func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 }
 
 func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.ServiceEntry {
-	remote := cf.cfg.MeshPeers.Remote
+	remote := cf.cfg.MeshPeers.Remotes[0]
 	se := &v1alpha3.ServiceEntry{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      remote.ServiceName(),

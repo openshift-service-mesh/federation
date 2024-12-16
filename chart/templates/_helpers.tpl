@@ -35,3 +35,17 @@ Selector labels
 app.kubernetes.io/name: {{ include "chart.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Checks if any of the remotes have ingress type of openshift-router
+*/}}
+{{- define "remotes.hasOpenshiftRouterPeer" -}}
+{{- $remotes := .Values.federation.meshPeers.remotes | default list -}}
+{{- $found := false -}}
+{{- range $remotes }}
+  {{- if eq .ingressType "openshift-router" }}
+    {{- $found = true -}}
+  {{- end }}
+{{- end }}
+{{- $found -}}
+{{- end -}}

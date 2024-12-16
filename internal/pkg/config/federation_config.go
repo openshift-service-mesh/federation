@@ -27,9 +27,8 @@ type Federation struct {
 }
 
 type MeshPeers struct {
-	Local Local `json:"local"`
-	// TODO: This should be a list of Remote objects
-	Remote Remote `json:"remote"`
+	Local   Local    `json:"local"`
+	Remotes []Remote `json:"remotes"`
 }
 
 type Local struct {
@@ -52,6 +51,7 @@ func (r *Remote) ServiceName() string {
 }
 
 func (r *Remote) ServiceFQDN() string {
+	// TODO(multi-peer) use namespace from identity
 	return fmt.Sprintf("%s.istio-system.svc.cluster.local", r.ServiceName())
 }
 
