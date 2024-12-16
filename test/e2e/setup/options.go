@@ -37,7 +37,9 @@ type DeployOption interface {
 }
 
 // WithSpire configures spire integration for the deployed app.
-type WithSpire struct{}
+type WithSpire struct {
+	NoClusterArgs
+}
 
 func (w WithSpire) ApplyToEcho(appConfig *echo.Config) {
 	appConfig.Subsets = []echo.SubsetConfig{{
@@ -61,28 +63,54 @@ func (a WithAllPorts) ApplyToEcho(appConfig *echo.Config) {
 
 // CtrlOption can alter how federation controller is configured.
 type CtrlOption interface {
-	ApplyToCmd(remoteCluster *Cluster, args []string) ([]string, error)
+	ApplyGlobalArgs(args []string) ([]string, error)
+	ApplyRemoteClusterArgs(c cluster.Clusters, args []string) ([]string, error)
 }
 
-type RemoteAddressDNSName struct{}
+type NoGlobalArgs struct{}
 
-func (r RemoteAddressDNSName) ApplyToCmd(remoteCluster *Cluster, args []string) ([]string, error) {
-	return append(args, "--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=ingress.%s", remoteCluster.ContextName)), nil
+func (n NoGlobalArgs) ApplyGlobalArgs(args []string) ([]string, error) {
+	return args, nil
 }
 
-func (w WithSpire) ApplyToCmd(_ *Cluster, args []string) ([]string, error) {
+type NoClusterArgs struct{}
+
+func (n NoClusterArgs) ApplyRemoteClusterArgs(_ cluster.Clusters, args []string) ([]string, error) {
+	return args, nil
+}
+
+type RemoteAddressDNSName struct {
+	NoGlobalArgs
+}
+
+func (r RemoteAddressDNSName) ApplyRemoteClusterArgs(clusters cluster.Clusters, args []string) ([]string, error) {
+	for idx, c := range clusters {
+		remoteCluster := Resolve(c)
+		args = append(args, "--set", fmt.Sprintf("federation.meshPeers.remotes[%d].addresses[0]=ingress.%s", idx, remoteCluster.ContextName))
+	}
+
+	return args, nil
+}
+
+func (w WithSpire) ApplyGlobalArgs(args []string) ([]string, error) {
 	return append(args, "--set", "istio.spire.enabled=true"), nil
 }
 
-type RemoteAddressIngressIP struct{}
+type RemoteAddressIngressIP struct {
+	NoGlobalArgs
+}
 
-func (r RemoteAddressIngressIP) ApplyToCmd(remoteCluster *Cluster, args []string) ([]string, error) {
-	ips, err := getIngressIPs([]cluster.Cluster{remoteCluster.Cluster})
+func (r RemoteAddressIngressIP) ApplyRemoteClusterArgs(clusters cluster.Clusters, args []string) ([]string, error) {
+	ips, err := getIngressIPs(clusters)
 	if err != nil {
 		return nil, err
 	}
 
-	return append(args, "--set", fmt.Sprintf("federation.meshPeers.remote.addresses[0]=%s", ips[remoteCluster.Name()])), nil
+	for idx, c := range clusters {
+		args = append(args, "--set", fmt.Sprintf("federation.meshPeers.remotes[%d].addresses[0]=%s", idx, ips[c.Name()]))
+	}
+
+	return args, nil
 }
 
 func getIngressIPs(clusters cluster.Clusters) (map[string]string, error) {

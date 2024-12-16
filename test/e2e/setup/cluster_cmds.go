@@ -24,14 +24,15 @@ import (
 	"os/exec"
 	"time"
 
-	"istio.io/istio/pkg/test/util/retry"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
+	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/components/echo"
 	"istio.io/istio/pkg/test/framework/components/echo/deployment"
 	"istio.io/istio/pkg/test/framework/components/istioctl"
 	"istio.io/istio/pkg/test/framework/components/namespace"
 	"istio.io/istio/pkg/test/framework/resource"
+	"istio.io/istio/pkg/test/util/retry"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift-service-mesh/federation/test"
 )
@@ -41,7 +42,7 @@ import (
 // See DeployOption.
 func (c *Cluster) DeployEcho(ns namespace.Getter, name string, opts ...DeployOption) resource.SetupFn {
 	return func(ctx resource.Context) error {
-		targetCluster := ctx.Clusters().GetByName(c.internalName)
+		targetCluster := ctx.Clusters().GetByName(c.InternalName())
 		appConfig := echo.Config{
 			Service:   name,
 			Namespace: ns.Get(),
@@ -92,19 +93,7 @@ func (c *Cluster) Command(name string, arg ...string) *exec.Cmd {
 	return cmd
 }
 
-func (c *Cluster) ConfigureFederationCtrl(remoteCluster *Cluster, options ...CtrlOption) ([]byte, error) {
-	args := []string{"upgrade", "--install", "--wait",
-		"-n", "istio-system",
-		"federation",
-		fmt.Sprintf("%s/chart", test.ProjectRoot()),
-		fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", test.ProjectRoot()),
-		"--set", fmt.Sprintf("image.repository=%s/federation-controller", TestHub),
-		"--set", fmt.Sprintf("image.tag=%s", TestTag),
-		"--set", fmt.Sprintf("federation.meshPeers.local.name=%s", c.ContextName),
-		// TODO this will be a loop
-		"--set", fmt.Sprintf("federation.meshPeers.remote.name=%s", remoteCluster.ContextName),
-		"--set", fmt.Sprintf("federation.meshPeers.remote.network=%s", remoteCluster.NetworkName())}
-
+func (c *Cluster) ConfigureFederationCtrl(remoteClusters cluster.Clusters, options ...CtrlOption) ([]byte, error) {
 	addressOptionDefined := false
 	for _, option := range options {
 		switch option.(type) {
@@ -115,16 +104,44 @@ func (c *Cluster) ConfigureFederationCtrl(remoteCluster *Cluster, options ...Ctr
 	}
 
 	if !addressOptionDefined {
-		options = append(options, RemoteAddressIngressIP{})
+		options = append(options, RemoteAddressIngressIP{}) // default address mapping for remote peers
+	}
+
+	args := []string{"upgrade", "--install", "--wait",
+		"-n", "istio-system",
+		"federation",
+		fmt.Sprintf("%s/chart", test.ProjectRoot()),
+		fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", test.ProjectRoot()),
+		"--set", fmt.Sprintf("image.repository=%s/federation-controller", TestHub),
+		"--set", fmt.Sprintf("image.tag=%s", TestTag),
+		"--set", fmt.Sprintf("federation.meshPeers.local.name=%s", c.ContextName),
 	}
 
 	var err error
+
 	for _, option := range options {
-		args, err = option.ApplyToCmd(remoteCluster, args)
+		args, err = option.ApplyGlobalArgs(args)
 		if err != nil {
 			return nil, err
 		}
 	}
+
+	for idx, c := range remoteClusters {
+		remoteCluster := Resolve(c)
+		args = append(args,
+			"--set", fmt.Sprintf("federation.meshPeers.remotes[%d].name=%s", idx, remoteCluster.ContextName),
+			"--set", fmt.Sprintf("federation.meshPeers.remotes[%d].network=%s", idx, remoteCluster.NetworkName()),
+		)
+	}
+
+	for _, option := range options {
+		args, err = option.ApplyRemoteClusterArgs(remoteClusters, args)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	fmt.Printf("%+v\n", args)
 
 	helmUpgradeCmd := c.Command("helm", args...)
 
