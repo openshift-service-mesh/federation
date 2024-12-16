@@ -73,11 +73,14 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 		reachedAllClusters := func(statusCheck echo.Checker) echo.Checker {
 			return check.And(statusCheck, check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters()))
 		}
-		for _, host := range []string{
+
+		hosts := []string{
 			fmt.Sprintf("b.%s", setup.Namespace.Name()),
 			fmt.Sprintf("b.%s.svc", setup.Namespace.Name()),
 			fmt.Sprintf("b.%s.svc.cluster.local", setup.Namespace.Name()),
-		} {
+		}
+
+		for _, host := range hosts {
 			a[0].CallOrFail(t, echo.CallOptions{
 				Address: host,
 				Port:    ports.HTTP,
