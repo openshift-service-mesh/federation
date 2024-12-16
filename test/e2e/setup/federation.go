@@ -28,14 +28,9 @@ func InstallOrUpgradeFederationControllers(options ...CtrlOption) resource.Setup
 	return func(ctx resource.Context) error {
 		for _, c := range ctx.Clusters() {
 			localCluster := Resolve(c)
-			for _, r := range ctx.Clusters().Exclude(localCluster) {
-				remoteCluster := Resolve(r)
-
-				// TODO multi-remotes
-				if out, err := localCluster.ConfigureFederationCtrl(remoteCluster, options...); err != nil {
-					return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %w", localCluster.ContextName, string(out), err)
-				}
-
+			remoteClusters := ctx.Clusters().Exclude(localCluster)
+			if out, err := localCluster.ConfigureFederationCtrl(remoteClusters, options...); err != nil {
+				return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %w", localCluster.ContextName, string(out), err)
 			}
 		}
 

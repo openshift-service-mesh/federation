@@ -135,7 +135,8 @@ func main() {
 	}()
 
 	var fdsClient *adsc.ADSC
-	remote := cfg.MeshPeers.Remote
+	remote := cfg.MeshPeers.Remotes[0]
+
 	if len(remote.Addresses) > 0 {
 		var discoveryAddr string
 		if networking.IsIP(remote.Addresses[0]) {
@@ -168,9 +169,11 @@ func main() {
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewPeerAuthResourceReconciler(istioClient, namespace),
 	}
-	if cfg.MeshPeers.Remote.IngressType == config.OpenShiftRouter {
+
+	if remote.IngressType == config.OpenShiftRouter {
 		reconcilers = append(reconcilers, kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory))
 	}
+
 	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
 		routeClient, err := routev1client.NewForConfig(kubeConfig)
 		if err != nil {

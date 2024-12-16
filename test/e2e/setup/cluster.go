@@ -39,12 +39,16 @@ var (
 // to interact with  the cluster for federation test cases.
 type Cluster struct {
 	cluster.Cluster
-	// internalName is assigned by Istio Test Framework when loading KUBECONFIG
-	// passed through CLI flags. There is currently no way to alternate those.
-	// Names are following a pattern of `cluster-%d` in order of passed KUBECONFIGs.
-	internalName,
 	ContextName string
-	Apps echo.Instances
+	index       int
+	Apps        echo.Instances
+}
+
+// InternalName is assigned by Istio Test Framework when loading KUBECONFIG
+// passed through CLI flags. There is currently no way to alternate those.
+// Names are following a pattern of `cluster-%d` in order of passed KUBECONFIGs.
+func (c *Cluster) InternalName() string {
+	return fmt.Sprintf("cluster-%d", c.index)
 }
 
 var Clusters = struct {
@@ -52,12 +56,12 @@ var Clusters = struct {
 	West Cluster
 }{
 	East: Cluster{
-		internalName: "cluster-0",
-		ContextName:  "east",
+		index:       0,
+		ContextName: "east",
 	},
 	West: Cluster{
-		internalName: "cluster-1",
-		ContextName:  "west",
+		index:       1,
+		ContextName: "west",
 	},
 }
 
@@ -75,8 +79,8 @@ func Resolve(c cluster.Cluster) *Cluster {
 // clustersByName keeps reference to clusters used in testing by their internal
 // names (cluster-%d).
 var clustersByName = map[string]*Cluster{
-	Clusters.East.internalName: &Clusters.East,
-	Clusters.West.internalName: &Clusters.West,
+	Clusters.East.InternalName(): &Clusters.East,
+	Clusters.West.InternalName(): &Clusters.West,
 }
 
 const strictMTLS = `
