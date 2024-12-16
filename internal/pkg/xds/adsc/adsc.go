@@ -90,6 +90,11 @@ func (a *ADSC) Restart(ctx context.Context) {
 	if err := a.Run(ctx); err != nil {
 		a.log.Errorf("failed to connect to ADS server %s, will reconnect in %s: %v", a.cfg.DiscoveryAddr, a.cfg.ReconnectDelay, err)
 		time.AfterFunc(a.cfg.ReconnectDelay, func() {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				a.log.Infof("Parent ctx is done: %v", ctxErr)
+				return
+			}
+
 			a.Restart(ctx)
 		})
 	}
@@ -125,23 +130,31 @@ func (a *ADSC) dial() error {
 }
 
 func (a *ADSC) handleRecv(ctx context.Context) {
+
+loop:
 	for {
-		var err error
-		msg, err := a.stream.Recv()
-		if err != nil {
-			a.log.Errorf("connection closed with err: %v", err)
-			time.AfterFunc(a.cfg.ReconnectDelay, func() {
-				a.Restart(ctx)
-			})
-			return
-		}
-		a.log.Infof("received response for %s: %v", msg.TypeUrl, msg.Resources)
-		if handler, found := a.cfg.Handlers[msg.TypeUrl]; found {
-			if err := handler.Handle(a.cfg.PeerName, msg.Resources); err != nil {
-				a.log.Infof("error handling resource %s: %v", msg.TypeUrl, err)
+		select {
+		case <-ctx.Done():
+			break loop
+		default:
+
+			var err error
+			msg, err := a.stream.Recv()
+			if err != nil {
+				a.log.Errorf("connection closed with err: %v", err)
+				time.AfterFunc(a.cfg.ReconnectDelay, func() {
+					a.Restart(ctx)
+				})
+				return
 			}
-		} else {
-			a.log.Infof("no handler found for type: %s", msg.TypeUrl)
+			a.log.Infof("received response for %s: %v", msg.TypeUrl, msg.Resources)
+			if handler, found := a.cfg.Handlers[msg.TypeUrl]; found {
+				if err := handler.Handle(a.cfg.PeerName, msg.Resources); err != nil {
+					a.log.Infof("error handling resource %s: %v", msg.TypeUrl, err)
+				}
+			} else {
+				a.log.Infof("no handler found for type: %s", msg.TypeUrl)
+			}
 		}
 	}
 }

@@ -24,6 +24,8 @@ import (
 	"syscall"
 	"time"
 
+	v1 "k8s.io/client-go/listers/core/v1"
+
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	routev1client "github.com/openshift/client-go/route/clientset/versioned"
 	istiokube "istio.io/istio/pkg/kube"
@@ -78,8 +80,6 @@ func parseFlags() {
 func main() {
 	parseFlags()
 
-	namespace := config.Namespace()
-
 	if err := istiolog.Configure(loggingOptions); err != nil {
 		log.Fatalf("failed to configure logging options: %v", err)
 	}
@@ -87,6 +87,10 @@ func main() {
 	cfg, err := config.ParseArgs(meshPeers, exportedServiceSet, importedServiceSet)
 	if err != nil {
 		log.Fatalf("failed to parse configuration passed to the program arguments: %v", err)
+	}
+
+	if errValidation := config.ValidateRemotes(cfg.MeshPeers.Remotes...); errValidation != nil {
+		log.Fatalf("misconfigured remote: %v", errValidation)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -117,52 +121,32 @@ func main() {
 	}
 	serviceController.RunAndWait(ctx.Done())
 
+	startFederationServer(ctx, cfg, serviceLister, fdsPushRequests)
+
+	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
+		go resolveRemoteIP(ctx, cfg.MeshPeers.Remotes, meshConfigPushRequests)
+	}
+
 	importedServiceStore := fds.NewImportedServiceStore()
+	for _, remote := range cfg.MeshPeers.Remotes {
+		startFDSClient(ctx, remote, meshConfigPushRequests, importedServiceStore)
+	}
+
+	startReconciler(ctx, kubeConfig, cfg, serviceLister, meshConfigPushRequests, importedServiceStore)
+
+	<-ctx.Done()
+}
+
+// FIXME: lengthy as hell
+func startReconciler(ctx context.Context, kubeConfig *rest.Config, cfg *config.Federation, serviceLister v1.ServiceLister, meshConfigPushRequests chan xds.PushRequest, importedServiceStore *fds.ImportedServiceStore) {
+	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
+	if err != nil {
+		log.Fatalf("failed to create Istio client: %v", err)
+	}
+
+	namespace := cfg.Namespace()
+
 	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, namespace)
-
-	triggerFDSPushOnNewSubscription := func() {
-		fdsPushRequests <- xds.PushRequest{TypeUrl: xds.ExportedServiceTypeUrl}
-	}
-	federationServer := adss.NewServer(
-		fdsPushRequests,
-		triggerFDSPushOnNewSubscription,
-		fds.NewExportedServicesGenerator(*cfg, serviceLister),
-	)
-	go func() {
-		if err := federationServer.Run(ctx); err != nil {
-			log.Fatalf("failed to start FDS server: %v", err)
-		}
-	}()
-
-	var fdsClient *adsc.ADSC
-	remote := cfg.MeshPeers.Remotes[0]
-
-	if len(remote.Addresses) > 0 {
-		var discoveryAddr string
-		if networking.IsIP(remote.Addresses[0]) {
-			discoveryAddr = fmt.Sprintf("%s:%d", remote.ServiceFQDN(), remote.ServicePort())
-		} else {
-			discoveryAddr = fmt.Sprintf("%s:%d", remote.Addresses[0], remote.ServicePort())
-		}
-
-		var err error
-		fdsClient, err = adsc.New(&adsc.ADSCConfig{
-			PeerName:      remote.Name,
-			DiscoveryAddr: discoveryAddr,
-			Authority:     remote.ServiceFQDN(),
-			InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
-				TypeUrl: xds.ExportedServiceTypeUrl,
-			}},
-			Handlers: map[string]adsc.ResponseHandler{
-				xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, meshConfigPushRequests),
-			},
-			ReconnectDelay: reconnectDelay,
-		})
-		if err != nil {
-			log.Fatalf("failed to create FDS client to remote %s: %v", remote.Name, err)
-		}
-	}
-
 	reconcilers := []kube.Reconciler{
 		kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
 		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
@@ -170,7 +154,7 @@ func main() {
 		kube.NewPeerAuthResourceReconciler(istioClient, namespace),
 	}
 
-	if remote.IngressType == config.OpenShiftRouter {
+	if cfg.MeshPeers.AnyRemotePeerWithOpenshiftRouterIngress() {
 		reconcilers = append(reconcilers, kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory))
 	}
 
@@ -188,36 +172,99 @@ func main() {
 	if err := rm.ReconcileAll(ctx); err != nil {
 		log.Fatalf("initial Istio resource reconciliation failed: %v", err)
 	}
+
 	go rm.Start(ctx)
+}
 
-	if !networking.IsIP(remote.Addresses[0]) {
-		go func() {
-			log.Debugf("Resolving %s", remote.Addresses[0])
-			lastIPs := networking.Resolve(remote.Addresses[0])
-			for {
-				log.Debugf("Resolving %s", remote.Addresses[0])
-				ips := networking.Resolve(remote.Addresses[0])
-				sort.Strings(ips)
-				if !slices.Equal(lastIPs, ips) {
-					log.Infof("IP addresses of %s have changed", remote.Addresses[0])
-					lastIPs = ips
-					meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.WorkloadEntryTypeUrl}
+func startFederationServer(ctx context.Context, cfg *config.Federation, serviceLister v1.ServiceLister, fdsPushRequests chan xds.PushRequest) {
+	triggerFDSPushOnNewSubscription := func() {
+		fdsPushRequests <- xds.PushRequest{TypeUrl: xds.ExportedServiceTypeUrl}
+	}
+
+	federationServer := adss.NewServer(
+		fdsPushRequests,
+		triggerFDSPushOnNewSubscription,
+		fds.NewExportedServicesGenerator(*cfg, serviceLister),
+	)
+
+	go func() {
+		if err := federationServer.Run(ctx); err != nil {
+			log.Fatalf("failed to start FDS server: %v", err)
+		}
+	}()
+}
+
+func resolveRemoteIP(ctx context.Context, remotes []config.Remote, meshConfigPushRequests chan xds.PushRequest) {
+	var prevIPs []string
+	for _, remote := range remotes {
+		prevIPs = append(prevIPs, networking.Resolve(remote.Addresses[0])...)
+	}
+
+	resolveIPs := func() {
+		var currIPs []string
+		for _, remote := range remotes {
+			log.Debugf("Resolving %s", remote.Name)
+			currIPs = append(currIPs, networking.Resolve(remote.Addresses[0])...)
+		}
+
+		sort.Strings(currIPs)
+		if !slices.Equal(prevIPs, currIPs) {
+			log.Infof("IP addresses have changed")
+			prevIPs = currIPs
+			meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.WorkloadEntryTypeUrl}
+		}
+	}
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+resolveLoop:
+	for {
+		select {
+		case <-ctx.Done():
+			break resolveLoop
+		case <-ticker.C:
+			resolveIPs()
+		}
+	}
+
+}
+
+func startFDSClient(ctx context.Context, remote config.Remote, meshConfigPushRequests chan xds.PushRequest, importedServiceStore *fds.ImportedServiceStore) {
+	var discoveryAddr string
+	if networking.IsIP(remote.Addresses[0]) {
+		discoveryAddr = fmt.Sprintf("%s:%d", remote.ServiceFQDN(), remote.ServicePort())
+	} else {
+		discoveryAddr = fmt.Sprintf("%s:%d", remote.Addresses[0], remote.ServicePort())
+	}
+
+	fdsClient, errNew := adsc.New(&adsc.ADSCConfig{
+		PeerName:      remote.Name,
+		DiscoveryAddr: discoveryAddr,
+		Authority:     remote.ServiceFQDN(),
+		InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
+			TypeUrl: xds.ExportedServiceTypeUrl,
+		}},
+		Handlers: map[string]adsc.ResponseHandler{
+			xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, meshConfigPushRequests),
+		},
+		ReconnectDelay: reconnectDelay,
+	})
+	if errNew != nil {
+		log.Fatalf("failed to create FDS client: %v", errNew)
+	}
+
+	go func() {
+		if errRun := fdsClient.Run(ctx); errRun != nil {
+			log.Errorf("failed to start FDS client, will reconnect in %s: %v", reconnectDelay, errRun)
+			time.AfterFunc(reconnectDelay, func() {
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					log.Infof("Parent ctx is done: %v", ctxErr)
+					return
 				}
-				time.Sleep(1 * time.Second)
-			}
-		}()
-	}
 
-	if fdsClient != nil {
-		go func() {
-			if err := fdsClient.Run(ctx); err != nil {
-				log.Errorf("failed to start FDS client, will reconnect in %s: %v", reconnectDelay, err)
-				time.AfterFunc(reconnectDelay, func() {
-					fdsClient.Restart(ctx)
-				})
-			}
-		}()
-	}
-
-	<-ctx.Done()
+				fdsClient.Restart(ctx)
+			})
+		}
+	}()
 }
