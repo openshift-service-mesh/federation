@@ -16,6 +16,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"encoding/json"
 )
@@ -47,9 +48,13 @@ func ParseArgs(meshPeers, exportedServiceSet, importedServiceSet string) (*Feder
 	}, nil
 }
 
-func unmarshalJSON(input string, out interface{}) error {
-	if err := json.Unmarshal([]byte(input), out); err != nil {
+func unmarshalJSON(input string, out any) error {
+	dec := json.NewDecoder(strings.NewReader(input))
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(&out); err != nil {
 		return fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
+
 	return nil
 }
