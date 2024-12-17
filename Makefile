@@ -86,8 +86,8 @@ e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
 		go test -tags=integ -run TestTraffic $(PROJECT_DIR)/test/e2e/scenarios/$(suite) \
 			--istio.test.hub=docker.io/istio\
 			--istio.test.tag=$(ISTIO_VERSION)\
-			--istio.test.kube.config=$(PROJECT_DIR)/test/east.kubeconfig,$(PROJECT_DIR)/test/west.kubeconfig\
-			--istio.test.kube.networkTopology=0:east-network,1:west-network\
+			--istio.test.kube.config=$(PROJECT_DIR)/test/east.kubeconfig,$(PROJECT_DIR)/test/west.kubeconfig,$(PROJECT_DIR)/test/central.kubeconfig\
+			--istio.test.kube.networkTopology=0:east-network,1:west-network,2:central-network\
 			--istio.test.onlyWorkloads=standard; \
 	)
 

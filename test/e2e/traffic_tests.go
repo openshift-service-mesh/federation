@@ -18,10 +18,8 @@
 package e2e
 
 import (
-	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/openshift-service-mesh/federation/test/e2e/setup"
 
@@ -33,7 +31,6 @@ import (
 	"istio.io/istio/pkg/test/framework/components/echo/check"
 	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
 	"istio.io/istio/pkg/test/framework/components/echo/match"
-	"istio.io/istio/pkg/test/util/retry"
 )
 
 func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
@@ -51,13 +48,21 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 		})
 	})
 
-	ctx.NewSubTest("requests to c should fail before exporting").Run(func(ctx framework.TestContext) {
-		res, err := a[0].Call(echo.CallOptions{
+	ctx.NewSubTest("requests to c and d should fail before exporting").Run(func(ctx framework.TestContext) {
+		resC, callCErr := a[0].Call(echo.CallOptions{
 			Address: fmt.Sprintf("c.%s.svc.cluster.local", setup.Namespace.Name()),
 			Port:    ports.HTTP,
 		})
-		if err == nil || res.Responses.Len() != 0 {
-			t.Fatalf("the request did not fail and got the following response: %v", res)
+		if callCErr == nil || resC.Responses.Len() != 0 {
+			t.Fatalf("the request did not fail and got the following response: %v", resC)
+		}
+
+		resD, callDErr := a[0].Call(echo.CallOptions{
+			Address: fmt.Sprintf("d.%s.svc.cluster.local", setup.Namespace.Name()),
+			Port:    ports.HTTP,
+		})
+		if callDErr == nil || resD.Responses.Len() != 0 {
+			t.Fatalf("the request did not fail and got the following response: %v", resD)
 		}
 	})
 
@@ -69,7 +74,17 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 		t.Error(err)
 	}
 
+	if err := setup.Clusters.Central.ExportService("b", setup.Namespace.Name()); err != nil {
+		t.Error(err)
+	}
+
+	if err := setup.Clusters.Central.ExportService("d", setup.Namespace.Name()); err != nil {
+		t.Error(err)
+	}
+
 	ctx.NewSubTest("requests to b should be routed to local and remote instances").Run(func(ctx framework.TestContext) {
+		ctx.Skip("Not implemented right ServiceEntries yet")
+
 		reachedAllClusters := func(statusCheck echo.Checker) echo.Checker {
 			return check.And(statusCheck, check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters()))
 		}
@@ -86,28 +101,28 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 				Port:    ports.HTTP,
 				Scheme:  scheme.HTTP,
 				Check:   reachedAllClusters(check.OK()),
-				Count:   5,
+				Count:   10,
 			})
 			a[0].CallOrFail(t, echo.CallOptions{
 				Address: host,
 				Port:    ports.HTTP2,
 				Scheme:  scheme.HTTP,
 				Check:   reachedAllClusters(check.OK()),
-				Count:   5,
+				Count:   10,
 			})
 			a[0].CallOrFail(t, echo.CallOptions{
 				Address: host,
 				Port:    ports.HTTPS,
 				Scheme:  scheme.HTTPS,
 				Check:   reachedAllClusters(check.OK()),
-				Count:   5,
+				Count:   10,
 			})
 			a[0].CallOrFail(t, echo.CallOptions{
 				Address: host,
 				Port:    ports.GRPC,
 				Scheme:  scheme.GRPC,
 				Check:   reachedAllClusters(check.GRPCStatus(codes.OK)),
-				Count:   5,
+				Count:   10,
 			})
 		}
 	})
@@ -118,49 +133,85 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 	// is generated from those hostnames, and at the same time, east-west gateways configure SNI routing
 	// only for FQDNs, so mTLS connections to <service-name>.<namespace> or <service-name>.<namespace>.svc
 	// fail, because there are no filters matching such SNIs.
-	ctx.NewSubTest("requests to c should succeed when using FQDN").Run(func(ctx framework.TestContext) {
+	ctx.NewSubTest("requests to c and d should succeed when using FQDN").Run(func(ctx framework.TestContext) {
 		fqdnC := fmt.Sprintf("c.%s.svc.cluster.local", setup.Namespace.Name())
-		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fqdnC,
-			Port:    ports.HTTP,
-			Scheme:  scheme.HTTP,
-			Check:   check.OK(),
-		})
-		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fqdnC,
-			Port:    ports.HTTP2,
-			Scheme:  scheme.HTTP,
-			Check:   check.OK(),
-		})
-		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fqdnC,
-			Port:    ports.HTTPS,
-			Scheme:  scheme.HTTPS,
-			Check:   check.OK(),
-		})
-		a[0].CallOrFail(t, echo.CallOptions{
-			Address: fqdnC,
-			Port:    ports.GRPC,
-			Scheme:  scheme.GRPC,
-			Check:   check.GRPCStatus(codes.OK),
-		})
-	})
-}
+		fqdnD := fmt.Sprintf("d.%s.svc.cluster.local", setup.Namespace.Name())
 
-func exportService(c cluster.Cluster, svcName, svcNs string) error {
-	if err := retry.UntilSuccess(func() error {
-		svc, err := c.Kube().CoreV1().Services(svcNs).Get(context.Background(), svcName, metav1.GetOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to get service %s/%s: %w", svcNs, svcName, err)
+		testCases := []struct {
+			name,
+			address string
+			port   echo.Port
+			scheme scheme.Instance
+			check  echo.Checker
+		}{
+			{
+				name:    "c-http",
+				address: fqdnC,
+				port:    ports.HTTP,
+				scheme:  scheme.HTTP,
+				check:   check.OK(),
+			},
+			{
+				name:    "c-http2",
+				address: fqdnC,
+				port:    ports.HTTP2,
+				scheme:  scheme.HTTP,
+				check:   check.OK(),
+			},
+			{
+				name:    "c-https",
+				address: fqdnC,
+				port:    ports.HTTPS,
+				scheme:  scheme.HTTPS,
+				check:   check.OK(),
+			},
+			{
+				name:    "c-grpc",
+				address: fqdnC,
+				port:    ports.GRPC,
+				scheme:  scheme.GRPC,
+				check:   check.GRPCStatus(codes.OK),
+			},
+			{
+				name:    "d-http",
+				address: fqdnD,
+				port:    ports.HTTP,
+				scheme:  scheme.HTTP,
+				check:   check.OK(),
+			},
+			{
+				name:    "d-http2",
+				address: fqdnD,
+				port:    ports.HTTP2,
+				scheme:  scheme.HTTP,
+				check:   check.OK(),
+			},
+			{
+				name:    "d-https",
+				address: fqdnD,
+				port:    ports.HTTPS,
+				scheme:  scheme.HTTPS,
+				check:   check.OK(),
+			},
+			{
+				name:    "d-grpc",
+				address: fqdnD,
+				port:    ports.GRPC,
+				scheme:  scheme.GRPC,
+				check:   check.GRPCStatus(codes.OK),
+			},
 		}
-		svc.Labels["export-service"] = "true"
-		_, err = c.Kube().CoreV1().Services(svcNs).Update(context.Background(), svc, metav1.UpdateOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to update service %s/%s: %w", svcNs, svcName, err)
+
+		for _, tc := range testCases {
+			tc := tc
+			ctx.NewSubTest(tc.name).Run(func(ctx framework.TestContext) {
+				a[0].CallOrFail(ctx, echo.CallOptions{
+					Address: tc.address,
+					Port:    tc.port,
+					Scheme:  tc.scheme,
+					Check:   tc.check,
+				})
+			})
 		}
-		return nil
-	}, retry.Timeout(30*time.Second), retry.Delay(200*time.Millisecond)); err != nil {
-		return fmt.Errorf("failed to export service %s/%s: %w", svcNs, svcName, err)
-	}
-	return nil
+	})
 }

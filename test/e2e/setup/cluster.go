@@ -51,8 +51,17 @@ func (c *Cluster) InternalName() string {
 	return fmt.Sprintf("cluster-%d", c.index)
 }
 
+// clustersByName keeps reference to clusters used in testing by their internal
+// names (cluster-%d).
+var clustersByName = map[string]*Cluster{
+	Clusters.East.InternalName():    &Clusters.East,
+	Clusters.West.InternalName():    &Clusters.West,
+	Clusters.Central.InternalName(): &Clusters.Central,
+}
+
 var Clusters = struct {
 	East,
+	Central,
 	West Cluster
 }{
 	East: Cluster{
@@ -62,6 +71,10 @@ var Clusters = struct {
 	West: Cluster{
 		index:       1,
 		ContextName: "west",
+	},
+	Central: Cluster{
+		index:       2,
+		ContextName: "central",
 	},
 }
 
@@ -74,13 +87,6 @@ func Resolve(c cluster.Cluster) *Cluster {
 	resolvedCluster.Cluster = c
 
 	return resolvedCluster
-}
-
-// clustersByName keeps reference to clusters used in testing by their internal
-// names (cluster-%d).
-var clustersByName = map[string]*Cluster{
-	Clusters.East.InternalName(): &Clusters.East,
-	Clusters.West.InternalName(): &Clusters.West,
 }
 
 const strictMTLS = `
