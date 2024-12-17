@@ -89,6 +89,7 @@ func main() {
 		log.Fatalf("failed to parse configuration passed to the program arguments: %v", err)
 	}
 
+	// TODO(multi-peer): if 0 addresses given peer is not interested in importing anything - rework/rethink validation
 	if errValidation := config.ValidateRemotes(cfg.MeshPeers.Remotes...); errValidation != nil {
 		log.Fatalf("misconfigured remote: %v", errValidation)
 	}
@@ -137,7 +138,7 @@ func main() {
 	<-ctx.Done()
 }
 
-// FIXME: lengthy as hell
+// FIXME(multi-peer): lengthy params as hell. simplify
 func startReconciler(ctx context.Context, kubeConfig *rest.Config, cfg *config.Federation, serviceLister v1.ServiceLister, meshConfigPushRequests chan xds.PushRequest, importedServiceStore *fds.ImportedServiceStore) {
 	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
 	if err != nil {

@@ -30,8 +30,9 @@ import (
 func TestMain(m *testing.M) {
 	framework.
 		NewSuite(m).
-		RequireMinClusters(2).
-		RequireMaxClusters(2).
+		// TODO(multi-peer): two clusters
+		RequireMinClusters(3).
+		RequireMaxClusters(3).
 		Setup(installSpireCRDs).
 		Setup(installSpire).
 		Setup(enableTrustDomainFederation).
@@ -42,9 +43,12 @@ func TestMain(m *testing.M) {
 		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithAllPorts{}, setup.WithSpire{})).
 		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithAllPorts{}, setup.WithSpire{})).
 		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "c", setup.WithAllPorts{}, setup.WithSpire{})).
-		// c must be removed from the east cluster, because we want to test importing a service
+		Setup(setup.Clusters.Central.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithAllPorts{})).
+		Setup(setup.Clusters.Central.DeployEcho(namespace.Future(&setup.Namespace), "d", setup.WithAllPorts{})).
+		// c and d must be removed from other clusters, because we want to test importing a service
 		// that exists only in the remote cluster.
-		Setup(setup.RemoveServiceFromClusters("c", namespace.Future(&setup.Namespace), &setup.Clusters.East)).
+		Setup(setup.RemoveServiceFromClusters("c", namespace.Future(&setup.Namespace), &setup.Clusters.East, &setup.Clusters.Central)).
+		Setup(setup.RemoveServiceFromClusters("d", namespace.Future(&setup.Namespace), &setup.Clusters.East, &setup.Clusters.West)).
 		Setup(setup.EnsureStrictMutualTLS).
 		Run()
 }
