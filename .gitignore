@@ -10,8 +10,9 @@ Makefile.selfsigned.mk
 common.mk
 east/
 west/
-east.kubeconfig
-west.kubeconfig
+central/
+*.kubeconfig
 test/testdata/out
 test/testdata/manifests/*/*-east.yaml
 test/testdata/manifests/*/*-west.yaml
+test/testdata/manifests/*/*-central.yaml
