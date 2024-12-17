@@ -6,13 +6,13 @@ import sys
 def find_subnets(network, required_subnets):
     try:
         network = ipaddress.ip_network(network, strict=False)
-        bits_needed = math.ceil(math.log2(required_subnets))
+        bits_needed = math.ceil(math.log2(required_subnets+2))
 
         new_mask = network.prefixlen + bits_needed
         if new_mask > network.max_prefixlen:
             raise ValueError("Cannot create that many subnets with the given network.")
 
-        return list(network.subnets(new_prefix=new_mask))
+        return list(network.subnets(new_prefix=new_mask))[1:]
     except ValueError as e:
         print(f"Error: {e}")
         sys.exit(1)
