@@ -141,8 +141,6 @@ func (c *Cluster) ConfigureFederationCtrl(remoteClusters cluster.Clusters, optio
 		}
 	}
 
-	fmt.Printf("%+v\n", args)
-
 	helmUpgradeCmd := c.Command("helm", args...)
 
 	return helmUpgradeCmd.CombinedOutput()
