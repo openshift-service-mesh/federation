@@ -230,11 +230,14 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 
 	var serviceEntries []*v1alpha3.ServiceEntry
+	serviceEntriesByHost := make(map[string]*v1alpha3.ServiceEntry, len(cf.cfg.MeshPeers.Remotes))
 
 	for _, remote := range cf.cfg.MeshPeers.Remotes {
 		if len(remote.Addresses) == 0 {
 			continue
 		}
+
+		serviceEntries = append(serviceEntries, cf.serviceEntryForRemoteFederationController(remote))
 
 		var resolution istionetv1alpha3.ServiceEntry_Resolution
 		if networking.IsIP(remote.Addresses[0]) {
@@ -243,7 +246,6 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 			resolution = istionetv1alpha3.ServiceEntry_DNS
 		}
 
-		serviceEntriesPerRemote := []*v1alpha3.ServiceEntry{cf.serviceEntryForRemoteFederationController(remote)}
 		for _, importedSvc := range cf.importedServiceStore.From(remote) {
 			_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
 			if err != nil {
@@ -251,6 +253,11 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 					return nil, fmt.Errorf("failed to get Service %s/%s: %w", importedSvc.Name, importedSvc.Namespace, err)
 				}
 				// Service doesn't exist - create ServiceEntry.
+				// TODO(multi-peer) handle naming clash & different resolution strategy (known limitation?)
+				// What if we happen to have multiple remotes with exported serviceName/serviceNamespace but:
+				// - each remote has different address defined (leading to static or DNS resolution)
+				// - services per remote peer differ on service ports
+				// Should we fail registering such an endpoint?
 				var ports []*istionetv1alpha3.ServicePort
 				for _, port := range importedSvc.Ports {
 					ports = append(ports, &istionetv1alpha3.ServicePort{
@@ -260,32 +267,42 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 						TargetPort: port.TargetPort,
 					})
 				}
-				serviceEntriesPerRemote = append(serviceEntriesPerRemote, &v1alpha3.ServiceEntry{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      fmt.Sprintf("import-%s-%s", importedSvc.Name, importedSvc.Namespace),
-						Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-						Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
-					},
-					Spec: istionetv1alpha3.ServiceEntry{
-						Hosts: []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
-						Ports: ports,
-						Endpoints: slices.Map(remote.Addresses, func(addr string) *istionetv1alpha3.WorkloadEntry {
-							return &istionetv1alpha3.WorkloadEntry{
-								Address: addr,
-								Labels:  maps.MergeCopy(importedSvc.Labels, map[string]string{"security.istio.io/tlsMode": "istio"}),
-								Ports:   makePortsMap(importedSvc.Ports, remote.GetPort()),
-								Network: remote.Network,
-							}
-						}),
-						Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
-						Resolution: resolution,
-					},
+
+				host := fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)
+				endpoints := slices.Map(remote.Addresses, func(addr string) *istionetv1alpha3.WorkloadEntry {
+					return &istionetv1alpha3.WorkloadEntry{
+						Address: addr,
+						Labels:  maps.MergeCopy(importedSvc.Labels, map[string]string{"security.istio.io/tlsMode": "istio"}),
+						Ports:   makePortsMap(importedSvc.Ports, remote.GetPort()),
+						Network: remote.Network,
+					}
 				})
+
+				serviceEntry, exists := serviceEntriesByHost[host]
+				if !exists {
+					serviceEntry = &v1alpha3.ServiceEntry{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      fmt.Sprintf("import-%s-%s", importedSvc.Name, importedSvc.Namespace),
+							Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
+							Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
+						},
+						Spec: istionetv1alpha3.ServiceEntry{
+							Hosts:      []string{host},
+							Ports:      ports,
+							Endpoints:  endpoints,
+							Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
+							Resolution: resolution,
+						},
+					}
+				} else {
+					serviceEntry.Spec.Endpoints = append(serviceEntry.Spec.Endpoints, endpoints...)
+				}
+
 			}
 		}
-
-		serviceEntries = append(serviceEntries, serviceEntriesPerRemote...)
 	}
+
+	serviceEntries = append(serviceEntries, maps.Values(serviceEntriesByHost)...)
 
 	return serviceEntries, nil
 }
@@ -305,7 +322,7 @@ func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 				for idx, ip := range networking.Resolve(remote.Addresses...) {
 					workloadEntries = append(workloadEntries, &v1alpha3.WorkloadEntry{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("import-%s-%d", importedSvc.Name, idx),
+							Name:      fmt.Sprintf("import-%s-%s-%d", remote.Name, importedSvc.Name, idx),
 							Namespace: importedSvc.Namespace,
 							Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 						},
