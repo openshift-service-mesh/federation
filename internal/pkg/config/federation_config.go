@@ -21,15 +21,34 @@ const (
 )
 
 type Federation struct {
+	namespace          string
 	MeshPeers          MeshPeers
 	ExportedServiceSet ExportedServiceSet
 	ImportedServiceSet ImportedServiceSet
 }
 
+// Namespace where instance of federation controller is running.
+func (f *Federation) Namespace() string {
+	if f.namespace == "" {
+		f.namespace = Namespace()
+	}
+
+	return f.namespace
+}
+
 type MeshPeers struct {
-	Local Local `json:"local"`
-	// TODO: This should be a list of Remote objects
-	Remote Remote `json:"remote"`
+	Local   Local    `json:"local"`
+	Remotes []Remote `json:"remotes"`
+}
+
+func (m MeshPeers) AnyRemotePeerWithOpenshiftRouterIngress() bool {
+	for _, remote := range m.Remotes {
+		if remote.IngressType == OpenShiftRouter {
+			return true
+		}
+	}
+
+	return false
 }
 
 type Local struct {
@@ -52,6 +71,7 @@ func (r *Remote) ServiceName() string {
 }
 
 func (r *Remote) ServiceFQDN() string {
+	// TODO(multi-peer) use namespace from identity
 	return fmt.Sprintf("%s.istio-system.svc.cluster.local", r.ServiceName())
 }
 
@@ -94,7 +114,7 @@ type ExportedServiceSet struct {
 }
 
 func (s *ExportedServiceSet) GetLabelSelectors() []LabelSelectors {
-	if len(s.Rules) == 0 {
+	if s == nil || len(s.Rules) == 0 {
 		return []LabelSelectors{}
 	}
 	return s.Rules[0].LabelSelectors
