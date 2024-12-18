@@ -1,0 +1,23 @@
+metadata:
+  name: import-b-ns1
+  namespace: istio-system
+  labels:
+    federation.istio-ecosystem.io/peer: todo
+spec:
+  hosts:
+  - b.ns1.svc.cluster.local
+  endpoints:
+  - address: remote-ingress.net
+    ports:
+      http: 15443
+    labels:
+      app: b
+      security.istio.io/tlsMode: istio
+    network: west-network
+  ports:
+  - name: http
+    number: 8080
+    protocol: HTTP
+    targetPort: 8081
+  location: MESH_INTERNAL
+  resolution: DNS

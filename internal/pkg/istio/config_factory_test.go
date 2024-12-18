@@ -303,6 +303,13 @@ func TestServiceEntries(t *testing.T) {
 		Network:   "west-network",
 	}
 
+	importConfigRemoteDNS := copyConfig(&exportConfig)
+	importConfigRemoteDNS.MeshPeers.Remote = config.Remote{
+		Name:      "west",
+		Addresses: []string{"remote-ingress.net"},
+		Network:   "west-network",
+	}
+
 	testCases := []struct {
 		name                      string
 		cfg                       config.Federation
@@ -319,7 +326,14 @@ func TestServiceEntries(t *testing.T) {
 		cfg:                       *importConfigRemoteIP,
 		localServices:             []*corev1.Service{svcAns1},
 		importedServices:          []*v1alpha1.ExportedService{importedSvcAns1, importedSvcBns1, importedSvcAns2},
-		expectedServiceEntryFiles: []string{"fds.yaml", "svc-b-ns-1.yaml", "svc-a-ns-2.yaml"},
+		expectedServiceEntryFiles: []string{"ip/fds.yaml", "ip/svc-b-ns-1.yaml", "ip/svc-a-ns-2.yaml"},
+	}, {
+		name: "ServiceEntries should be created only for services, which do not exist locally; " +
+			"resolution type should be DNS when remote address is a DNS name",
+		cfg:                       *importConfigRemoteDNS,
+		localServices:             []*corev1.Service{svcAns1},
+		importedServices:          []*v1alpha1.ExportedService{importedSvcAns1, importedSvcBns1, importedSvcAns2},
+		expectedServiceEntryFiles: []string{"dns/fds.yaml", "dns/svc-b-ns-1.yaml", "dns/svc-a-ns-2.yaml"},
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
