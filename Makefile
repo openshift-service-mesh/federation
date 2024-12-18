@@ -98,10 +98,10 @@ $(PROTOC): $(LOCALBIN)
 	@chmod +x $(PROTOC)
 
 $(PROTOC_GEN_GO): $(LOCALBIN)
-	@GOBIN=$(LOCALBIN) go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@GOBIN=$(LOCALBIN) go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.0
 
 $(PROTOC_GEN_GRPC): $(LOCALBIN)
-	@GOBIN=$(LOCALBIN) go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	@GOBIN=$(LOCALBIN) go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
 
 $(PROTOC_GEN_DEEPCOPY): $(LOCALBIN)
 	@GOBIN=$(LOCALBIN) go install istio.io/tools/cmd/protoc-gen-golang-deepcopy@latest
