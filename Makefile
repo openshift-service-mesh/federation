@@ -3,6 +3,17 @@ OUT_DIR:=out
 
 export ISTIO_VERSION ?= 1.23.0
 
+## Required tooling.
+## Needs to be defined early so that any target depending on given binary can resolve it when not present.
+LOCALBIN := $(PROJECT_DIR)/bin
+GOIMPORTS := $(LOCALBIN)/goimports
+KIND := $(LOCALBIN)/kind
+HELM := $(LOCALBIN)/helm
+PROTOC := $(LOCALBIN)/protoc
+PROTOC_GEN_GO := $(LOCALBIN)/protoc-gen-go
+PROTOC_GEN_GRPC := $(LOCALBIN)/protoc-gen-go-grpc
+PROTOC_GEN_DEEPCOPY := $(LOCALBIN)/protoc-gen-golang-deepcopy
+
 .PHONY: default
 default: build test
 
@@ -48,15 +59,16 @@ $(TAG)$(shell [ "$(USE_LOCAL_IMAGE)" = "true" ] && echo "-local")
 endef
 
 .PHONY: kind-clusters
-kind-clusters: ## Provisions KinD clusters for local development or testing
+kind-clusters: $(KIND) $(HELM) ## Provisions KinD clusters for local development or testing
 	@local_tag=$(call local_tag); \
 	$(MAKE) docker-build -e TAG=$$local_tag; \
 	export TAG=$$local_tag; \
+	PATH=$(LOCALBIN):$$PATH \
 	$(PROJECT_DIR)/test/scripts/kind_provisioner.sh
 
 .PHONY: e2e
 TEST_SUITES ?= remote_ip remote_dns_name spire
-e2e: tools kind-clusters ## Runs end-to-end tests against KinD clusters
+e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
 	@local_tag=$(call local_tag); \
 	$(foreach suite, $(TEST_SUITES), \
 		PATH=$(LOCALBIN):$$PATH \
@@ -66,17 +78,9 @@ e2e: tools kind-clusters ## Runs end-to-end tests against KinD clusters
 			--istio.test.tag=$(ISTIO_VERSION)\
 			--istio.test.kube.config=$(PROJECT_DIR)/test/east.kubeconfig,$(PROJECT_DIR)/test/west.kubeconfig\
 			--istio.test.kube.networkTopology=0:east-network,1:west-network\
-			--istio.test.onlyWorkloads=standard;)
+			--istio.test.onlyWorkloads=standard); \
 
 ##@ Tooling
-
-LOCALBIN := $(PROJECT_DIR)/bin
-GOIMPORTS := $(LOCALBIN)/goimports
-HELM := $(LOCALBIN)/helm
-PROTOC := $(LOCALBIN)/protoc
-PROTOC_GEN_GO := $(LOCALBIN)/protoc-gen-go
-PROTOC_GEN_GRPC := $(LOCALBIN)/protoc-gen-go-grpc
-PROTOC_GEN_DEEPCOPY := $(LOCALBIN)/protoc-gen-golang-deepcopy
 
 $(LOCALBIN):
 	@mkdir -p $(LOCALBIN)
@@ -106,11 +110,8 @@ $(PROTOC_GEN_GRPC): $(LOCALBIN)
 $(PROTOC_GEN_DEEPCOPY): $(LOCALBIN)
 	@GOBIN=$(LOCALBIN) go install istio.io/tools/cmd/protoc-gen-golang-deepcopy@latest
 
-.PHONY: tools 
-tools: $(GOIMPORTS) 
-tools: $(HELM) 
-tools: $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY)
-tools: ## Installs all required tools
+$(KIND): $(LOCALBIN)
+	@GOBIN=$(LOCALBIN) go install sigs.k8s.io/kind@v0.26.0
 
 .PHONY: clean
 clean: 
