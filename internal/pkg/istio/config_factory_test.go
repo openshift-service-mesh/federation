@@ -70,7 +70,17 @@ var (
 		},
 	}
 
-	// TODO: add more ports
+	httpPort = corev1.ServicePort{
+		Name:       "http",
+		Port:       80,
+		TargetPort: intstr.IntOrString{IntVal: 8080},
+	}
+	httpsPort = corev1.ServicePort{
+		Name:       "https",
+		Port:       443,
+		TargetPort: intstr.IntOrString{IntVal: 8443},
+	}
+
 	svcAns1 = &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "a",
@@ -78,11 +88,7 @@ var (
 			Labels:    map[string]string{"app": "b"},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Name:       "http",
-				Port:       8080,
-				TargetPort: intstr.IntOrString{IntVal: 8081},
-			}},
+			Ports: []corev1.ServicePort{httpPort, httpsPort},
 		},
 	}
 	svcBns1 = &corev1.Service{
@@ -92,11 +98,7 @@ var (
 			Labels:    map[string]string{"app": "b"},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Name:       "http",
-				Port:       8080,
-				TargetPort: intstr.IntOrString{IntVal: 8081},
-			}},
+			Ports: []corev1.ServicePort{httpPort, httpsPort},
 		},
 	}
 	svcAns2 = &corev1.Service{
@@ -106,46 +108,40 @@ var (
 			Labels:    map[string]string{"app": "a"},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Name:       "http",
-				Port:       9080,
-				TargetPort: intstr.IntOrString{IntVal: 9081},
-			}},
+			Ports: []corev1.ServicePort{httpPort},
 		},
+	}
+
+	importedHttpPort = &v1alpha1.ServicePort{
+		Name:       "http",
+		Number:     80,
+		TargetPort: 8080,
+		Protocol:   "HTTP",
+	}
+	importedHttpsPort = &v1alpha1.ServicePort{
+		Name:       "https",
+		Number:     443,
+		TargetPort: 8443,
+		Protocol:   "HTTPS",
 	}
 
 	importedSvcAns1 = &v1alpha1.ExportedService{
 		Name:      "a",
 		Namespace: "ns1",
 		Labels:    map[string]string{"app": "a"},
-		Ports: []*v1alpha1.ServicePort{{
-			Name:       "http",
-			Number:     8080,
-			TargetPort: 8081,
-			Protocol:   "HTTP",
-		}},
+		Ports:     []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
 	}
 	importedSvcBns1 = &v1alpha1.ExportedService{
 		Name:      "b",
 		Namespace: "ns1",
 		Labels:    map[string]string{"app": "b"},
-		Ports: []*v1alpha1.ServicePort{{
-			Name:       "http",
-			Number:     8080,
-			TargetPort: 8081,
-			Protocol:   "HTTP",
-		}},
+		Ports:     []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
 	}
 	importedSvcAns2 = &v1alpha1.ExportedService{
 		Name:      "a",
 		Namespace: "ns2",
 		Labels:    map[string]string{"app": "a"},
-		Ports: []*v1alpha1.ServicePort{{
-			Name:       "http",
-			Number:     9080,
-			TargetPort: 9081,
-			Protocol:   "HTTP",
-		}},
+		Ports:     []*v1alpha1.ServicePort{importedHttpPort},
 	}
 )
 
@@ -257,7 +253,7 @@ func TestEnvoyFilters(t *testing.T) {
 		name:                     "EnvoyFilters should return filters for exported services and FDS",
 		localIngressType:         config.OpenShiftRouter,
 		localServices:            []*corev1.Service{svcAns1, export(svcBns1), export(svcAns2)},
-		expectedEnvoyFilterFiles: []string{"fds.yaml", "svc-b-ns-1.yaml", "svc-a-ns-2.yaml"},
+		expectedEnvoyFilterFiles: []string{"fds.yaml", "svc-b-ns-1-port-80.yaml", "svc-b-ns-1-port-443.yaml", "svc-a-ns-2.yaml"},
 	}, {
 		name:                     "EnvoyFilters should return a filter for FDS even if no service is exported",
 		localIngressType:         config.OpenShiftRouter,

@@ -16,8 +16,8 @@ spec:
     network: west-network
   ports:
   - name: http
-    number: 9080
+    number: 80
     protocol: HTTP
-    targetPort: 9081
+    targetPort: 8080
   location: MESH_INTERNAL
   resolution: DNS

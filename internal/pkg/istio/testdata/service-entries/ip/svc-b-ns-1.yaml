@@ -10,6 +10,7 @@ spec:
   - address: 1.1.1.1
     ports:
       http: 15443
+      https: 15443
     labels:
       app: b
       security.istio.io/tlsMode: istio
@@ -17,14 +18,19 @@ spec:
   - address: 2.2.2.2
     ports:
       http: 15443
+      https: 15443
     labels:
       app: b
       security.istio.io/tlsMode: istio
     network: west-network
   ports:
   - name: http
-    number: 8080
+    number: 80
     protocol: HTTP
-    targetPort: 8081
+    targetPort: 8080
+  - name: https
+    number: 443
+    protocol: HTTPS
+    targetPort: 8443
   location: MESH_INTERNAL
   resolution: STATIC

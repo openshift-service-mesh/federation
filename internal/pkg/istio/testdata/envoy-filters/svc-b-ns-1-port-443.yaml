@@ -1,5 +1,5 @@
 metadata:
-  name: sni-b-ns1-8080
+  name: sni-b-ns1-443
   namespace: istio-system
   labels:
     federation.istio-ecosystem.io/peer: todo
@@ -13,10 +13,10 @@ spec:
       listener:
         name: "0.0.0.0_443"
         filterChain:
-          sni: "outbound_.8080_._.b.ns1.svc.cluster.local"
+          sni: "outbound_.443_._.b.ns1.svc.cluster.local"
     patch:
       operation: MERGE
       value:
         filter_chain_match:
           server_names:
-          - "b-8080.ns1.svc.cluster.local"
+          - "b-443.ns1.svc.cluster.local"
