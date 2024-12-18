@@ -82,18 +82,17 @@ e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
 
 ##@ Tooling
 
-$(LOCALBIN):
-	@mkdir -p $(LOCALBIN)
+$(shell mkdir -p $(LOCALBIN))
 
-$(GOIMPORTS): $(LOCALBIN)
+$(GOIMPORTS):
 	@GOBIN=$(LOCALBIN) go install -mod=readonly golang.org/x/tools/cmd/goimports@latest
 
-$(HELM): $(LOCALBIN)
+$(HELM):
 	@curl -sSL https://get.helm.sh/helm-v3.14.2-linux-amd64.tar.gz -o $(LOCALBIN)/helm.tar.gz
 	@tar -xzf $(LOCALBIN)/helm.tar.gz -C $(LOCALBIN) --strip-components=1 linux-amd64/helm
 	@rm -f $(LOCALBIN)/helm.tar.gz
 
-$(PROTOC): $(LOCALBIN)
+$(PROTOC):
 	@curl -sSL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip -o $(LOCALBIN)/protoc.zip
 	@python3 -c "import zipfile; z=zipfile.ZipFile('$(LOCALBIN)/protoc.zip'); z.extract('bin/protoc', '$(LOCALBIN)')"
 	@mv $(LOCALBIN)/bin/protoc $(LOCALBIN)
@@ -101,17 +100,17 @@ $(PROTOC): $(LOCALBIN)
 	@rm -f $(LOCALBIN)/protoc.zip
 	@chmod +x $(PROTOC)
 
-$(PROTOC_GEN_GO): $(LOCALBIN)
-	@GOBIN=$(LOCALBIN) go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.0
+$(PROTOC_GEN_GO):
+	@GOBIN=$(LOCALBIN) go install -mod=readonly google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.0
 
-$(PROTOC_GEN_GRPC): $(LOCALBIN)
-	@GOBIN=$(LOCALBIN) go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+$(PROTOC_GEN_GRPC):
+	@GOBIN=$(LOCALBIN) go install -mod=readonly google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
 
-$(PROTOC_GEN_DEEPCOPY): $(LOCALBIN)
-	@GOBIN=$(LOCALBIN) go install istio.io/tools/cmd/protoc-gen-golang-deepcopy@latest
+$(PROTOC_GEN_DEEPCOPY):
+	@GOBIN=$(LOCALBIN) go install -mod=readonly istio.io/tools/cmd/protoc-gen-golang-deepcopy@latest
 
-$(KIND): $(LOCALBIN)
-	@GOBIN=$(LOCALBIN) go install sigs.k8s.io/kind@v0.26.0
+$(KIND):
+	@GOBIN=$(LOCALBIN) go install -mod=readonly sigs.k8s.io/kind@v0.26.0
 
 .PHONY: clean
 clean: 
