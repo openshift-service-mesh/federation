@@ -68,49 +68,46 @@ var (
 		},
 	}
 
-	unexportedService = &corev1.Service{
-		ObjectMeta: v1.ObjectMeta{Name: "a", Namespace: "ns1"},
+	svcAns1 = &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "a",
+			Namespace: "ns1",
+			Labels:    map[string]string{"app": "b"},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{{Port: 8080}},
+		},
 	}
-	exportedService1 = &corev1.Service{
+	svcBns1 = &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "b",
 			Namespace: "ns1",
-			Labels: map[string]string{
-				"app":    "b",
-				"export": "true",
-			},
+			Labels:    map[string]string{"app": "b"},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Port: 8080,
-			}},
+			Ports: []corev1.ServicePort{{Port: 8080}},
 		},
 	}
-	exportedService2 = &corev1.Service{
+	svcAns2 = &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "a",
 			Namespace: "ns2",
-			Labels: map[string]string{
-				"app":    "a",
-				"export": "true",
-			},
+			Labels:    map[string]string{"app": "a"},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Port: 9080,
-			}},
+			Ports: []corev1.ServicePort{{Port: 9080}},
 		},
 	}
 )
 
 func TestIngressGateway(t *testing.T) {
 	testCases := []struct {
-		name             string
-		existingServices []*corev1.Service
-		expectedGateway  *v1alpha3.Gateway
+		name            string
+		localServices   []*corev1.Service
+		expectedGateway *v1alpha3.Gateway
 	}{{
-		name:             "federation-ingress-gateway should expose FDS and exported services",
-		existingServices: []*corev1.Service{unexportedService, exportedService1, exportedService2},
+		name:          "federation-ingress-gateway should expose FDS and exported services",
+		localServices: []*corev1.Service{svcAns1, export(svcBns1), export(svcAns2)},
 		expectedGateway: &v1alpha3.Gateway{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "federation-ingress-gateway",
@@ -137,8 +134,8 @@ func TestIngressGateway(t *testing.T) {
 			},
 		},
 	}, {
-		name:             "federation-ingress-gateway should always expose FDS",
-		existingServices: []*corev1.Service{},
+		name:          "federation-ingress-gateway should always expose FDS",
+		localServices: []*corev1.Service{},
 		expectedGateway: &v1alpha3.Gateway{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "federation-ingress-gateway",
@@ -172,7 +169,7 @@ func TestIngressGateway(t *testing.T) {
 			stopCh := make(chan struct{})
 			informerFactory.Start(stopCh)
 
-			for _, svc := range tc.existingServices {
+			for _, svc := range tc.localServices {
 				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.Background(), svc, v1.CreateOptions{}); err != nil {
 					t.Fatalf("failed to create service %s/%s: %v", svc.Name, svc.Namespace, err)
 				}
@@ -200,22 +197,22 @@ func TestEnvoyFilters(t *testing.T) {
 	testCases := []struct {
 		name                     string
 		localIngressType         config.IngressType
-		existingServices         []*corev1.Service
+		localServices            []*corev1.Service
 		expectedEnvoyFilterFiles []string
 	}{{
 		name:                     "EnvoyFilters should not return filters when local ingress type is istio",
 		localIngressType:         config.Istio,
-		existingServices:         []*corev1.Service{unexportedService, exportedService1},
+		localServices:            []*corev1.Service{export(svcAns1), svcBns1},
 		expectedEnvoyFilterFiles: []string{},
 	}, {
 		name:                     "EnvoyFilters should return filters for exported services and FDS",
 		localIngressType:         config.OpenShiftRouter,
-		existingServices:         []*corev1.Service{unexportedService, exportedService1, exportedService2},
+		localServices:            []*corev1.Service{svcAns1, export(svcBns1), export(svcAns2)},
 		expectedEnvoyFilterFiles: []string{"fds-envoy-filter.yaml", "svc1-envoy-filter.yaml", "svc2-envoy-filter.yaml"},
 	}, {
 		name:                     "EnvoyFilters should return a filter for FDS even if no service is exported",
 		localIngressType:         config.OpenShiftRouter,
-		existingServices:         []*corev1.Service{},
+		localServices:            []*corev1.Service{},
 		expectedEnvoyFilterFiles: []string{"fds-envoy-filter.yaml"},
 	}}
 	for _, tc := range testCases {
@@ -227,7 +224,7 @@ func TestEnvoyFilters(t *testing.T) {
 			stopCh := make(chan struct{})
 			informerFactory.Start(stopCh)
 
-			for _, svc := range tc.existingServices {
+			for _, svc := range tc.localServices {
 				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.Background(), svc, v1.CreateOptions{}); err != nil {
 					t.Fatalf("failed to create service %s/%s: %v", svc.Name, svc.Namespace, err)
 				}
@@ -291,7 +288,7 @@ func TestServiceEntries(t *testing.T) {
 		expectedServiceEntries []*v1alpha3.ServiceEntry
 	}{{
 		name:                   "no ServiceEntry is created if remote addresses are empty",
-		cfg:                    config.Federation{},
+		cfg:                    exportConfig,
 		localServices:          []*corev1.Service{},
 		expectedServiceEntries: []*v1alpha3.ServiceEntry{},
 	}}
@@ -344,6 +341,15 @@ func TestServiceEntries(t *testing.T) {
 			}
 		})
 	}
+}
+
+func export(svc *corev1.Service) *corev1.Service {
+	exported := svc.DeepCopy()
+	if exported.Labels == nil {
+		exported.Labels = map[string]string{}
+	}
+	exported.Labels["export"] = "true"
+	return exported
 }
 
 func copyConfig(original *config.Federation) *config.Federation {
