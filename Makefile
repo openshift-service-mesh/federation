@@ -15,7 +15,7 @@ PROTOC_GEN_GRPC := $(LOCALBIN)/protoc-gen-go-grpc
 PROTOC_GEN_DEEPCOPY := $(LOCALBIN)/protoc-gen-golang-deepcopy
 
 .PHONY: default
-default: build test
+default: build add-license fix-imports test
 
 .PHONY: help
 help:
@@ -25,7 +25,7 @@ help:
 
 EXTRA_BUILD_ARGS?=
 .PHONY: build
-build: proto add-license fix-imports ## Builds the project
+build: proto ## Builds the project
 	go get $(PROJECT_DIR)/...
 	go build -C $(PROJECT_DIR)/cmd/federation-controller -o $(PROJECT_DIR)/$(OUT_DIR)/federation-controller $(EXTRA_BUILD_ARGS)
 
