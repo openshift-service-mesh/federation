@@ -283,6 +283,69 @@ func TestEnvoyFilters(t *testing.T) {
 	}
 }
 
+func TestServiceEntries(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		cfg                    config.Federation
+		localServices          []*corev1.Service
+		expectedServiceEntries []*v1alpha3.ServiceEntry
+	}{{
+		name:                   "no ServiceEntry is created if remote addresses are empty",
+		cfg:                    config.Federation{},
+		localServices:          []*corev1.Service{},
+		expectedServiceEntries: []*v1alpha3.ServiceEntry{},
+	}}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := fake.NewSimpleClientset()
+			informerFactory := informers.NewSharedInformerFactory(client, 0)
+			serviceInformer := informerFactory.Core().V1().Services().Informer()
+			serviceLister := informerFactory.Core().V1().Services().Lister()
+			stopCh := make(chan struct{})
+			informerFactory.Start(stopCh)
+
+			for _, svc := range tc.localServices {
+				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.Background(), svc, v1.CreateOptions{}); err != nil {
+					t.Fatalf("failed to create service %s/%s: %v", svc.Name, svc.Namespace, err)
+				}
+			}
+
+			serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{})
+			if err != nil {
+				t.Fatalf("error creating serviceController: %v", err)
+			}
+			serviceController.RunAndWait(stopCh)
+
+			factory := NewConfigFactory(exportConfig, serviceLister, fds.NewImportedServiceStore(), "istio-system")
+			serviceEntries, err := factory.ServiceEntries()
+			if err != nil {
+				t.Fatalf("error getting ServiceEntries: %v", err)
+			}
+			if len(serviceEntries) != len(tc.expectedServiceEntries) {
+				t.Errorf("got unexpected number of ServiceEntries: %d, expected: %d\n%s\n%s", len(serviceEntries),
+					len(tc.expectedServiceEntries), toJSON(serviceEntries), toJSON(tc.expectedServiceEntries))
+			}
+
+			for _, se := range serviceEntries {
+				found := false
+				for _, expectedSE := range tc.expectedServiceEntries {
+					if se.Name == expectedSE.Name {
+						found = true
+						// Serialize objects to JSON is a workaround, because objects deserialized from YAML have non-nil spec.atomicMetadata
+						// and therefore reflect.DeepEqual fails, and that field can't be unset directly accessing .Spec.
+						if toJSON(se) != toJSON(expectedSE) {
+							t.Errorf("got unexpected ServiceEntry:\n%+v\nexpected:\n%+v", toJSON(se), toJSON(expectedSE))
+						}
+					}
+				}
+				if !found {
+					t.Errorf("got unexpected ServiceEntry:\n%v\nexpected:\n%v", toJSON(se), toJSON(tc.expectedServiceEntries))
+				}
+			}
+		})
+	}
+}
+
 func copyConfig(original *config.Federation) *config.Federation {
 	originalJSON, err := json.Marshal(original)
 	if err != nil {
