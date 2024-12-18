@@ -287,44 +287,10 @@ func TestEnvoyFilters(t *testing.T) {
 
 			cfg := copyConfig(&exportConfig)
 			cfg.MeshPeers.Local.IngressType = tc.localIngressType
+
 			factory := NewConfigFactory(*cfg, serviceLister, fds.NewImportedServiceStore(), "istio-system")
-
-			var expectedEnvoyFilters []*v1alpha3.EnvoyFilter
-			for _, f := range tc.expectedEnvoyFilterFiles {
-				filePath := filepath.Join("testdata/envoy-filters", f)
-				data, err := os.ReadFile(filePath)
-				if err != nil {
-					t.Fatalf("failed to read file: %v", err)
-				}
-				ef := &v1alpha3.EnvoyFilter{}
-				if err := yaml.Unmarshal(data, ef); err != nil {
-					t.Fatalf("failed to unmarshal data from %s", f)
-				}
-				expectedEnvoyFilters = append(expectedEnvoyFilters, ef)
-			}
-
 			envoyFilters := factory.EnvoyFilters()
-			if len(envoyFilters) != len(tc.expectedEnvoyFilterFiles) {
-				t.Errorf("got unexpected number of EnvoyFilters: %d, expected: %d\n%s\n%s", len(envoyFilters),
-					len(tc.expectedEnvoyFilterFiles), toJSON(envoyFilters), toJSON(expectedEnvoyFilters))
-			}
-
-			for _, ef := range envoyFilters {
-				found := false
-				for _, expectedEF := range expectedEnvoyFilters {
-					if ef.Name == expectedEF.Name {
-						found = true
-						// Serialize objects to JSON is a workaround, because objects deserialized from YAML have non-nil spec.atomicMetadata
-						// and therefore reflect.DeepEqual fails, and that field can't be unset directly accessing .Spec.
-						if toJSON(ef) != toJSON(expectedEF) {
-							t.Errorf("got unexpected EnvoyFilter:\n%+v\nexpected filters:\n%+v", toJSON(ef), toJSON(expectedEF))
-						}
-					}
-				}
-				if !found {
-					t.Errorf("got unexpected EnvoyFilter:\n%v\nexpected filters:\n%v", toJSON(ef), toJSON(expectedEnvoyFilters))
-				}
-			}
+			compareResources(t, "envoy-filters", tc.expectedEnvoyFilterFiles, envoyFilters)
 		})
 	}
 }
@@ -386,42 +352,7 @@ func TestServiceEntries(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error getting ServiceEntries: %v", err)
 			}
-
-			var expectedServiceEntries []*v1alpha3.ServiceEntry
-			for _, f := range tc.expectedServiceEntryFiles {
-				filePath := filepath.Join("testdata/service-entries", f)
-				data, err := os.ReadFile(filePath)
-				if err != nil {
-					t.Fatalf("failed to read file: %v", err)
-				}
-				se := &v1alpha3.ServiceEntry{}
-				if err := yaml.Unmarshal(data, se); err != nil {
-					t.Fatalf("failed to unmarshal data from %s", f)
-				}
-				expectedServiceEntries = append(expectedServiceEntries, se)
-			}
-
-			if len(serviceEntries) != len(expectedServiceEntries) {
-				t.Errorf("got unexpected number of ServiceEntries: %d, expected: %d\n%s\n%s", len(serviceEntries),
-					len(expectedServiceEntries), toJSON(serviceEntries), toJSON(expectedServiceEntries))
-			}
-
-			for _, se := range serviceEntries {
-				found := false
-				for _, expectedSE := range expectedServiceEntries {
-					if se.Name == expectedSE.Name {
-						found = true
-						// Serialize objects to JSON is a workaround, because objects deserialized from YAML have non-nil spec.atomicMetadata
-						// and therefore reflect.DeepEqual fails, and that field can't be unset directly accessing .Spec.
-						if toJSON(se) != toJSON(expectedSE) {
-							t.Errorf("got unexpected ServiceEntry:\n%+v\nexpected:\n%+v", toJSON(se), toJSON(expectedSE))
-						}
-					}
-				}
-				if !found {
-					t.Errorf("got unexpected ServiceEntry:\n%v\nexpected:\n%v", toJSON(se), toJSON(expectedServiceEntries))
-				}
-			}
+			compareResources(t, "service-entries", tc.expectedServiceEntryFiles, serviceEntries)
 		})
 	}
 }
@@ -447,6 +378,42 @@ func copyConfig(original *config.Federation) *config.Federation {
 	}
 
 	return newCfg
+}
+
+func compareResources[T any](t *testing.T, dir string, expectedFiles []string, actualResources []*T) {
+	var expectedResources []*T
+	for _, f := range expectedFiles {
+		filePath := filepath.Join("testdata", dir, f)
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("failed to read file: %v", err)
+		}
+		var resource T
+		if err := yaml.Unmarshal(data, &resource); err != nil {
+			t.Fatalf("failed to unmarshal data from %s: %v", f, err)
+		}
+		expectedResources = append(expectedResources, &resource)
+	}
+
+	if len(actualResources) != len(expectedResources) {
+		t.Errorf("got unexpected number of resources: %d, expected: %d\nactual: %s\nexpected: %s",
+			len(actualResources), len(expectedResources), toJSON(actualResources), toJSON(expectedResources))
+	}
+
+	for _, actual := range actualResources {
+		found := false
+		for _, expected := range expectedResources {
+			// Serializing objects to JSON is a workaround, because objects deserialized from YAML have non-nil spec.atomicMetadata
+			// and therefore reflect.DeepEqual fails, and that field can't be unset directly accessing .Spec.
+			if toJSON(actual) == toJSON(expected) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("got unexpected resource:\n%s\nexpected resources:\n%s", toJSON(actual), toJSON(expectedResources))
+		}
+	}
 }
 
 func toJSON(input any) string {
