@@ -1,0 +1,30 @@
+metadata:
+  name: import-a-ns2
+  namespace: istio-system
+  labels:
+    federation.istio-ecosystem.io/peer: todo
+spec:
+  hosts:
+  - a.ns2.svc.cluster.local
+  endpoints:
+  - address: 1.1.1.1
+    ports:
+      http: 15443
+    labels:
+      app: a
+      security.istio.io/tlsMode: istio
+    network: west-network
+  - address: 2.2.2.2
+    ports:
+      http: 15443
+    labels:
+      app: a
+      security.istio.io/tlsMode: istio
+    network: west-network
+  ports:
+  - name: http
+    number: 9080
+    protocol: HTTP
+    targetPort: 9081
+  location: MESH_INTERNAL
+  resolution: STATIC

@@ -26,10 +26,12 @@ import (
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
@@ -68,6 +70,7 @@ var (
 		},
 	}
 
+	// TODO: add more ports
 	svcAns1 = &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "a",
@@ -75,7 +78,11 @@ var (
 			Labels:    map[string]string{"app": "b"},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{Port: 8080}},
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       8080,
+				TargetPort: intstr.IntOrString{IntVal: 8081},
+			}},
 		},
 	}
 	svcBns1 = &corev1.Service{
@@ -85,7 +92,11 @@ var (
 			Labels:    map[string]string{"app": "b"},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{Port: 8080}},
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       8080,
+				TargetPort: intstr.IntOrString{IntVal: 8081},
+			}},
 		},
 	}
 	svcAns2 = &corev1.Service{
@@ -95,8 +106,46 @@ var (
 			Labels:    map[string]string{"app": "a"},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{Port: 9080}},
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       9080,
+				TargetPort: intstr.IntOrString{IntVal: 9081},
+			}},
 		},
+	}
+
+	importedSvcAns1 = &v1alpha1.ExportedService{
+		Name:      "a",
+		Namespace: "ns1",
+		Labels:    map[string]string{"app": "a"},
+		Ports: []*v1alpha1.ServicePort{{
+			Name:       "http",
+			Number:     8080,
+			TargetPort: 8081,
+			Protocol:   "HTTP",
+		}},
+	}
+	importedSvcBns1 = &v1alpha1.ExportedService{
+		Name:      "b",
+		Namespace: "ns1",
+		Labels:    map[string]string{"app": "b"},
+		Ports: []*v1alpha1.ServicePort{{
+			Name:       "http",
+			Number:     8080,
+			TargetPort: 8081,
+			Protocol:   "HTTP",
+		}},
+	}
+	importedSvcAns2 = &v1alpha1.ExportedService{
+		Name:      "a",
+		Namespace: "ns2",
+		Labels:    map[string]string{"app": "a"},
+		Ports: []*v1alpha1.ServicePort{{
+			Name:       "http",
+			Number:     9080,
+			TargetPort: 9081,
+			Protocol:   "HTTP",
+		}},
 	}
 )
 
@@ -208,12 +257,12 @@ func TestEnvoyFilters(t *testing.T) {
 		name:                     "EnvoyFilters should return filters for exported services and FDS",
 		localIngressType:         config.OpenShiftRouter,
 		localServices:            []*corev1.Service{svcAns1, export(svcBns1), export(svcAns2)},
-		expectedEnvoyFilterFiles: []string{"fds-envoy-filter.yaml", "svc1-envoy-filter.yaml", "svc2-envoy-filter.yaml"},
+		expectedEnvoyFilterFiles: []string{"fds.yaml", "svc-b-ns-1.yaml", "svc-a-ns-2.yaml"},
 	}, {
 		name:                     "EnvoyFilters should return a filter for FDS even if no service is exported",
 		localIngressType:         config.OpenShiftRouter,
 		localServices:            []*corev1.Service{},
-		expectedEnvoyFilterFiles: []string{"fds-envoy-filter.yaml"},
+		expectedEnvoyFilterFiles: []string{"fds.yaml"},
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -242,7 +291,7 @@ func TestEnvoyFilters(t *testing.T) {
 
 			var expectedEnvoyFilters []*v1alpha3.EnvoyFilter
 			for _, f := range tc.expectedEnvoyFilterFiles {
-				filePath := filepath.Join("testdata", f)
+				filePath := filepath.Join("testdata/envoy-filters", f)
 				data, err := os.ReadFile(filePath)
 				if err != nil {
 					t.Fatalf("failed to read file: %v", err)
@@ -281,16 +330,30 @@ func TestEnvoyFilters(t *testing.T) {
 }
 
 func TestServiceEntries(t *testing.T) {
+	importConfigRemoteIP := copyConfig(&exportConfig)
+	importConfigRemoteIP.MeshPeers.Remote = config.Remote{
+		Name:      "west",
+		Addresses: []string{"1.1.1.1", "2.2.2.2"},
+		Network:   "west-network",
+	}
+
 	testCases := []struct {
-		name                   string
-		cfg                    config.Federation
-		localServices          []*corev1.Service
-		expectedServiceEntries []*v1alpha3.ServiceEntry
+		name                      string
+		cfg                       config.Federation
+		localServices             []*corev1.Service
+		importedServices          []*v1alpha1.ExportedService
+		expectedServiceEntryFiles []string
 	}{{
-		name:                   "no ServiceEntry is created if remote addresses are empty",
-		cfg:                    exportConfig,
-		localServices:          []*corev1.Service{},
-		expectedServiceEntries: []*v1alpha3.ServiceEntry{},
+		name:                      "no ServiceEntry is created if remote addresses are empty",
+		cfg:                       exportConfig,
+		expectedServiceEntryFiles: []string{},
+	}, {
+		name: "ServiceEntries should be created only for services, which do not exist locally; " +
+			"resolution type should be STATIC when remote addresses are IPs",
+		cfg:                       *importConfigRemoteIP,
+		localServices:             []*corev1.Service{svcAns1},
+		importedServices:          []*v1alpha1.ExportedService{importedSvcAns1, importedSvcBns1, importedSvcAns2},
+		expectedServiceEntryFiles: []string{"fds.yaml", "svc-b-ns-1.yaml", "svc-a-ns-2.yaml"},
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -313,19 +376,39 @@ func TestServiceEntries(t *testing.T) {
 			}
 			serviceController.RunAndWait(stopCh)
 
-			factory := NewConfigFactory(exportConfig, serviceLister, fds.NewImportedServiceStore(), "istio-system")
+			importedServiceStore := fds.NewImportedServiceStore()
+			importedServiceStore.Update(map[string][]*v1alpha1.ExportedService{
+				"west": tc.importedServices,
+			})
+
+			factory := NewConfigFactory(tc.cfg, serviceLister, importedServiceStore, "istio-system")
 			serviceEntries, err := factory.ServiceEntries()
 			if err != nil {
 				t.Fatalf("error getting ServiceEntries: %v", err)
 			}
-			if len(serviceEntries) != len(tc.expectedServiceEntries) {
+
+			var expectedServiceEntries []*v1alpha3.ServiceEntry
+			for _, f := range tc.expectedServiceEntryFiles {
+				filePath := filepath.Join("testdata/service-entries", f)
+				data, err := os.ReadFile(filePath)
+				if err != nil {
+					t.Fatalf("failed to read file: %v", err)
+				}
+				se := &v1alpha3.ServiceEntry{}
+				if err := yaml.Unmarshal(data, se); err != nil {
+					t.Fatalf("failed to unmarshal data from %s", f)
+				}
+				expectedServiceEntries = append(expectedServiceEntries, se)
+			}
+
+			if len(serviceEntries) != len(expectedServiceEntries) {
 				t.Errorf("got unexpected number of ServiceEntries: %d, expected: %d\n%s\n%s", len(serviceEntries),
-					len(tc.expectedServiceEntries), toJSON(serviceEntries), toJSON(tc.expectedServiceEntries))
+					len(expectedServiceEntries), toJSON(serviceEntries), toJSON(expectedServiceEntries))
 			}
 
 			for _, se := range serviceEntries {
 				found := false
-				for _, expectedSE := range tc.expectedServiceEntries {
+				for _, expectedSE := range expectedServiceEntries {
 					if se.Name == expectedSE.Name {
 						found = true
 						// Serialize objects to JSON is a workaround, because objects deserialized from YAML have non-nil spec.atomicMetadata
@@ -336,7 +419,7 @@ func TestServiceEntries(t *testing.T) {
 					}
 				}
 				if !found {
-					t.Errorf("got unexpected ServiceEntry:\n%v\nexpected:\n%v", toJSON(se), toJSON(tc.expectedServiceEntries))
+					t.Errorf("got unexpected ServiceEntry:\n%v\nexpected:\n%v", toJSON(se), toJSON(expectedServiceEntries))
 				}
 			}
 		})
