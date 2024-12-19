@@ -26,10 +26,12 @@ import (
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
@@ -68,49 +70,89 @@ var (
 		},
 	}
 
-	unexportedService = &corev1.Service{
-		ObjectMeta: v1.ObjectMeta{Name: "a", Namespace: "ns1"},
+	httpPort = corev1.ServicePort{
+		Name:       "http",
+		Port:       80,
+		TargetPort: intstr.IntOrString{IntVal: 8080},
 	}
-	exportedService1 = &corev1.Service{
+	httpsPort = corev1.ServicePort{
+		Name:       "https",
+		Port:       443,
+		TargetPort: intstr.IntOrString{IntVal: 8443},
+	}
+
+	svcA_ns1 = &corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "a",
+			Namespace: "ns1",
+			Labels:    map[string]string{"app": "b"},
+		},
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{httpPort, httpsPort},
+		},
+	}
+	svcB_ns1 = &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "b",
 			Namespace: "ns1",
-			Labels: map[string]string{
-				"app":    "b",
-				"export": "true",
-			},
+			Labels:    map[string]string{"app": "b"},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Port: 8080,
-			}},
+			Ports: []corev1.ServicePort{httpPort, httpsPort},
 		},
 	}
-	exportedService2 = &corev1.Service{
+	svcA_ns2 = &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "a",
 			Namespace: "ns2",
-			Labels: map[string]string{
-				"app":    "a",
-				"export": "true",
-			},
+			Labels:    map[string]string{"app": "a"},
 		},
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{
-				Port: 9080,
-			}},
+			Ports: []corev1.ServicePort{httpPort},
 		},
+	}
+
+	importedHttpPort = &v1alpha1.ServicePort{
+		Name:       "http",
+		Number:     80,
+		TargetPort: 8080,
+		Protocol:   "HTTP",
+	}
+	importedHttpsPort = &v1alpha1.ServicePort{
+		Name:       "https",
+		Number:     443,
+		TargetPort: 8443,
+		Protocol:   "HTTPS",
+	}
+
+	importedSvcA_ns1 = &v1alpha1.ExportedService{
+		Name:      "a",
+		Namespace: "ns1",
+		Labels:    map[string]string{"app": "a"},
+		Ports:     []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
+	}
+	importedSvcB_ns1 = &v1alpha1.ExportedService{
+		Name:      "b",
+		Namespace: "ns1",
+		Labels:    map[string]string{"app": "b"},
+		Ports:     []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
+	}
+	importedSvcA_ns2 = &v1alpha1.ExportedService{
+		Name:      "a",
+		Namespace: "ns2",
+		Labels:    map[string]string{"app": "a"},
+		Ports:     []*v1alpha1.ServicePort{importedHttpPort},
 	}
 )
 
 func TestIngressGateway(t *testing.T) {
 	testCases := []struct {
-		name             string
-		existingServices []*corev1.Service
-		expectedGateway  *v1alpha3.Gateway
+		name            string
+		localServices   []*corev1.Service
+		expectedGateway *v1alpha3.Gateway
 	}{{
-		name:             "federation-ingress-gateway should expose FDS and exported services",
-		existingServices: []*corev1.Service{unexportedService, exportedService1, exportedService2},
+		name:          "federation-ingress-gateway should expose FDS and exported services",
+		localServices: []*corev1.Service{svcA_ns1, export(svcB_ns1), export(svcA_ns2)},
 		expectedGateway: &v1alpha3.Gateway{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "federation-ingress-gateway",
@@ -137,8 +179,8 @@ func TestIngressGateway(t *testing.T) {
 			},
 		},
 	}, {
-		name:             "federation-ingress-gateway should always expose FDS",
-		existingServices: []*corev1.Service{},
+		name:          "federation-ingress-gateway should always expose FDS",
+		localServices: []*corev1.Service{},
 		expectedGateway: &v1alpha3.Gateway{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "federation-ingress-gateway",
@@ -172,7 +214,7 @@ func TestIngressGateway(t *testing.T) {
 			stopCh := make(chan struct{})
 			informerFactory.Start(stopCh)
 
-			for _, svc := range tc.existingServices {
+			for _, svc := range tc.localServices {
 				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.Background(), svc, v1.CreateOptions{}); err != nil {
 					t.Fatalf("failed to create service %s/%s: %v", svc.Name, svc.Namespace, err)
 				}
@@ -200,23 +242,23 @@ func TestEnvoyFilters(t *testing.T) {
 	testCases := []struct {
 		name                     string
 		localIngressType         config.IngressType
-		existingServices         []*corev1.Service
+		localServices            []*corev1.Service
 		expectedEnvoyFilterFiles []string
 	}{{
 		name:                     "EnvoyFilters should not return filters when local ingress type is istio",
 		localIngressType:         config.Istio,
-		existingServices:         []*corev1.Service{unexportedService, exportedService1},
+		localServices:            []*corev1.Service{export(svcA_ns1), svcB_ns1},
 		expectedEnvoyFilterFiles: []string{},
 	}, {
 		name:                     "EnvoyFilters should return filters for exported services and FDS",
 		localIngressType:         config.OpenShiftRouter,
-		existingServices:         []*corev1.Service{unexportedService, exportedService1, exportedService2},
-		expectedEnvoyFilterFiles: []string{"fds-envoy-filter.yaml", "svc1-envoy-filter.yaml", "svc2-envoy-filter.yaml"},
+		localServices:            []*corev1.Service{svcA_ns1, export(svcB_ns1), export(svcA_ns2)},
+		expectedEnvoyFilterFiles: []string{"fds.yaml", "svc-b-ns-1-port-80.yaml", "svc-b-ns-1-port-443.yaml", "svc-a-ns-2.yaml"},
 	}, {
 		name:                     "EnvoyFilters should return a filter for FDS even if no service is exported",
 		localIngressType:         config.OpenShiftRouter,
-		existingServices:         []*corev1.Service{},
-		expectedEnvoyFilterFiles: []string{"fds-envoy-filter.yaml"},
+		localServices:            []*corev1.Service{},
+		expectedEnvoyFilterFiles: []string{"fds.yaml"},
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -227,7 +269,7 @@ func TestEnvoyFilters(t *testing.T) {
 			stopCh := make(chan struct{})
 			informerFactory.Start(stopCh)
 
-			for _, svc := range tc.existingServices {
+			for _, svc := range tc.localServices {
 				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.Background(), svc, v1.CreateOptions{}); err != nil {
 					t.Fatalf("failed to create service %s/%s: %v", svc.Name, svc.Namespace, err)
 				}
@@ -241,46 +283,97 @@ func TestEnvoyFilters(t *testing.T) {
 
 			cfg := copyConfig(&exportConfig)
 			cfg.MeshPeers.Local.IngressType = tc.localIngressType
+
 			factory := NewConfigFactory(*cfg, serviceLister, fds.NewImportedServiceStore(), "istio-system")
-
-			var expectedEnvoyFilters []*v1alpha3.EnvoyFilter
-			for _, f := range tc.expectedEnvoyFilterFiles {
-				filePath := filepath.Join("testdata", f)
-				data, err := os.ReadFile(filePath)
-				if err != nil {
-					t.Fatalf("failed to read file: %v", err)
-				}
-				ef := &v1alpha3.EnvoyFilter{}
-				if err := yaml.Unmarshal(data, ef); err != nil {
-					t.Fatalf("failed to unmarshal data from %s", f)
-				}
-				expectedEnvoyFilters = append(expectedEnvoyFilters, ef)
-			}
-
 			envoyFilters := factory.EnvoyFilters()
-			if len(envoyFilters) != len(tc.expectedEnvoyFilterFiles) {
-				t.Errorf("got unexpected number of EnvoyFilters: %d, expected: %d\n%s\n%s", len(envoyFilters),
-					len(tc.expectedEnvoyFilterFiles), toJSON(envoyFilters), toJSON(expectedEnvoyFilters))
-			}
-
-			for _, ef := range envoyFilters {
-				found := false
-				for _, expectedEF := range expectedEnvoyFilters {
-					if ef.Name == expectedEF.Name {
-						found = true
-						// Serialize objects to JSON is a workaround, because objects deserialized from YAML have non-nil spec.atomicMetadata
-						// and therefore reflect.DeepEqual fails, and that field can't be unset directly accessing .Spec.
-						if toJSON(ef) != toJSON(expectedEF) {
-							t.Errorf("got unexpected EnvoyFilter:\n%+v\nexpected filters:\n%+v", toJSON(ef), toJSON(expectedEF))
-						}
-					}
-				}
-				if !found {
-					t.Errorf("got unexpected EnvoyFilter:\n%v\nexpected filters:\n%v", toJSON(ef), toJSON(expectedEnvoyFilters))
-				}
-			}
+			compareResources(t, "envoy-filters", tc.expectedEnvoyFilterFiles, envoyFilters)
 		})
 	}
+}
+
+func TestServiceEntries(t *testing.T) {
+	importConfigRemoteIP := copyConfig(&exportConfig)
+	importConfigRemoteIP.MeshPeers.Remote = config.Remote{
+		Name:      "west",
+		Addresses: []string{"1.1.1.1", "2.2.2.2"},
+		Network:   "west-network",
+	}
+
+	importConfigRemoteDNS := copyConfig(&exportConfig)
+	importConfigRemoteDNS.MeshPeers.Remote = config.Remote{
+		Name:      "west",
+		Addresses: []string{"remote-ingress.net"},
+		Network:   "west-network",
+	}
+
+	testCases := []struct {
+		name                      string
+		cfg                       config.Federation
+		localServices             []*corev1.Service
+		importedServices          []*v1alpha1.ExportedService
+		expectedServiceEntryFiles []string
+	}{{
+		name:                      "no ServiceEntry is created if remote addresses are empty",
+		cfg:                       exportConfig,
+		expectedServiceEntryFiles: []string{},
+	}, {
+		name: "ServiceEntries should be created only for services, which do not exist locally; " +
+			"resolution type should be STATIC when remote addresses are IPs",
+		cfg:                       *importConfigRemoteIP,
+		localServices:             []*corev1.Service{svcA_ns1},
+		importedServices:          []*v1alpha1.ExportedService{importedSvcA_ns1, importedSvcB_ns1, importedSvcA_ns2},
+		expectedServiceEntryFiles: []string{"ip/fds.yaml", "ip/svc-b-ns-1.yaml", "ip/svc-a-ns-2.yaml"},
+	}, {
+		name: "ServiceEntries should be created only for services, which do not exist locally; " +
+			"resolution type should be DNS when remote address is a DNS name",
+		cfg:                       *importConfigRemoteDNS,
+		localServices:             []*corev1.Service{svcA_ns1},
+		importedServices:          []*v1alpha1.ExportedService{importedSvcA_ns1, importedSvcB_ns1, importedSvcA_ns2},
+		expectedServiceEntryFiles: []string{"dns/fds.yaml", "dns/svc-b-ns-1.yaml", "dns/svc-a-ns-2.yaml"},
+	}}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := fake.NewSimpleClientset()
+			informerFactory := informers.NewSharedInformerFactory(client, 0)
+			serviceInformer := informerFactory.Core().V1().Services().Informer()
+			serviceLister := informerFactory.Core().V1().Services().Lister()
+			stopCh := make(chan struct{})
+			informerFactory.Start(stopCh)
+
+			for _, svc := range tc.localServices {
+				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.Background(), svc, v1.CreateOptions{}); err != nil {
+					t.Fatalf("failed to create service %s/%s: %v", svc.Name, svc.Namespace, err)
+				}
+			}
+
+			serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{})
+			if err != nil {
+				t.Fatalf("error creating serviceController: %v", err)
+			}
+			serviceController.RunAndWait(stopCh)
+
+			importedServiceStore := fds.NewImportedServiceStore()
+			importedServiceStore.Update(map[string][]*v1alpha1.ExportedService{
+				"west": tc.importedServices,
+			})
+
+			factory := NewConfigFactory(tc.cfg, serviceLister, importedServiceStore, "istio-system")
+			serviceEntries, err := factory.ServiceEntries()
+			if err != nil {
+				t.Fatalf("error getting ServiceEntries: %v", err)
+			}
+			compareResources(t, "service-entries", tc.expectedServiceEntryFiles, serviceEntries)
+		})
+	}
+}
+
+func export(svc *corev1.Service) *corev1.Service {
+	exported := svc.DeepCopy()
+	if exported.Labels == nil {
+		exported.Labels = map[string]string{}
+	}
+	exported.Labels["export"] = "true"
+	return exported
 }
 
 func copyConfig(original *config.Federation) *config.Federation {
@@ -295,6 +388,42 @@ func copyConfig(original *config.Federation) *config.Federation {
 	}
 
 	return newCfg
+}
+
+func compareResources[T any](t *testing.T, dir string, expectedFiles []string, actualResources []*T) {
+	var expectedResources []*T
+	for _, f := range expectedFiles {
+		filePath := filepath.Join("testdata", dir, f)
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("failed to read file: %v", err)
+		}
+		var resource T
+		if err := yaml.Unmarshal(data, &resource); err != nil {
+			t.Fatalf("failed to unmarshal data from %s: %v", f, err)
+		}
+		expectedResources = append(expectedResources, &resource)
+	}
+
+	if len(actualResources) != len(expectedResources) {
+		t.Errorf("got unexpected number of resources: %d, expected: %d\nactual: %s\nexpected: %s",
+			len(actualResources), len(expectedResources), toJSON(actualResources), toJSON(expectedResources))
+	}
+
+	for _, actual := range actualResources {
+		found := false
+		for _, expected := range expectedResources {
+			// Serializing objects to JSON is a workaround, because objects deserialized from YAML have non-nil spec.atomicMetadata
+			// and therefore reflect.DeepEqual fails, and that field can't be unset directly accessing .Spec.
+			if toJSON(actual) == toJSON(expected) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("got unexpected resource:\n%s\nexpected resources:\n%s", toJSON(actual), toJSON(expectedResources))
+		}
+	}
 }
 
 func toJSON(input any) string {
