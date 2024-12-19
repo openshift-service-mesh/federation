@@ -81,7 +81,7 @@ var (
 		TargetPort: intstr.IntOrString{IntVal: 8443},
 	}
 
-	svcAns1 = &corev1.Service{
+	svcA_ns1 = &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "a",
 			Namespace: "ns1",
@@ -91,7 +91,7 @@ var (
 			Ports: []corev1.ServicePort{httpPort, httpsPort},
 		},
 	}
-	svcBns1 = &corev1.Service{
+	svcB_ns1 = &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "b",
 			Namespace: "ns1",
@@ -101,7 +101,7 @@ var (
 			Ports: []corev1.ServicePort{httpPort, httpsPort},
 		},
 	}
-	svcAns2 = &corev1.Service{
+	svcA_ns2 = &corev1.Service{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "a",
 			Namespace: "ns2",
@@ -125,19 +125,19 @@ var (
 		Protocol:   "HTTPS",
 	}
 
-	importedSvcAns1 = &v1alpha1.ExportedService{
+	importedSvcA_ns1 = &v1alpha1.ExportedService{
 		Name:      "a",
 		Namespace: "ns1",
 		Labels:    map[string]string{"app": "a"},
 		Ports:     []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
 	}
-	importedSvcBns1 = &v1alpha1.ExportedService{
+	importedSvcB_ns1 = &v1alpha1.ExportedService{
 		Name:      "b",
 		Namespace: "ns1",
 		Labels:    map[string]string{"app": "b"},
 		Ports:     []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
 	}
-	importedSvcAns2 = &v1alpha1.ExportedService{
+	importedSvcA_ns2 = &v1alpha1.ExportedService{
 		Name:      "a",
 		Namespace: "ns2",
 		Labels:    map[string]string{"app": "a"},
@@ -152,7 +152,7 @@ func TestIngressGateway(t *testing.T) {
 		expectedGateway *v1alpha3.Gateway
 	}{{
 		name:          "federation-ingress-gateway should expose FDS and exported services",
-		localServices: []*corev1.Service{svcAns1, export(svcBns1), export(svcAns2)},
+		localServices: []*corev1.Service{svcA_ns1, export(svcB_ns1), export(svcA_ns2)},
 		expectedGateway: &v1alpha3.Gateway{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "federation-ingress-gateway",
@@ -247,12 +247,12 @@ func TestEnvoyFilters(t *testing.T) {
 	}{{
 		name:                     "EnvoyFilters should not return filters when local ingress type is istio",
 		localIngressType:         config.Istio,
-		localServices:            []*corev1.Service{export(svcAns1), svcBns1},
+		localServices:            []*corev1.Service{export(svcA_ns1), svcB_ns1},
 		expectedEnvoyFilterFiles: []string{},
 	}, {
 		name:                     "EnvoyFilters should return filters for exported services and FDS",
 		localIngressType:         config.OpenShiftRouter,
-		localServices:            []*corev1.Service{svcAns1, export(svcBns1), export(svcAns2)},
+		localServices:            []*corev1.Service{svcA_ns1, export(svcB_ns1), export(svcA_ns2)},
 		expectedEnvoyFilterFiles: []string{"fds.yaml", "svc-b-ns-1-port-80.yaml", "svc-b-ns-1-port-443.yaml", "svc-a-ns-2.yaml"},
 	}, {
 		name:                     "EnvoyFilters should return a filter for FDS even if no service is exported",
@@ -320,15 +320,15 @@ func TestServiceEntries(t *testing.T) {
 		name: "ServiceEntries should be created only for services, which do not exist locally; " +
 			"resolution type should be STATIC when remote addresses are IPs",
 		cfg:                       *importConfigRemoteIP,
-		localServices:             []*corev1.Service{svcAns1},
-		importedServices:          []*v1alpha1.ExportedService{importedSvcAns1, importedSvcBns1, importedSvcAns2},
+		localServices:             []*corev1.Service{svcA_ns1},
+		importedServices:          []*v1alpha1.ExportedService{importedSvcA_ns1, importedSvcB_ns1, importedSvcA_ns2},
 		expectedServiceEntryFiles: []string{"ip/fds.yaml", "ip/svc-b-ns-1.yaml", "ip/svc-a-ns-2.yaml"},
 	}, {
 		name: "ServiceEntries should be created only for services, which do not exist locally; " +
 			"resolution type should be DNS when remote address is a DNS name",
 		cfg:                       *importConfigRemoteDNS,
-		localServices:             []*corev1.Service{svcAns1},
-		importedServices:          []*v1alpha1.ExportedService{importedSvcAns1, importedSvcBns1, importedSvcAns2},
+		localServices:             []*corev1.Service{svcA_ns1},
+		importedServices:          []*v1alpha1.ExportedService{importedSvcA_ns1, importedSvcB_ns1, importedSvcA_ns2},
 		expectedServiceEntryFiles: []string{"dns/fds.yaml", "dns/svc-b-ns-1.yaml", "dns/svc-a-ns-2.yaml"},
 	}}
 	for _, tc := range testCases {
