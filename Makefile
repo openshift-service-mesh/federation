@@ -28,10 +28,15 @@ help:
 
 ##@ Build
 
+.PHONY: deps
+deps: ## Downloads required dependencies
+	go mod tidy
+	go mod download
+
+
 EXTRA_BUILD_ARGS?=
 .PHONY: build
-build: $(PROTOBUF_GEN) ## Builds the project
-	go get $(PROJECT_DIR)/...
+build: deps $(PROTOBUF_GEN) ## Builds the project
 	go build -C $(PROJECT_DIR)/cmd/federation-controller -o $(PROJECT_DIR)/$(OUT_DIR)/federation-controller $(EXTRA_BUILD_ARGS)
 
 .PHONY: test
@@ -85,7 +90,7 @@ e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
 			--istio.test.kube.networkTopology=0:east-network,1:west-network\
 			--istio.test.onlyWorkloads=standard); \
 
-##@ Tooling
+## Tooling
 
 $(shell mkdir -p $(LOCALBIN))
 

@@ -1,0 +1,21 @@
+metadata:
+  name: federation-discovery-service-west
+  namespace: istio-system
+  labels:
+    federation.istio-ecosystem.io/peer: todo
+spec:
+  hosts:
+  - federation-discovery-service-west.istio-system.svc.cluster.local
+  endpoints:
+  - address: remote-ingress.net
+    ports:
+      grpc: 15443
+    labels:
+      security.istio.io/tlsMode: istio
+    network: west-network
+  ports:
+  - name: grpc
+    number: 15080
+    protocol: GRPC
+  location: MESH_INTERNAL
+  resolution: DNS

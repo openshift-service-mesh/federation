@@ -1,0 +1,23 @@
+metadata:
+  name: import-a-ns2
+  namespace: istio-system
+  labels:
+    federation.istio-ecosystem.io/peer: todo
+spec:
+  hosts:
+  - a.ns2.svc.cluster.local
+  endpoints:
+  - address: remote-ingress.net
+    ports:
+      http: 15443
+    labels:
+      app: a
+      security.istio.io/tlsMode: istio
+    network: west-network
+  ports:
+  - name: http
+    number: 80
+    protocol: HTTP
+    targetPort: 8080
+  location: MESH_INTERNAL
+  resolution: DNS
