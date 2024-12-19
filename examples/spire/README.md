@@ -1,6 +1,6 @@
 ### Integration with SPIRE and trust domain federation
 
-#### Prerequsistes
+#### Prerequisites
 
 1. Download charts:
 ```shell
@@ -13,8 +13,8 @@ helm repo add spiffe-hardened https://spiffe.github.io/helm-charts-hardened
 helm-east upgrade --install spire-crds spiffe-hardened/spire-crds --version 0.5.0
 helm-west upgrade --install spire-crds spiffe-hardened/spire-crds --version 0.5.0
 # CSI driver, server, agent and OIDC provider
-helm-east upgrade --install spire spiffe-hardened/spire -n spire --create-namespace --values examples/spire/east/values.yaml --version 0.24.0
-helm-west upgrade --install spire spiffe-hardened/spire -n spire --create-namespace --values examples/spire/west/values.yaml --version 0.24.0
+helm-east upgrade --install spire spiffe-hardened/spire -n spire --create-namespace --values examples/spire/east/values.yaml --version 0.24.0 --wait
+helm-west upgrade --install spire spiffe-hardened/spire -n spire --create-namespace --values examples/spire/west/values.yaml --version 0.24.0 --wait
 ```
 
 3. Federate bundles:
@@ -23,14 +23,12 @@ helm-west upgrade --install spire spiffe-hardened/spire -n spire --create-namesp
 spire_bundle_endpoint_west=$(kwest get svc spire-server -n spire -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 west_bundle=$(kwest exec -c spire-server -n spire --stdin spire-server-0  -- spire-server bundle show -format spiffe)
 indented_west_bundle=$(echo "$west_bundle" | jq -r '.' | sed 's/^/    /')
-echo -e "  trustDomainBundle: |-\n$indented_west_bundle" >> examples/spire/east/trust-bundle-federation.yaml
-sed "s/<remote_bundle_endpoint_ip>/$spire_bundle_endpoint_west/g" examples/spire/east/trust-bundle-federation.yaml | keast apply -f -
+(cat examples/spire/trust-bundle-federation.yaml; echo -e "  trustDomainBundle: |-\n$indented_west_bundle") | sed "s/\${CLUSTER}/west/g" | sed "s/\${BUNDLE_ENDPOINT}/$spire_bundle_endpoint_west/g" | keast apply -f -
 # west
 spire_bundle_endpoint_east=$(keast get svc spire-server -n spire -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 east_bundle=$(keast exec -c spire-server -n spire --stdin spire-server-0  -- /opt/spire/bin/spire-server bundle show -format spiffe -socketPath /tmp/spire-server/private/api.sock)
 indented_east_bundle=$(echo "$east_bundle" | jq -r '.' | sed 's/^/    /')
-echo -e "  trustDomainBundle: |-\n$indented_east_bundle" >> examples/spire/west/trust-bundle-federation.yaml
-sed "s/<remote_bundle_endpoint_ip>/$spire_bundle_endpoint_east/g" examples/spire/west/trust-bundle-federation.yaml | kwest apply -f -
+(cat examples/spire/trust-bundle-federation.yaml; echo -e "  trustDomainBundle: |-\n$indented_east_bundle") | sed "s/\${CLUSTER}/east/g" | sed "s/\${BUNDLE_ENDPOINT}/$spire_bundle_endpoint_east/g" | kwest apply -f -
 ```
 List bundles:
 ```shell
@@ -57,8 +55,8 @@ MIIDxzCCAq+gAwIBAgIRAOSC+9AxMNaNqWdzd3QfbucwDQYJKoZIhvcNAQELBQAw
 
 4. Deploy Istio:
 ```shell
-sed -e "s/<local_cluster_name>/east/g" -e "s/<remote_cluster_name>/west/g" examples/spire/istio.yaml | istioctl-east install -y -f -
-sed -e "s/<local_cluster_name>/west/g" -e "s/<remote_cluster_name>/east/g" examples/spire/istio.yaml | istioctl-west install -y -f -
+sed -e "s/\${LOCAL_CLUSTER}/east/g" -e "s/\${REMOTE_CLUSTER}/west/g" examples/spire/istio.yaml | istioctl-east install -y -f -
+sed -e "s/\${LOCAL_CLUSTER}/west/g" -e "s/\${REMOTE_CLUSTER}/east/g" examples/spire/istio.yaml | istioctl-west install -y -f -
 ```
 Verify Spire's registry:
 ```shell
@@ -86,12 +84,12 @@ WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o js
 helm-east install east-mesh chart -n istio-system \
     --values examples/kind/east-federation-controller.yaml \
     --set "istio.spire.enabled=true" \
-    --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP"
+    --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP" \
 EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-west install west-mesh chart -n istio-system \
     --values examples/kind/west-federation-controller.yaml \
     --set "istio.spire.enabled=true" \
-    --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP"
+    --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP" \
 ```
 
 6. Deploy and export apps:
