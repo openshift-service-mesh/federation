@@ -14,6 +14,11 @@ PROTOC_GEN_GO := $(LOCALBIN)/protoc-gen-go
 PROTOC_GEN_GRPC := $(LOCALBIN)/protoc-gen-go-grpc
 PROTOC_GEN_DEEPCOPY := $(LOCALBIN)/protoc-gen-golang-deepcopy
 
+PROTOBUF_API_DIR := $(PROJECT_DIR)/api/proto/federation
+PROTOBUF_API_SRC := $(shell find $(PROTOBUF_API_DIR) -type f -name "*.proto")
+API_GEN_DIR=$(PROJECT_DIR)/internal/api
+PROTOBUF_GEN := $(shell find $(API_GEN_DIR) -type f -name "*.go")
+
 .PHONY: default
 default: build add-license fix-imports test
 
@@ -25,7 +30,7 @@ help:
 
 EXTRA_BUILD_ARGS?=
 .PHONY: build
-build: proto ## Builds the project
+build: $(PROTOBUF_GEN) ## Builds the project
 	go get $(PROJECT_DIR)/...
 	go build -C $(PROJECT_DIR)/cmd/federation-controller -o $(PROJECT_DIR)/$(OUT_DIR)/federation-controller $(EXTRA_BUILD_ARGS)
 
@@ -118,13 +123,9 @@ clean:
 
 ##@ Code Gen
 
-PROTO_DIR=$(PROJECT_DIR)/api/proto/federation
-API_GEN_DIR=$(PROJECT_DIR)/internal/api
-
-.PHONY: proto
-proto: $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY) ## Generates Go files from protobuf-based API files
-	@PATH=$(LOCALBIN):$$PATH $(PROTOC) --proto_path=$(PROTO_DIR) --go_out=$(API_GEN_DIR) --go-grpc_out=$(API_GEN_DIR) --golang-deepcopy_out=:$(API_GEN_DIR) $(PROTO_DIR)/**/*.proto
-
+$(PROTOBUF_GEN): $(PROTOBUF_API_SRC) $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY) ## Generates Go files from protobuf-based API files
+	@echo $(PROTOBUF_API_DIR)
+	@PATH=$(LOCALBIN):$$PATH $(PROTOC) --proto_path=$(PROTOBUF_API_DIR) --go_out=$(API_GEN_DIR) --go-grpc_out=$(API_GEN_DIR) --golang-deepcopy_out=:$(API_GEN_DIR) $(PROTOBUF_API_DIR)/**/*.proto
 
 .PHONY: fix-imports
 fix-imports: $(GOIMPORTS) ## Fixes imports
