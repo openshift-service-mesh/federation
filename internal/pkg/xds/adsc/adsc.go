@@ -34,8 +34,6 @@ const (
 	defaultInitialWindowSize           = 1024 * 1024 // default gRPC ConnWindowSize
 )
 
-var log = istiolog.RegisterScope("adsc", "Aggregated Discovery Service Client")
-
 type ADSCConfig struct {
 	PeerName                 string
 	DiscoveryAddr            string
@@ -49,13 +47,17 @@ type ADSC struct {
 	stream discovery.AggregatedDiscoveryService_StreamAggregatedResourcesClient
 	conn   *grpc.ClientConn
 	cfg    *ADSCConfig
+	log    *istiolog.Scope
 }
 
 func New(opts *ADSCConfig) (*ADSC, error) {
 	if opts == nil {
 		return nil, errors.New("adsc: opts is nil")
 	}
-	adsc := &ADSC{cfg: opts}
+	adsc := &ADSC{
+		cfg: opts,
+		log: istiolog.RegisterScope("adsc", "Aggregated Discovery Service Client").WithLabels("peer", opts.PeerName),
+	}
 	if err := adsc.dial(); err != nil {
 		return nil, err
 	}
@@ -74,7 +76,7 @@ func (a *ADSC) Run(ctx context.Context) error {
 
 	for _, r := range a.cfg.InitialDiscoveryRequests {
 		if sendErr := a.send(r); sendErr != nil {
-			log.Errorf("failed sending initial discovery request: %+v", sendErr)
+			a.log.Errorf("failed sending initial discovery request: %+v", sendErr)
 		}
 	}
 
@@ -84,9 +86,9 @@ func (a *ADSC) Run(ctx context.Context) error {
 }
 
 func (a *ADSC) Restart(ctx context.Context) {
-	log.Infof("reconnecting to ADS server %s", a.cfg.DiscoveryAddr)
+	a.log.Infof("reconnecting to ADS server %s", a.cfg.DiscoveryAddr)
 	if err := a.Run(ctx); err != nil {
-		log.Errorf("failed to connect to ADS server %s, will reconnect in %s: %v", a.cfg.DiscoveryAddr, a.cfg.ReconnectDelay, err)
+		a.log.Errorf("failed to connect to ADS server %s, will reconnect in %s: %v", a.cfg.DiscoveryAddr, a.cfg.ReconnectDelay, err)
 		time.AfterFunc(a.cfg.ReconnectDelay, func() {
 			a.Restart(ctx)
 		})
@@ -95,7 +97,7 @@ func (a *ADSC) Restart(ctx context.Context) {
 
 func (a *ADSC) send(req *discovery.DiscoveryRequest) error {
 	req.ResponseNonce = time.Now().String()
-	log.Infof("Sending Discovery Request to ADS server: %s", req.String())
+	a.log.Infof("Sending Discovery Request to ADS server: %s", req.String())
 	return a.stream.Send(req)
 }
 
@@ -127,19 +129,19 @@ func (a *ADSC) handleRecv(ctx context.Context) {
 		var err error
 		msg, err := a.stream.Recv()
 		if err != nil {
-			log.Errorf("connection closed with err: %v", err)
+			a.log.Errorf("connection closed with err: %v", err)
 			time.AfterFunc(a.cfg.ReconnectDelay, func() {
 				a.Restart(ctx)
 			})
 			return
 		}
-		log.Infof("received response for %s: %v", msg.TypeUrl, msg.Resources)
+		a.log.Infof("received response for %s: %v", msg.TypeUrl, msg.Resources)
 		if handler, found := a.cfg.Handlers[msg.TypeUrl]; found {
 			if err := handler.Handle(a.cfg.PeerName, msg.Resources); err != nil {
-				log.Infof("error handling resource %s: %v", msg.TypeUrl, err)
+				a.log.Infof("error handling resource %s: %v", msg.TypeUrl, err)
 			}
 		} else {
-			log.Infof("no handler found for type: %s", msg.TypeUrl)
+			a.log.Infof("no handler found for type: %s", msg.TypeUrl)
 		}
 	}
 }
