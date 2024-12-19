@@ -88,7 +88,8 @@ e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
 			--istio.test.tag=$(ISTIO_VERSION)\
 			--istio.test.kube.config=$(PROJECT_DIR)/test/east.kubeconfig,$(PROJECT_DIR)/test/west.kubeconfig\
 			--istio.test.kube.networkTopology=0:east-network,1:west-network\
-			--istio.test.onlyWorkloads=standard); \
+			--istio.test.onlyWorkloads=standard; \
+	)
 
 ## Tooling
 
