@@ -29,21 +29,22 @@ type ImportedServiceStore struct {
 }
 
 func NewImportedServiceStore() *ImportedServiceStore {
-	return &ImportedServiceStore{}
+	return &ImportedServiceStore{
+		importedServices: make(map[string][]*v1alpha1.ExportedService),
+	}
 }
 
-func (s *ImportedServiceStore) Update(importedServices map[string][]*v1alpha1.ExportedService) {
+func (s *ImportedServiceStore) Update(source string, importedServices []*v1alpha1.ExportedService) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	newImportedServices := make(map[string][]*v1alpha1.ExportedService)
-	for source, services := range importedServices {
-		for _, svc := range services {
-			newImportedServices[source] = append(newImportedServices[source], svc.DeepCopy())
-		}
+	newImportedServices := make([]*v1alpha1.ExportedService, 0, len(importedServices))
+	for _, svc := range importedServices {
+		newImportedServices = append(newImportedServices, svc.DeepCopy())
 	}
 
-	s.importedServices = newImportedServices
+	s.importedServices[source] = newImportedServices
+
 }
 
 // From returns copy of all services exported from given remote peer.
@@ -51,7 +52,7 @@ func (s *ImportedServiceStore) From(remote config.Remote) []*v1alpha1.ExportedSe
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make([]*v1alpha1.ExportedService, 0, len(s.importedServices))
+	out := make([]*v1alpha1.ExportedService, 0, len(s.importedServices[remote.Name]))
 	for _, svc := range s.importedServices[remote.Name] {
 		out = append(out, svc.DeepCopy())
 	}
