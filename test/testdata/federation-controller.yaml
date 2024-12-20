@@ -5,8 +5,6 @@ federation:
         ingress:
           selector:
             app: federation-ingress-gateway
-    remote:
-      port: 15443
   exportedServiceSet:
     rules:
     - type: LabelSelector

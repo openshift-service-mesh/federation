@@ -12,7 +12,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/cluster.sh"
 source "$ROOT/scripts/lib.sh"
 
-clusters=("east" "west")
+clusters=("east" "west" "central")
 all_clusters=$(kind get clusters 2>&1)
 matching_clusters=$(echo "$all_clusters" | grep -c -E "$(printf '%s|' "${clusters[@]}" | sed 's/|$//')" || true)
 

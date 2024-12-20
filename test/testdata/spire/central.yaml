@@ -1,0 +1,53 @@
+global:
+  spire:
+    clusterName: central
+    trustDomain: central.local
+    caSubject:
+      country: US
+      organization: my-company.com
+      commonName: central.local
+
+spire-server:
+  service:
+    type: LoadBalancer
+  federation:
+    enabled: true
+  controllerManager:
+    enabled: true
+    identities:
+      clusterSPIFFEIDs:
+        default:
+          enabled: false
+        istio-system:
+          spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+          namespaceSelector:
+            matchExpressions:
+            - key: kubernetes.io/metadata.name
+              operator: In
+              values:
+              - istio-system
+          federatesWith:
+          - east.local
+          - west.local
+        sidecars:
+          spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+          podSelector:
+            matchLabels:
+              security.istio.io/tlsMode: istio
+          federatesWith:
+          - east.local
+          - west.local
+        test-keys:
+          enabled: false
+
+spire-agent:
+  sds:
+    enabled: true
+    defaultSVIDName: default
+    defaultBundleName: "null"
+    defaultAllBundlesName: ROOTCA
+
+spiffe-oidc-discovery-provider:
+  tls:
+    spire:
+      enabled: false
