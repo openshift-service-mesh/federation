@@ -298,6 +298,7 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 					serviceEntry.Spec.Endpoints = append(serviceEntry.Spec.Endpoints, endpoints...)
 				}
 
+				serviceEntriesByHost[host] = serviceEntry
 			}
 		}
 	}
