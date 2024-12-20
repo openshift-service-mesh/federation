@@ -353,9 +353,7 @@ func TestServiceEntries(t *testing.T) {
 			serviceController.RunAndWait(stopCh)
 
 			importedServiceStore := fds.NewImportedServiceStore()
-			importedServiceStore.Update(map[string][]*v1alpha1.ExportedService{
-				"west": tc.importedServices,
-			})
+			importedServiceStore.Update("west", tc.importedServices)
 
 			factory := NewConfigFactory(tc.cfg, serviceLister, importedServiceStore, "istio-system")
 			serviceEntries, err := factory.ServiceEntries()
