@@ -39,12 +39,12 @@ func TestMain(m *testing.M) {
 		Setup(setup.DeployControlPlanes("spire")).
 		Setup(setup.InstallOrUpgradeFederationControllers(setup.WithSpire{})).
 		Setup(namespace.Setup(&setup.Namespace, namespace.Config{Prefix: "app", Inject: true})).
-		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "a", setup.WithAllPorts{}, setup.WithSpire{})).
-		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithAllPorts{}, setup.WithSpire{})).
-		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithAllPorts{}, setup.WithSpire{})).
-		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "c", setup.WithAllPorts{}, setup.WithSpire{})).
-		Setup(setup.Clusters.Central.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithAllPorts{})).
-		Setup(setup.Clusters.Central.DeployEcho(namespace.Future(&setup.Namespace), "d", setup.WithAllPorts{})).
+		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "a", setup.WithSpire{})).
+		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithSpire{})).
+		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithSpire{})).
+		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "c", setup.WithSpire{})).
+		Setup(setup.Clusters.Central.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithSpire{})).
+		Setup(setup.Clusters.Central.DeployEcho(namespace.Future(&setup.Namespace), "d", setup.WithSpire{})).
 		// c and d must be removed from other clusters, because we want to test importing a service
 		// that exists only in the remote cluster.
 		Setup(setup.RemoveServiceFromClusters("c", namespace.Future(&setup.Namespace), &setup.Clusters.East, &setup.Clusters.Central)).

@@ -49,10 +49,10 @@ func (w WithSpire) ApplyToEcho(appConfig *echo.Config) {
 	}}
 }
 
-// WithAllPorts configures all relevant ports for the application under test.
-type WithAllPorts struct{}
+// AllPorts configures all relevant ports for the application under test.
+type AllPorts struct{}
 
-func (a WithAllPorts) ApplyToEcho(appConfig *echo.Config) {
+func (a AllPorts) ApplyToEcho(appConfig *echo.Config) {
 	appConfig.Ports = echo.Ports{
 		ports.HTTP,
 		ports.GRPC,
