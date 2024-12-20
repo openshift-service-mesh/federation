@@ -42,6 +42,10 @@ import (
 // See DeployOption.
 func (c *Cluster) DeployEcho(ns namespace.Getter, name string, opts ...DeployOption) resource.SetupFn {
 	return func(ctx resource.Context) error {
+		// This option is always added as the first one when deploying test app on the cluster,
+		// being a default use case. Subsequent option manipulating the same fields can always alternate it.
+		opts = append(opts, AllPorts{})
+
 		targetCluster := ctx.Clusters().GetByName(c.InternalName())
 		appConfig := echo.Config{
 			Service:   name,
