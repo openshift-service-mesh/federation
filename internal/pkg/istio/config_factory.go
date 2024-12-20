@@ -63,12 +63,12 @@ func NewConfigFactory(
 // DestinationRules customize SNI in the client mTLS connection when the remote ingress is openshift-router,
 // because that ingress requires hosts compatible with https://datatracker.ietf.org/doc/html/rfc952.
 func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
-
 	var destinationRules []*v1alpha3.DestinationRule
+	destinationRulesAlreadyCreated := make(map[string]bool, len(cf.cfg.MeshPeers.Remotes))
 
 	for _, remote := range cf.cfg.MeshPeers.Remotes {
 		if remote.IngressType != config.OpenShiftRouter {
-			continue
+			return nil
 		}
 
 		createObjectMeta := func(svcName, svcNs string) metav1.ObjectMeta {
@@ -79,7 +79,7 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 			}
 		}
 
-		drPerRemote := []*v1alpha3.DestinationRule{{
+		destinationRules = append(destinationRules, &v1alpha3.DestinationRule{
 			ObjectMeta: createObjectMeta(remote.ServiceName(), "istio-system"),
 			Spec: istionetv1alpha3.DestinationRule{
 				Host: remote.ServiceFQDN(),
@@ -90,31 +90,34 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 					},
 				},
 			},
-		}}
+		})
 
 		for _, svc := range cf.importedServiceStore.From(remote) {
-			dr := &v1alpha3.DestinationRule{
-				ObjectMeta: createObjectMeta(svc.Name, svc.Namespace),
-				Spec: istionetv1alpha3.DestinationRule{
-					Host: fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace),
-					TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
-						PortLevelSettings: []*istionetv1alpha3.TrafficPolicy_PortTrafficPolicy{},
+			// Currently it's assumed that the same service (name+ns) exported by multiple remotes
+			// is configured exactly the same, therefore we create DestinationRule only once.
+			drMeta := createObjectMeta(svc.Name, svc.Namespace)
+			if !destinationRulesAlreadyCreated[drMeta.Name] {
+				dr := &v1alpha3.DestinationRule{
+					ObjectMeta: drMeta,
+					Spec: istionetv1alpha3.DestinationRule{
+						Host: fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace),
+						TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
+							PortLevelSettings: []*istionetv1alpha3.TrafficPolicy_PortTrafficPolicy{},
+						},
 					},
-				},
+				}
+				for _, port := range svc.Ports {
+					dr.Spec.TrafficPolicy.PortLevelSettings = append(dr.Spec.TrafficPolicy.PortLevelSettings, &istionetv1alpha3.TrafficPolicy_PortTrafficPolicy{
+						Port: &istionetv1alpha3.PortSelector{Number: port.Number},
+						Tls: &istionetv1alpha3.ClientTLSSettings{
+							Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
+							Sni:  routerCompatibleSNI(svc.Name, svc.Namespace, port.Number),
+						},
+					})
+				}
+				destinationRules = append(destinationRules, dr)
 			}
-			for _, port := range svc.Ports {
-				dr.Spec.TrafficPolicy.PortLevelSettings = append(dr.Spec.TrafficPolicy.PortLevelSettings, &istionetv1alpha3.TrafficPolicy_PortTrafficPolicy{
-					Port: &istionetv1alpha3.PortSelector{Number: port.Number},
-					Tls: &istionetv1alpha3.ClientTLSSettings{
-						Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-						Sni:  routerCompatibleSNI(svc.Name, svc.Namespace, port.Number),
-					},
-				})
-			}
-			drPerRemote = append(drPerRemote, dr)
 		}
-
-		destinationRules = append(destinationRules, drPerRemote...)
 	}
 
 	return destinationRules
@@ -230,7 +233,7 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 
 	var serviceEntries []*v1alpha3.ServiceEntry
-	serviceEntriesByHost := make(map[string]*v1alpha3.ServiceEntry, len(cf.cfg.MeshPeers.Remotes))
+	serviceEntriesByName := make(map[string]*v1alpha3.ServiceEntry, len(cf.cfg.MeshPeers.Remotes))
 
 	for _, remote := range cf.cfg.MeshPeers.Remotes {
 		if len(remote.Addresses) == 0 {
@@ -253,6 +256,7 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 					return nil, fmt.Errorf("failed to get Service %s/%s: %w", importedSvc.Name, importedSvc.Namespace, err)
 				}
 				// Service doesn't exist - create ServiceEntry.
+
 				// TODO(multi-peer) handle naming clash & different resolution strategy (known limitation?)
 				// What if we happen to have multiple remotes with exported serviceName/serviceNamespace but:
 				// - each remote has different address defined (leading to static or DNS resolution)
@@ -268,7 +272,6 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 					})
 				}
 
-				host := fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)
 				endpoints := slices.Map(remote.Addresses, func(addr string) *istionetv1alpha3.WorkloadEntry {
 					return &istionetv1alpha3.WorkloadEntry{
 						Address: addr,
@@ -278,32 +281,35 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 					}
 				})
 
-				serviceEntry, exists := serviceEntriesByHost[host]
-				if !exists {
+				svcEntryName := fmt.Sprintf("import-%s-%s", importedSvc.Name, importedSvc.Namespace)
+				serviceEntry, exists := serviceEntriesByName[svcEntryName]
+				if exists {
+					// If the ServiceEntry already exists due to multiple remotes exporting the same service,
+					// append endpoints to ensure all remotes are reachable under the shared host.
+					serviceEntry.Spec.Endpoints = append(serviceEntry.Spec.Endpoints, endpoints...)
+				} else {
 					serviceEntry = &v1alpha3.ServiceEntry{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("import-%s-%s", importedSvc.Name, importedSvc.Namespace),
+							Name:      svcEntryName,
 							Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
 							Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 						},
 						Spec: istionetv1alpha3.ServiceEntry{
-							Hosts:      []string{host},
+							Hosts:      []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
 							Ports:      ports,
 							Endpoints:  endpoints,
 							Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
 							Resolution: resolution,
 						},
 					}
-				} else {
-					serviceEntry.Spec.Endpoints = append(serviceEntry.Spec.Endpoints, endpoints...)
 				}
 
-				serviceEntriesByHost[host] = serviceEntry
+				serviceEntriesByName[svcEntryName] = serviceEntry
 			}
 		}
 	}
 
-	serviceEntries = append(serviceEntries, maps.Values(serviceEntriesByHost)...)
+	serviceEntries = append(serviceEntries, maps.Values(serviceEntriesByName)...)
 
 	return serviceEntries, nil
 }
