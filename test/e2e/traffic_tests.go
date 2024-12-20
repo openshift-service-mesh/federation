@@ -33,6 +33,11 @@ import (
 	"istio.io/istio/pkg/test/framework/components/echo/match"
 )
 
+type echoTestCase struct {
+	name string
+	call echo.CallOptions
+}
+
 func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 	a := match.ServiceName(echo.NamespacedName{Name: "a", Namespace: setup.Namespace}).GetMatches(setup.Clusters.East.Apps)
 	if len(a) == 0 {
@@ -49,20 +54,34 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 	})
 
 	ctx.NewSubTest("requests to c and d should fail before exporting").Run(func(ctx framework.TestContext) {
-		resC, callCErr := a[0].Call(echo.CallOptions{
-			Address: fmt.Sprintf("c.%s.svc.cluster.local", setup.Namespace.Name()),
-			Port:    ports.HTTP,
-		})
-		if callCErr == nil || resC.Responses.Len() != 0 {
-			t.Fatalf("the request did not fail and got the following response: %v", resC)
+
+		testCases := []echoTestCase{
+			{
+				name: "should_fail_calling_%s_%s:",
+				call: echo.CallOptions{
+					Address: fmt.Sprintf("c.%s.svc.cluster.local", setup.Namespace.Name()),
+					Scheme:  scheme.HTTP,
+					Port:    ports.HTTP,
+				},
+			},
+			{
+				name: "should_fail_calling_%s_%s:",
+				call: echo.CallOptions{
+					Address: fmt.Sprintf("d.%s.svc.cluster.local", setup.Namespace.Name()),
+					Scheme:  scheme.HTTP,
+					Port:    ports.HTTP,
+				},
+			},
 		}
 
-		resD, callDErr := a[0].Call(echo.CallOptions{
-			Address: fmt.Sprintf("d.%s.svc.cluster.local", setup.Namespace.Name()),
-			Port:    ports.HTTP,
-		})
-		if callDErr == nil || resD.Responses.Len() != 0 {
-			t.Fatalf("the request did not fail and got the following response: %v", resD)
+		for _, tc := range testCases {
+			ctx.NewSubTest(fmt.Sprintf(tc.name, tc.call.Scheme, tc.call.Address)).
+				Run(func(ctx framework.TestContext) {
+					res, err := a[0].Call(tc.call)
+					if err == nil || res.Responses.Len() != 0 {
+						t.Fatalf("the request did not fail and got the following response: %v", res)
+					}
+				})
 		}
 	})
 
@@ -83,6 +102,7 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 	}
 
 	ctx.NewSubTest("requests to b should be routed to local and remote instances").Run(func(ctx framework.TestContext) {
+
 		reachedAllClusters := func(statusCheck echo.Checker) echo.Checker {
 			return check.And(statusCheck, check.ReachedClusters(ctx.AllClusters(), ctx.AllClusters()))
 		}
@@ -92,35 +112,58 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 			fmt.Sprintf("b.%s.svc", setup.Namespace.Name()),
 			fmt.Sprintf("b.%s.svc.cluster.local", setup.Namespace.Name()),
 		}
+		count := 10
+
+		var testCases []echoTestCase
 
 		for _, host := range hosts {
-			a[0].CallOrFail(t, echo.CallOptions{
-				Address: host,
-				Port:    ports.HTTP,
-				Scheme:  scheme.HTTP,
-				Check:   reachedAllClusters(check.OK()),
-				Count:   12,
-			})
-			a[0].CallOrFail(t, echo.CallOptions{
-				Address: host,
-				Port:    ports.HTTP2,
-				Scheme:  scheme.HTTP,
-				Check:   reachedAllClusters(check.OK()),
-				Count:   12,
-			})
-			a[0].CallOrFail(t, echo.CallOptions{
-				Address: host,
-				Port:    ports.HTTPS,
-				Scheme:  scheme.HTTPS,
-				Check:   reachedAllClusters(check.OK()),
-				Count:   12,
-			})
-			a[0].CallOrFail(t, echo.CallOptions{
-				Address: host,
-				Port:    ports.GRPC,
-				Scheme:  scheme.GRPC,
-				Check:   reachedAllClusters(check.GRPCStatus(codes.OK)),
-				Count:   12,
+			testCases = append(testCases, []echoTestCase{
+				{
+					name: fmt.Sprintf("HTTP_%s", host),
+					call: echo.CallOptions{
+						Address: host,
+						Port:    ports.HTTP,
+						Scheme:  scheme.HTTP,
+						Check:   reachedAllClusters(check.OK()),
+						Count:   count,
+					},
+				},
+				{
+					name: fmt.Sprintf("HTTP2_%s", host),
+					call: echo.CallOptions{
+						Address: host,
+						Port:    ports.HTTP2,
+						Scheme:  scheme.HTTP,
+						Check:   reachedAllClusters(check.OK()),
+						Count:   count,
+					},
+				},
+				{
+					name: fmt.Sprintf("HTTPS_%s", host),
+					call: echo.CallOptions{
+						Address: host,
+						Port:    ports.HTTPS,
+						Scheme:  scheme.HTTPS,
+						Check:   reachedAllClusters(check.OK()),
+						Count:   count,
+					},
+				},
+				{
+					name: fmt.Sprintf("GRPC_%s", host),
+					call: echo.CallOptions{
+						Address: host,
+						Port:    ports.GRPC,
+						Scheme:  scheme.GRPC,
+						Check:   reachedAllClusters(check.GRPCStatus(codes.OK)),
+						Count:   count,
+					},
+				},
+			}...)
+		}
+
+		for _, tc := range testCases {
+			ctx.NewSubTest(tc.name).Run(func(ctx framework.TestContext) {
+				a[0].CallOrFail(ctx, tc.call)
 			})
 		}
 	})
@@ -132,83 +175,57 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 	// only for FQDNs, so mTLS connections to <service-name>.<namespace> or <service-name>.<namespace>.svc
 	// fail, because there are no filters matching such SNIs.
 	ctx.NewSubTest("requests to c and d should succeed when using FQDN").Run(func(ctx framework.TestContext) {
-		fqdnC := fmt.Sprintf("c.%s.svc.cluster.local", setup.Namespace.Name())
-		fqdnD := fmt.Sprintf("d.%s.svc.cluster.local", setup.Namespace.Name())
+		fqdns := []string{
+			fmt.Sprintf("c.%s", setup.Namespace.Name()),
+			fmt.Sprintf("d.%s", setup.Namespace.Name()),
+		}
 
-		testCases := []struct {
-			name,
-			address string
-			port   echo.Port
-			scheme scheme.Instance
-			check  echo.Checker
-		}{
-			{
-				name:    "c-http",
-				address: fqdnC,
-				port:    ports.HTTP,
-				scheme:  scheme.HTTP,
-				check:   check.OK(),
-			},
-			{
-				name:    "c-http2",
-				address: fqdnC,
-				port:    ports.HTTP2,
-				scheme:  scheme.HTTP,
-				check:   check.OK(),
-			},
-			{
-				name:    "c-https",
-				address: fqdnC,
-				port:    ports.HTTPS,
-				scheme:  scheme.HTTPS,
-				check:   check.OK(),
-			},
-			{
-				name:    "c-grpc",
-				address: fqdnC,
-				port:    ports.GRPC,
-				scheme:  scheme.GRPC,
-				check:   check.GRPCStatus(codes.OK),
-			},
-			{
-				name:    "d-http",
-				address: fqdnD,
-				port:    ports.HTTP,
-				scheme:  scheme.HTTP,
-				check:   check.OK(),
-			},
-			{
-				name:    "d-http2",
-				address: fqdnD,
-				port:    ports.HTTP2,
-				scheme:  scheme.HTTP,
-				check:   check.OK(),
-			},
-			{
-				name:    "d-https",
-				address: fqdnD,
-				port:    ports.HTTPS,
-				scheme:  scheme.HTTPS,
-				check:   check.OK(),
-			},
-			{
-				name:    "d-grpc",
-				address: fqdnD,
-				port:    ports.GRPC,
-				scheme:  scheme.GRPC,
-				check:   check.GRPCStatus(codes.OK),
-			},
+		var testCases []echoTestCase
+
+		for _, fqdn := range fqdns {
+			testCases = append(testCases, []echoTestCase{
+				{
+					name: fmt.Sprintf("HTTP_%s", fqdn),
+					call: echo.CallOptions{
+						Address: fqdn,
+						Port:    ports.HTTP,
+						Scheme:  scheme.HTTP,
+						Check:   check.OK(),
+					},
+				},
+				{
+					name: fmt.Sprintf("HTTP2_%s", fqdn),
+					call: echo.CallOptions{
+						Address: fqdn,
+						Port:    ports.HTTP2,
+						Scheme:  scheme.HTTP,
+						Check:   check.OK(),
+					},
+				},
+				{
+					name: fmt.Sprintf("HTTPS_%s", fqdn),
+					call: echo.CallOptions{
+						Address: fqdn,
+						Port:    ports.HTTPS,
+						Scheme:  scheme.HTTPS,
+						Check:   check.OK(),
+					},
+				},
+				{
+					name: fmt.Sprintf("GRPC_%s", fqdn),
+					call: echo.CallOptions{
+						Address: fqdn,
+						Port:    ports.GRPC,
+						Scheme:  scheme.GRPC,
+						Check:   check.GRPCStatus(codes.OK),
+					},
+				},
+			}...)
 		}
 
 		for _, tc := range testCases {
-			tc := tc
 			ctx.NewSubTest(tc.name).Run(func(ctx framework.TestContext) {
-				a[0].CallOrFail(ctx, echo.CallOptions{
-					Address: tc.address,
-					Port:    tc.port,
-					Scheme:  tc.scheme,
-					Check:   tc.check,
-				})
+				a[0].CallOrFail(ctx, tc.call)
 			})
 		}
 	})
