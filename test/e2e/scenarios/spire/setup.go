@@ -95,7 +95,7 @@ func installSpire(ctx resource.Context) error {
 		helmUpgradeCmd := targetCluster.Command("helm", "upgrade", "--install",
 			"spire", "spire", "--repo", "https://spiffe.github.io/helm-charts-hardened/",
 			"-n", "spire", "--create-namespace",
-			fmt.Sprintf("--values=%s/examples/spire/%s/values.yaml", test.ProjectRoot(), targetCluster.ContextName),
+			fmt.Sprintf("--values=%s/test/testdata/spire/%s.yaml", test.ProjectRoot(), targetCluster.ContextName),
 			"--version", "0.24.0")
 		g.Go(func() error {
 			if out, err := helmUpgradeCmd.CombinedOutput(); err != nil {
