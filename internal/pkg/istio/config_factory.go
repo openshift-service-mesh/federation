@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
+	istiolog "istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/maps"
 	"istio.io/istio/pkg/slices"
 	"istio.io/istio/pkg/util/protomarshal"
@@ -44,6 +45,7 @@ type ConfigFactory struct {
 	serviceLister        v1.ServiceLister
 	importedServiceStore *fds.ImportedServiceStore
 	namespace            string
+	log                  *istiolog.Scope
 }
 
 func NewConfigFactory(
@@ -57,6 +59,7 @@ func NewConfigFactory(
 		serviceLister:        serviceLister,
 		importedServiceStore: importedServiceStore,
 		namespace:            namespace,
+		log:                  istiolog.RegisterScope("istio-cfg-factory", "Istio Resources Config Factory").WithLabels("namespace", namespace),
 	}
 }
 
@@ -117,6 +120,8 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 					})
 				}
 				destinationRules = append(destinationRules, dr)
+			} else {
+				cf.log.Warnf("Destination rule %s already created (requesting peer %v)", drMeta.Name, remote)
 			}
 		}
 	}
