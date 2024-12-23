@@ -68,7 +68,8 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 
 	for _, remote := range cf.cfg.MeshPeers.Remotes {
 		if remote.IngressType != config.OpenShiftRouter {
-			return nil
+			// Skipping peers which are not using openshift-router
+			continue
 		}
 
 		createObjectMeta := func(svcName, svcNs string) metav1.ObjectMeta {
