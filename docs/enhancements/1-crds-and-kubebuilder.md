@@ -11,7 +11,7 @@ Currently, resources are not removed when the controller is uninstalled, and tha
 ## Design
 We need the following CRDs:
 1. `MeshFederation` - cluster-scoped CRD that includes general federation config, i.e. local settings, remote addresses and identities.
-2. `ExportedService` - represents an exported service; parent for export-related Istio resources, i.e. `Gateway`, `DestinationRule`, etc.; can be created by a user or the controller (if proper rules are defined in `MeshFederation`).
+2. `FederatedServicePolicy` - specifies rules for exporting (and/or importing - TBD) services; parent for export-related Istio resources, i.e. `Gateway`, `DestinationRule`, etc.; must be created by a user.
 3. `ImportedService` - represents an imported service; parent for import-related Istio resources, i.e. `ServiceEntry`, `WorkloadEntry`, etc.; created by FDS.
 
 #### MeshFederation
@@ -19,6 +19,7 @@ We need the following CRDs:
 `MeshFederation` must be a cluster-scoped resource, because it will be a parent for resources created in many namespaces.
 This resource will contain settings related only to mesh-federation topology, not federation-controller settings.
 The controller remains managed by helm values.
+
 ```yaml
 apiGroup: federation.openshift-service-mesh.io/v1alpha1
 kind: MeshFederation
@@ -92,6 +93,97 @@ status:
     status: Disconnected
     lastErrorMessage: "No route to host 192.168.2.1"
 ```
+
+#### FederatedServicePolicy
+
+`FederatedServicePolicy` is a namespaced resource for specifying rules for exporting (and importing - TBD) services.
+This resource is expected to be created as a single instance for all exported (and imported - TBD) services.
+This is necessary, because all exported services will be associated with a single e/w gateway, so we can't map n to 1 resources.
+
+```yaml
+apiGroup: federation.openshift-service-mesh.io/v1alpha1
+kind: FederatedServicePolicy
+metadata:
+  # Name must be default.
+  name: default
+  # Namespace is expected to be the same as the controller's namespace.
+  namespace: istio-system
+  ownerReferences:
+  - apiVersion: federation.openshift-service-mesh.io/v1alpha1
+    kind: MeshFederation
+    name: default
+    uid: a8e825b9-911e-40b8-abff-58f37bb3e05d
+spec:
+  export:
+    # Service selectors allows to export particular services by label in any namespace
+    serviceSelectors:
+    - matchLabels:
+        export: "true"
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - ratings
+        - reviews
+    # Namespace selectors allows to export all services from namespaces selected by label 
+    namespaceSelectors:
+    - matchLabels:
+        istio-injection: enabled
+    # Service list allows to export particular services in particular namespaces.
+    serviceList:
+    - "ratings/ns-1"
+    - "reviews/ns-1"
+    - "*/ns-2"
+# TODO
+# status:
+```
+
+`serviceSelectors`, `namespaceSelectors` and `serviceList` are OR-ed.
+Rules based on label selectors are useful when an admin wants to give users the control on exporting Services,
+while `serviceList` gives the admin full control on exported services.
+
+This code shows what the controller for `FederatedServicePolicy` will own and watch:
+```go
+func (r *FederatedServicePolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&v1alpha1.FederatedServicePolicy{}).
+		Owns(&v1.Gateway{}).
+		// only if custom domain is set
+		Owns(&v1.ServiceEntry{}).
+		// only if OpenShift router is enabled
+		Owns(&v1.EnvoyFilter{}).
+		Watches(
+			&corev1.Service{},
+			handler.EnqueueRequestsFromMapFunc(),
+			builder.WithPredicates(checkIfMatchesExportRules),
+		).
+		Watches(
+			&corev1.Namespace{},
+			handler.EnqueueRequestsFromMapFunc(),
+            builder.WithPredicates(checkIfMatchesExportRules),
+		).
+		Complete(r)
+}
+```
+
+All export-related resource will contain ownerReference pointing to `FederatedServicePolicy`, e.g.:
+```yaml
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: federation-ingress-gateway
+  namespace: istio-system
+  ownerReferences:
+  - apiVersion: federation.openshift-service-mesh.io/v1alpha1
+    kind: FederatedServicePolicy
+    name: default
+    uid: a8e825b9-911e-40b8-abff-58f37bb3e05d
+spec:
+  selector:
+    app: federation-ingress-gateway
+```
+
+So deleting `MeshFederation` or `FederatedServicePolicy` will result in removing these resources.
 
 ### User Stories
 
