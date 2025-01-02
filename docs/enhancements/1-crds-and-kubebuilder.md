@@ -63,7 +63,7 @@ spec:
       # Optional.
       # Control plane namespace used to create mesh-wide resources.
       namespace: istio-system
-  remotes:
+  remote:
   # ID is a unique identifier of the FDS peer, and it's used as a suffix for its Service name.
   - id: west
     # Network name used by Istio for load balancing.
@@ -85,9 +85,12 @@ spec:
       # If "istio" is set client mTLS settings are not modified.
       type: istio
 status:
-  conditions: []
-  state: Healthy
-  # TODO: keep state per remote peer
+  conditions:
+  - meshID: west
+    status: Connected
+  - meshID: central
+    status: Disconnected
+    lastErrorMessage: "No route to host 192.168.2.1"
 ```
 
 ### User Stories
