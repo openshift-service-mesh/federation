@@ -137,7 +137,7 @@ spec:
 Rules based on label selectors are useful when an admin wants to give users the control on exporting Services,
 while `serviceList` gives the admin full control on exported services.
 
-This code shows what the controller for `FederatedServicePolicy` will own and watch:
+A controller for `FederatedServicePolicy` will look like:
 ```go
 func (r *FederatedServicePolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
     return ctrl.NewControllerManagedBy(mgr).
@@ -183,26 +183,108 @@ spec:
     app: federation-ingress-gateway
 ```
 
-### User Stories
+#### ImportedService
 
-### API Changes
+`ImportedService` will be created for or updated by the FDS client for each imported service.
+A dedicated controller will watch this CR and manage its child resources, like `ServiceEntry`, `WorkloadEntry`, `DestinationRule`, etc.
+Its owner will be `MeshFederation`, so when `MeshFederation` will be removed `ImportedService` and its child resources will be removed.
 
-### Architecture
+```yaml
+apiGroup: federation.openshift-service-mesh.io/v1alpha1
+kind: ImportedService
+metadata:
+  name: <generated-name>
+  namespace: istio-system
+  ownerReferences:
+  - apiVersion: federation.openshift-service-mesh.io/v1alpha1
+    kind: MeshFederation
+    name: default
+    uid: a8e825b9-911e-40b8-abff-58f37bb3e05d
+spec:
+  # importAsLocal specifies if the controller needs to create ServiceEntry or WorkloadEntry and what namespace should be
+  # used for child resources - root mesh namespace or the original namespace.
+  importAsLocal: false
+  name: <original-svc-name>
+  namespace: <original-svc-namespace>
+# TODO
+# status:
+```
 
-### Performance Impact
+Example child resource
+```yaml
+apiVersion: networking.istio.io/v1
+kind: ServiceEntry
+metadata:
+  name: import-productpage-bookinfo
+  namespace: istio-system
+  ownerReferences:
+  - apiVersion: federation.openshift-service-mesh.io/v1alpha1
+    kind: ImportedService
+    name: productpage
+    uid: a8e825b9-911e-40b8-abff-58f37bb3e05d
+spec:
+  hosts:
+  - productpage.bookinfo.svc.cluster.local
+  ...
+```
 
-### Backward Compatibility
+A controller for `ImportedService` will look like:
+```go
+func (r *ImportedServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+    return ctrl.NewControllerManagedBy(mgr).
+        For(&v1alpha1.ImportedService{}).
+        Owns(&v1.ServiceEntry{}).
+        Owns(&v1.WorkloadEntry{}).
+        Owns(&v1.DestinationRule{}).
+        Watches(
+            &corev1.Service{},
+            handler.EnqueueRequestsFromMapFunc(),
+            builder.WithPredicates(checkIfMatchesExportRules),
+        ).
+        Watches(
+            &corev1.Namespace{},
+            handler.EnqueueRequestsFromMapFunc(),
+            builder.WithPredicates(checkIfMatchesExportRules),
+        ).
+        Watches(
+            &v1alpha1.MeshFederation{},
+            handler.EnqueueRequestsFromMapFunc(),
+        ).
+        Complete(r)
+}
+```
 
-### Kubernetes vs OpenShift vs Other Distributions
-
-## Alternatives Considered
-Other approaches that have been discussed and discarded during or before the creation of the SEP. Should include the reasons why they have not been chosen.
-
-## Implementation Plan
-In the beginning, this should give a rough overview of the work required to implement the SEP. Later on when the SEP has been accepted, this should list the epics that have been created to track the work.
-
-## Test Plan
-When and how can this be tested? We'll want to automate testing as much as possible, so we need to start about testability early.
-
-## Change History (only required when making changes after SEP has been accepted)
-* 2024-07-09 Fixed a typo
+`ImportedService` will be applied by FDS client like below:
+```go
+func (h *ImportedServiceHandler) Handle(source string, resources []*anypb.Any) error {
+	...
+    _ := r.client.V1alpha1().ImportedService(namespace).Apply(ctx, &v1alpha1.ImportedServiceApplyConfiguration{
+        TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
+            APIVersion: "federation.openshift-service-mesh.io/v1alpha1",
+			Kind:       "ImportedService",
+        },
+        ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
+            Name:      name,
+            Namespace: namespace,
+            Labels:    labels,
+            OwnerReferences: []applyconfigurationv1.OwnerReferenceApplyConfiguration{{
+                APIVersion: "federation.openshift-service-mesh.io/v1alpha1",
+                Kind:       "MeshFederation",
+                Name:       "default",
+                UID:        uid,
+                Controller: true,
+            }},
+        },
+        Spec: spec,
+        Status: nil,
+        }, metav1.ApplyOptions{
+            TypeMeta: metav1.TypeMeta{
+            APIVersion: "ImportedService",
+            Kind:       "federation.openshift-service-mesh.io/v1alpha1",
+        },
+        Force:        true,
+        FieldManager: "federation-controller",
+    })
+    return nil
+}
+```
