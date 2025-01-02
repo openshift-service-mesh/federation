@@ -16,9 +16,9 @@ We need the following CRDs:
 
 #### MeshFederation
 
-`MeshFederation` must be a cluster-scoped resource, because it will be a parent for resources created in many namespaces.
-This resource will contain settings related only to mesh-federation topology, not federation-controller settings.
-The controller remains managed by helm values.
+`MeshFederation` specifies settings related only to mesh federation topology, and it does not configure federation-controller workload resources.
+Workload-related resources, like `Deployment`, `Service` etc. will be still configured with helm values.
+This resource must be cluster-scoped, because it will be used as a parent for resources created in multiple namespaces.
 
 ```yaml
 apiGroup: federation.openshift-service-mesh.io/v1alpha1
@@ -96,7 +96,7 @@ status:
 
 #### FederatedServicePolicy
 
-`FederatedServicePolicy` is a namespaced resource for specifying rules for exporting (and importing - TBD) services.
+`FederatedServicePolicy` is a namespaced resource for specifying rules to export (and import - TBD) services.
 This resource is expected to be created as a single instance for all exported (and imported - TBD) services.
 This is necessary, because all exported services will be associated with a single e/w gateway, so we can't map n to 1 resources.
 
@@ -108,11 +108,6 @@ metadata:
   name: default
   # Namespace is expected to be the same as the controller's namespace.
   namespace: istio-system
-  ownerReferences:
-  - apiVersion: federation.openshift-service-mesh.io/v1alpha1
-    kind: MeshFederation
-    name: default
-    uid: a8e825b9-911e-40b8-abff-58f37bb3e05d
 spec:
   export:
     # Service selectors allows to export particular services by label in any namespace
@@ -145,28 +140,33 @@ while `serviceList` gives the admin full control on exported services.
 This code shows what the controller for `FederatedServicePolicy` will own and watch:
 ```go
 func (r *FederatedServicePolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.FederatedServicePolicy{}).
-		Owns(&v1.Gateway{}).
-		// only if custom domain is set
-		Owns(&v1.ServiceEntry{}).
-		// only if OpenShift router is enabled
-		Owns(&v1.EnvoyFilter{}).
-		Watches(
-			&corev1.Service{},
-			handler.EnqueueRequestsFromMapFunc(),
-			builder.WithPredicates(checkIfMatchesExportRules),
-		).
-		Watches(
-			&corev1.Namespace{},
-			handler.EnqueueRequestsFromMapFunc(),
+    return ctrl.NewControllerManagedBy(mgr).
+        For(&v1alpha1.FederatedServicePolicy{}).
+        Owns(&v1.Gateway{}).
+        // only if custom domain is set
+        Owns(&v1.ServiceEntry{}).
+        // only if OpenShift router is enabled
+        Owns(&v1.EnvoyFilter{}).
+        Watches(
+            &corev1.Service{},
+            handler.EnqueueRequestsFromMapFunc(),
             builder.WithPredicates(checkIfMatchesExportRules),
-		).
-		Complete(r)
+        ).
+        Watches(
+            &corev1.Namespace{},
+            handler.EnqueueRequestsFromMapFunc(),
+            builder.WithPredicates(checkIfMatchesExportRules),
+        ).
+        Watches(
+            &v1alpha1.MeshFederation{},
+            handler.EnqueueRequestsFromMapFunc(),
+        ).
+        Complete(r)
 }
 ```
 
-All export-related resource will contain ownerReference pointing to `FederatedServicePolicy`, e.g.:
+All export-related resource will contain ownerReference pointing to `FederatedServicePolicy`,
+so deleting `FederatedServicePolicy` will result in removing these resources.
 ```yaml
 apiVersion: networking.istio.io/v1
 kind: Gateway
@@ -182,8 +182,6 @@ spec:
   selector:
     app: federation-ingress-gateway
 ```
-
-So deleting `MeshFederation` or `FederatedServicePolicy` will result in removing these resources.
 
 ### User Stories
 
