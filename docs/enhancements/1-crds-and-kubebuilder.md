@@ -17,10 +17,6 @@ settings. Federation-related settings, like peers and export/import rules, will 
 2. `FederatedServicePolicy` - specifies rules for exporting (and/or importing - TBD) services; parent for export-related Istio resources, i.e. `Gateway`, `DestinationRule`, etc.; must be created by a user.
 3. `ImportedService` - represents an imported service; parent for import-related Istio resources, i.e. `ServiceEntry`, `WorkloadEntry`, etc.; created by FDS.
 
-### Export/import semantics
-
-We have to decide how we will approach exporting and importing services, because technically we are not able to export a service to particular mesh.
-
 #### MeshFederation
 
 `MeshFederation` specifies settings related only to mesh federation topology, and it does not configure federation-controller workload resources.
@@ -107,6 +103,15 @@ status:
 This resource is expected to be created as a single instance for all exported (and imported - TBD) services.
 This is necessary, because all exported services will be associated with a single e/w gateway, so we can't map n to 1 resources.
 
+The key assumptions for export and import semantics in all variants of `FederationServicePolicy`:
+1. Export and import rules DO NOT enforce any authorization policy.
+2. Export and import rules ensure cross-cluster service discovery, and are not intended for enforcing security.
+3. Export rules are always federation-wide - we do not allow to export services to particular meshes in a federation.
+4. Import rules are defined per remote mesh to allow narrowing down service discovery data.
+
+First variant of `FederatedServicePolicy` allows to export/import by label selectors and (names and namespaces).
+All rules are OR-ed in this approach.
+
 ```yaml
 apiGroup: federation.openshift-service-mesh.io/v1alpha1
 kind: FederatedServicePolicy
@@ -116,6 +121,8 @@ metadata:
   # Namespace is expected to be the same as the controller's namespace.
   namespace: istio-system
 spec:
+  # Export rules applies to all meshes in the federation.
+  # We do not allow to export services for particular meshes in the federation.
   export:
     # Service selectors allows to export particular services by label in any namespace
     serviceSelectors:
@@ -136,13 +143,89 @@ spec:
     - "ratings/ns-1"
     - "reviews/ns-1"
     - "*/ns-2"
+    # Optional
+    # DNS settings allow to customize DNS names for exported services.
+    dnsSettings:
+      # Optional
+      # Search domain is a suffix for the service FQDN
+      searchDomain: mesh.global
+      # Optional
+      # If true, then a service will be exposed as <original-svc-name>.<original-svc-ns>.<search-domain>
+      includeNamespace: false
+      # Examples:
+      # 1. `searchDomain: svc.west.mesh` and `includeNamespace: true` will export ratings and reviews as ratings.bookinfo.svc.west.mesh and reviews.bookinfo.svc.west.mesh
+      # 2. `searchDomain: mesh.global` and `includeNamespace: false` will export ratings and reviews as ratings.mesh.global and reviews.mesh.global.
+  # Optional
+  # Empty import allows to not subscribe FDS.
+  # This rule imports only ratings service from any namespace in the west cluster.
+  import:
+  - meshID: west
+    # Optional
+    # If no selector is specified, then everything is imported.
+    serviceSelectors:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - ratings
+  # This rule imports everything from the central cluster.
+  - meshID: central
 # TODO
 # status:
 ```
 
-`serviceSelectors`, `namespaceSelectors` and `serviceList` are OR-ed.
 Rules based on label selectors are useful when an admin wants to give users the control on exporting Services,
 while `serviceList` gives the admin full control on exported services.
+
+We are able to provide the same functionality with only label selectors for services and namespaces.
+In this variant, `export` is a list of rule sets containing `serviceSelector` or `namespaceSelector`.
+Rules are OR-ed, but each rule set (an item in the `export` list) is AND-ed.
+
+```yaml
+apiGroup: federation.openshift-service-mesh.io/v1alpha1
+kind: FederatedServicePolicy
+metadata:
+  # Name must be default.
+  name: default
+  # Namespace is expected to be the same as the controller's namespace.
+  namespace: istio-system
+spec:
+  # The following list of rules exports services "ratings" and "reviews" from namespace "ns-1" and service "details" from namespace "ns-2".
+  export:
+    selectors:
+    - serviceSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/name
+          operator: In
+          values:
+          - ratings
+          - reviews
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ns-1
+    - serviceSelector:
+        matchLabels:
+          app.kubernetes.io/name: details
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ns-2
+    dnsSettings:
+      searchDomain: mesh.global
+  # Optional
+  # Empty import allows to not subscribe FDS.
+  import:
+  - meshID: west
+    # Optional
+    # If no selector is specified, then everything is imported.
+    serviceSelectors:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - ratings
+# TODO
+# status:
+```
 
 A controller for `FederatedServicePolicy` will look like:
 ```go
