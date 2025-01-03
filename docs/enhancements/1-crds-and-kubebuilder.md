@@ -5,14 +5,21 @@
 # CRDs and kubebuilder
 
 ## Overview
+
 We need CRDs to properly manage lifecycle of the Istio resources created by our controller.
-Currently, resources are not removed when the controller is uninstalled, and that results in mesh misconfiguration.
+Currently, resources are not reconciled on user changes and are not removed when the controller is uninstalled, and that results in mesh misconfiguration.
 
 ## Design
-We need the following CRDs:
+
+Installation of the controller will be still managed with helm values, but these values will contain only workload-related
+settings. Federation-related settings, like peers and export/import rules, will be managed with CRDs:
 1. `MeshFederation` - cluster-scoped CRD that includes general federation config, i.e. local settings, remote addresses and identities.
 2. `FederatedServicePolicy` - specifies rules for exporting (and/or importing - TBD) services; parent for export-related Istio resources, i.e. `Gateway`, `DestinationRule`, etc.; must be created by a user.
 3. `ImportedService` - represents an imported service; parent for import-related Istio resources, i.e. `ServiceEntry`, `WorkloadEntry`, etc.; created by FDS.
+
+### Export/import semantics
+
+We have to decide how we will approach exporting and importing services, because technically we are not able to export a service to particular mesh.
 
 #### MeshFederation
 
