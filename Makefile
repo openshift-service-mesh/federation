@@ -126,7 +126,7 @@ $(KIND):
 	@GOBIN=$(LOCALBIN) go install -mod=readonly sigs.k8s.io/kind@v0.26.0
 
 $(CONTROLLER_GEN):
-	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+	GOBIN=$(LOCALBIN) go install -mod=readonly sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
 
 .PHONY: clean
 clean: 
