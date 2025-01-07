@@ -6,8 +6,20 @@
 
 ## Overview
 
-We need CRDs to properly manage lifecycle of the Istio resources created by our controller.
-Currently, resources are not reconciled on user changes and are not removed when the controller is uninstalled, and that results in mesh misconfiguration.
+Currently, we use helm to manage the controller deployment and its configuration. The configuration is passed to the controller as CLI arguments.
+This approach requires restarting the controller on any configuration change and causes pod failures in case of a misconfiguration.
+
+Additionally, current approach to resource management is not reliable. We just apply resources when it's necessary using the Istio client's `Apply` function,
+so we are not able to reconcile created objects on user's modifications or controller uninstallation.
+
+### Goals
+
+Design CRDs for mesh federation and solve all of the above issues.
+
+### Non-goals
+
+Design CRD for installing federation controller. **Important**: federation controller will be still installed with Helm,
+and we are not planning any dedicated operator or integration with Sail Operator for now.
 
 ## Design
 
@@ -35,7 +47,7 @@ spec:
     # Network name used by Istio for load balancing.
     network: east
     # Optional.
-    # Specifies ingress settings and properties.
+    # If no ingress is specified, it means the controller supports only single network topology.
     ingress:
       # Optional.
       # Local ingress type specifies how to expose exported services.
