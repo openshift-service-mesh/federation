@@ -141,7 +141,7 @@ $(PROTOBUF_GEN): $(PROTOBUF_API_SRC) $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRP
 fix-imports: $(GOIMPORTS) ## Fixes imports
 	$(GOIMPORTS) -local "github.com/openshift-service-mesh/federation" -w $(PROJECT_DIR)/
 
-LICENSE_FILE := hack/boilerplate.go.txt
+LICENSE_FILE := $(PROJECT_DIR)/hack/boilerplate.go.txt
 GO_FILES := $(shell find $(PROJECT_DIR)/ -name '*.go')
 
 .PHONY: add-license
