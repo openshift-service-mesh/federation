@@ -2,38 +2,41 @@
 |--------|-----------|------------|
 | Review | @jewertow | Jan 2 2025 |
 
-# CRDs and kubebuilder
+# CRDs and controllers
 
 ## Overview
 
 Currently, we use helm to manage the controller deployment and its configuration. The configuration is passed to the controller as CLI arguments.
 This approach requires restarting the controller on any configuration change and causes pod failures in case of a misconfiguration.
 
-Additionally, current approach to resource management is not reliable. We just apply resources when it's necessary using the Istio client's `Apply` function,
+Additionally, current approach to resource management is not reliable. We apply resources when it's necessary using the Istio client's `Apply` function,
 so we are not able to reconcile created objects on user's modifications or controller uninstallation.
 
 ### Goals
 
-Design CRDs for mesh federation and solve all of the above issues.
+Design CRDs for better user experience and ensure proper resource lifecycle and garbage collection.
 
 ### Non-goals
 
-Design CRD for installing federation controller. **Important**: federation controller will be still installed with Helm,
+Design CRD for installing federation controller. Federation controller will be still installed with Helm,
 and we are not planning any dedicated operator or integration with Sail Operator for now.
 
 ## Design
 
-Installation of the controller will be still managed with helm values, but these values will contain only workload-related
-settings. Federation-related settings, like peers and export/import rules, will be managed with CRDs:
-1. `MeshFederation` - cluster-scoped CRD that includes general federation config, i.e. local settings, remote addresses and identities.
-2. `FederatedServicePolicy` - specifies rules for exporting (and/or importing - TBD) services; parent for export-related Istio resources, i.e. `Gateway`, `DestinationRule`, etc.; must be created by a user.
-3. `ImportedService` - represents an imported service; parent for import-related Istio resources, i.e. `ServiceEntry`, `WorkloadEntry`, etc.; created by FDS.
+We need the following CRDs:
+1. `MeshFederation` - cluster-scoped resource that includes general federation config, i.e. local settings, remote addresses and identities.
+2. `FederatedServicePolicy` - specifies rules for exporting and importing services; parent for export-related Istio resources, i.e. `Gateway`, `DestinationRule`, etc.; must be created by the mesh admin.
+3. `ImportedService` - represents an imported service; parent for import-related Istio resources, i.e. `ServiceEntry`, `WorkloadEntry`, etc.; managed only by the controller; should not be touch by users.
 
 #### MeshFederation
 
-`MeshFederation` specifies settings related only to mesh federation topology, and it does not configure federation-controller workload resources.
-Workload-related resources, like `Deployment`, `Service` etc. will be still configured with helm values.
-This resource must be cluster-scoped, because it will be used as a parent for resources created in multiple namespaces.
+`MeshFederation` includes settings related only to mesh federation, like remote ingress address, identities, etc.
+This resource must be cluster-scoped, because it will be used as an owner for `ImportedService` resources, which can be created in multiple namespaces.
+
+I would like to move away from thinking about "peers", as this is just an implementation detail.
+I also thought that it may be confusing why peer address is used as the address for remote services.
+
+Resource structure:
 
 ```yaml
 apiGroup: federation.openshift-service-mesh.io/v1alpha1
@@ -100,26 +103,21 @@ spec:
       # If "openshift-router" is set the controller applies DestinationRules with SNI compatible with OpenShift Router.
       # If "istio" is set client mTLS settings are not modified.
       type: istio
-status:
-  conditions:
-  - meshID: west
-    status: Connected
-  - meshID: central
-    status: Disconnected
-    lastErrorMessage: "No route to host 192.168.2.1"
 ```
 
 #### FederatedServicePolicy
 
-`FederatedServicePolicy` is a namespaced resource for specifying rules to export (and import - TBD) services.
-This resource is expected to be created as a single instance for all exported (and imported - TBD) services.
-This is necessary, because all exported services will be associated with a single e/w gateway, so we can't map n to 1 resources.
+`FederatedServicePolicy` is a namespaced resource for specifying export/import rules.
+This resource is expected to be created as a single instance for all exported services.
+This is necessary, because all exported services will be associated with a single e/w gateway, so we can't properly handle N:1 relation between resources.
+Additionally, it will an owner of the egress gateway and its virtual service, because of the N:1 relation between
+imported services and the egress gateway.
 
 The key assumptions for export and import semantics in all variants of `FederationServicePolicy`:
 1. Export and import rules DO NOT enforce any authorization policy.
 2. Export and import rules ensure cross-cluster service discovery, and are not intended for enforcing security.
 3. Export rules are always federation-wide - we do not allow to export services to particular meshes in a federation.
-4. Import rules are defined per remote mesh to allow narrowing down service discovery data.
+4. Import rules are defined per remote mesh to allow limiting service discovery, not access to services.
 
 First variant of `FederatedServicePolicy` allows to export/import by label selectors and (names and namespaces).
 All rules are OR-ed in this approach.
@@ -182,8 +180,6 @@ spec:
         - ratings
   # This rule imports everything from the central cluster.
   - meshID: central
-# TODO
-# status:
 ```
 
 Rules based on label selectors are useful when an admin wants to give users the control on exporting Services,
@@ -235,40 +231,27 @@ spec:
         operator: In
         values:
         - ratings
-# TODO
-# status:
 ```
 
-A controller for `FederatedServicePolicy` will look like:
+Example controller:
 ```go
 func (r *FederatedServicePolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
     return ctrl.NewControllerManagedBy(mgr).
         For(&v1alpha1.FederatedServicePolicy{}).
         Owns(&v1.Gateway{}).
-        // only if custom domain is set
         Owns(&v1.ServiceEntry{}).
-        // only if OpenShift router is enabled
         Owns(&v1.EnvoyFilter{}).
-        Watches(
-            &corev1.Service{},
-            handler.EnqueueRequestsFromMapFunc(),
-            builder.WithPredicates(checkIfMatchesExportRules),
-        ).
-        Watches(
-            &corev1.Namespace{},
-            handler.EnqueueRequestsFromMapFunc(),
-            builder.WithPredicates(checkIfMatchesExportRules),
-        ).
-        Watches(
-            &v1alpha1.MeshFederation{},
-            handler.EnqueueRequestsFromMapFunc(),
-        ).
+        Watches(&corev1.Service{}, WithPredicates(checkIfMatchesExportRules)).
+        Watches(&corev1.Namespace{}, WithPredicates(checkIfMatchesExportRules)).
+        Watches(&v1alpha1.MeshFederation{}).
         Complete(r)
 }
 ```
 
-All export-related resource will contain ownerReference pointing to `FederatedServicePolicy`,
-so deleting `FederatedServicePolicy` will result in removing these resources.
+All export-related resource will include owner reference pointing to `FederatedServicePolicy`,
+so deleting `FederatedServicePolicy` will result in removing these resources as well.
+
+Example child resource:
 ```yaml
 apiVersion: networking.istio.io/v1
 kind: Gateway
@@ -283,36 +266,75 @@ metadata:
 spec:
   selector:
     app: federation-ingress-gateway
+  ...
 ```
 
 #### ImportedService
 
-`ImportedService` will be created for or updated by the FDS client for each imported service.
-A dedicated controller will watch this CR and manage its child resources, like `ServiceEntry`, `WorkloadEntry`, `DestinationRule`, etc.
-Its owner will be `MeshFederation`, so when `MeshFederation` will be removed `ImportedService` and its child resources will be removed.
+`ImportedService` will be created for a group of services from multiple meshes with the same FQDN,
+and it will have the following structure:
 
 ```yaml
 apiGroup: federation.openshift-service-mesh.io/v1alpha1
 kind: ImportedService
 metadata:
-  name: <generated-name>
+  # Name is a dash-separated FQDN of an imported service
+  name: productpage-bookinfo-svc-mesh-global
+  # Namespace depends on whether the service exists in the local cluster.
+  # If it does not exist locally, it will be root mesh namespace, otherwise it will be the original namespace. 
   namespace: istio-system
+  # Having MeshFederation set as an owner ensures proper resource cleanup after deleting federation.
   ownerReferences:
   - apiVersion: federation.openshift-service-mesh.io/v1alpha1
     kind: MeshFederation
     name: default
     uid: a8e825b9-911e-40b8-abff-58f37bb3e05d
 spec:
-  # importAsLocal specifies if the controller needs to create ServiceEntry or WorkloadEntry and what namespace should be
-  # used for child resources - root mesh namespace or the original namespace.
-  importAsLocal: false
-  name: <original-svc-name>
-  namespace: <original-svc-namespace>
-# TODO
-# status:
+  # Original name
+  name: productpage
+  # Original namespace
+  namespace: bookinfo
+  # Hostname comes from remote FDS and is created based on export rules defined in FederatedServicePolicy.
+  hostname: productpage.bookinfo.svc.mesh.global
+  # If a service is federated in more than one mesh, and that service has different ports in meshes,
+  # then it will be imported only from the first mesh. 
+  ports:
+  - name: http
+    number: 80
+    protocol: HTTP
+  # Labels must be the same in all meshes - same as in case of ports.
+  labels:
+    app: productpage
+    security.istio.io/tlsMode: istio
+  # List of meshes from which the service is imported.
+  # This is required to create correct list of endpoints and identities.
+  meshes:
+  - west
+  - central
 ```
 
-Example child resource
+This resource will own import-related resources, like `ServiceEntry` or `WorkloadEntry`, and `DestinationRule`,
+but it will not manage resource for egress gateway, i.e. `Gateway` and `VirtualService`.
+This is because there will be only one gateway and one virtual service for all imported services,
+so there would be N owners for 1 resource. Therefore, resources for egress gateway will need dedicated controllers,
+and their owner will be `FederatedServicePolicy`.
+
+Example controller implementation:
+```go
+func (r *ImportedServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+    return ctrl.NewControllerManagedBy(mgr).
+        For(&v1alpha1.ImportedService{}).
+        Owns(&v1.ServiceEntry{}).
+        Owns(&v1.WorkloadEntry{}).
+        Owns(&v1.DestinationRule{}).
+        Watches(&corev1.Service{}, WithPredicates(checkIfMatchesExportRules)).
+        Watches(&corev1.Namespace{}, WithPredicates(checkIfMatchesExportRules)).
+        Watches(&v1alpha1.MeshFederation{}).
+        Complete(r)
+}
+```
+
+Example child resource:
 ```yaml
 apiVersion: networking.istio.io/v1
 kind: ServiceEntry
@@ -322,71 +344,17 @@ metadata:
   ownerReferences:
   - apiVersion: federation.openshift-service-mesh.io/v1alpha1
     kind: ImportedService
-    name: productpage
+    name: productpage-bookinfo-svc-mesh-global
     uid: a8e825b9-911e-40b8-abff-58f37bb3e05d
 spec:
   hosts:
-  - productpage.bookinfo.svc.cluster.local
+  - productpage.bookinfo.svc.mesh.global
   ...
 ```
 
-A controller for `ImportedService` will look like:
-```go
-func (r *ImportedServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
-    return ctrl.NewControllerManagedBy(mgr).
-        For(&v1alpha1.ImportedService{}).
-        Owns(&v1.ServiceEntry{}).
-        Owns(&v1.WorkloadEntry{}).
-        Owns(&v1.DestinationRule{}).
-        Watches(
-            &corev1.Service{},
-            handler.EnqueueRequestsFromMapFunc(),
-            builder.WithPredicates(checkIfMatchesExportRules),
-        ).
-        Watches(
-            &corev1.Namespace{},
-            handler.EnqueueRequestsFromMapFunc(),
-            builder.WithPredicates(checkIfMatchesExportRules),
-        ).
-        Watches(
-            &v1alpha1.MeshFederation{},
-            handler.EnqueueRequestsFromMapFunc(),
-        ).
-        Complete(r)
-}
-```
-
-`ImportedService` will be applied by FDS client like below:
-```go
-func (h *ImportedServiceHandler) Handle(source string, resources []*anypb.Any) error {
-	...
-    _ := r.client.V1alpha1().ImportedService(namespace).Apply(ctx, &v1alpha1.ImportedServiceApplyConfiguration{
-        TypeMetaApplyConfiguration: applyconfigurationv1.TypeMetaApplyConfiguration{
-            APIVersion: "federation.openshift-service-mesh.io/v1alpha1",
-			Kind:       "ImportedService",
-        },
-        ObjectMetaApplyConfiguration: &applyconfigurationv1.ObjectMetaApplyConfiguration{
-            Name:      name,
-            Namespace: namespace,
-            Labels:    labels,
-            OwnerReferences: []applyconfigurationv1.OwnerReferenceApplyConfiguration{{
-                APIVersion: "federation.openshift-service-mesh.io/v1alpha1",
-                Kind:       "MeshFederation",
-                Name:       "default",
-                UID:        uid,
-                Controller: true,
-            }},
-        },
-        Spec: spec,
-        Status: nil,
-        }, metav1.ApplyOptions{
-            TypeMeta: metav1.TypeMeta{
-            APIVersion: "ImportedService",
-            Kind:       "federation.openshift-service-mesh.io/v1alpha1",
-        },
-        Force:        true,
-        FieldManager: "federation-controller",
-    })
-    return nil
-}
-```
+> [!IMPORTANT]
+> As the `ImportedService` is fully managed by the controller, the initial reconciliation must be triggered programmatically by the FDS client.
+> We should evaluate possible option and choose the best one during the implementation.
+> Example options:
+> * FDS client can call the controller function directly during processing FDS response.
+> * FDS client can trigger the reconciliation loop sending an imported service via a channel to the controller. 
