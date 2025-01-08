@@ -28,6 +28,8 @@ We need the following CRDs:
 2. `FederatedServicePolicy` - specifies rules for exporting and importing services; parent for export-related Istio resources, i.e. `Gateway`, `DestinationRule`, etc.; must be created by the mesh admin.
 3. `ImportedService` - represents an imported service; parent for import-related Istio resources, i.e. `ServiceEntry`, `WorkloadEntry`, etc.; managed only by the controller; should not be touch by users.
 
+All resources will contain [standard conditions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties) in their status.
+
 #### MeshFederation
 
 `MeshFederation` includes settings related only to mesh federation, like remote ingress address, identities, etc.
