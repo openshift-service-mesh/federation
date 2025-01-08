@@ -6,6 +6,7 @@ spec:
     accessLogFile: /dev/stdout
     trustDomain: central.local
     trustDomainAliases:
+    - east.local
     - west.local
     defaultConfig:
       proxyMetadata:
