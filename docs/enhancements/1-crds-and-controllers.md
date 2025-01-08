@@ -25,7 +25,7 @@ and we are not planning any dedicated operator or integration with Sail Operator
 
 We need the following CRDs:
 1. `MeshFederation` - cluster-scoped resource that includes general federation config, i.e. local settings, remote addresses and identities.
-2. `FederatedServicePolicy` - specifies rules for exporting and importing services; parent for export-related Istio resources, i.e. `Gateway`, `DestinationRule`, etc.; must be created by the mesh admin.
+2. `FederationServiceRules` - specifies rules for exporting and importing services; parent for export-related Istio resources, i.e. `Gateway`, `DestinationRule`, etc.; must be created by the mesh admin.
 3. `ImportedService` - represents an imported service; parent for import-related Istio resources, i.e. `ServiceEntry`, `WorkloadEntry`, etc.; managed only by the controller; should not be touch by users.
 
 All resources will contain [standard conditions](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties) in their status.
@@ -107,9 +107,9 @@ spec:
       type: istio
 ```
 
-#### FederatedServicePolicy
+#### FederationServiceRules
 
-`FederatedServicePolicy` is a namespaced resource for specifying export/import rules.
+`FederationServiceRules` is a namespaced resource for specifying export/import rules.
 This resource is expected to be created as a single instance for all exported services.
 This is necessary, because all exported services will be associated with a single e/w gateway, so we can't properly handle N:1 relation between resources.
 Additionally, it will an owner of the egress gateway and its virtual service, because of the N:1 relation between
@@ -121,12 +121,12 @@ The key assumptions for export and import semantics in all variants of `Federati
 3. Export rules are always federation-wide - we do not allow to export services to particular meshes in a federation.
 4. Import rules are defined per remote mesh to allow limiting service discovery, not access to services.
 
-First variant of `FederatedServicePolicy` allows to export/import by label selectors and (names and namespaces).
+First variant of `FederationServiceRules` allows to export/import by label selectors and (names and namespaces).
 All rules are OR-ed in this approach.
 
 ```yaml
 apiGroup: federation.openshift-service-mesh.io/v1alpha1
-kind: FederatedServicePolicy
+kind: FederationServiceRules
 metadata:
   # Name must be default.
   name: default
@@ -193,7 +193,7 @@ Rules are OR-ed, but each rule set (an item in the `export` list) is AND-ed.
 
 ```yaml
 apiGroup: federation.openshift-service-mesh.io/v1alpha1
-kind: FederatedServicePolicy
+kind: FederationServiceRules
 metadata:
   # Name must be default.
   name: default
@@ -237,9 +237,9 @@ spec:
 
 Example controller:
 ```go
-func (r *FederatedServicePolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *FederationServiceRulesReconciler) SetupWithManager(mgr ctrl.Manager) error {
     return ctrl.NewControllerManagedBy(mgr).
-        For(&v1alpha1.FederatedServicePolicy{}).
+        For(&v1alpha1.FederationServiceRules{}).
         Owns(&v1.Gateway{}).
         Owns(&v1.ServiceEntry{}).
         Owns(&v1.EnvoyFilter{}).
@@ -250,8 +250,8 @@ func (r *FederatedServicePolicyReconciler) SetupWithManager(mgr ctrl.Manager) er
 }
 ```
 
-All export-related resource will include owner reference pointing to `FederatedServicePolicy`,
-so deleting `FederatedServicePolicy` will result in removing these resources as well.
+All export-related resource will include owner reference pointing to `FederationServiceRules`,
+so deleting `FederationServiceRules` will result in removing these resources as well.
 
 Example child resource:
 ```yaml
@@ -262,7 +262,7 @@ metadata:
   namespace: istio-system
   ownerReferences:
   - apiVersion: federation.openshift-service-mesh.io/v1alpha1
-    kind: FederatedServicePolicy
+    kind: FederationServiceRules
     name: default
     uid: a8e825b9-911e-40b8-abff-58f37bb3e05d
 spec:
@@ -296,7 +296,7 @@ spec:
   name: productpage
   # Original namespace
   namespace: bookinfo
-  # Hostname comes from remote FDS and is created based on export rules defined in FederatedServicePolicy.
+  # Hostname comes from remote FDS and is created based on export rules defined in FederationServiceRules.
   hostname: productpage.bookinfo.svc.mesh.global
   # If a service is federated in more than one mesh, and that service has different ports in meshes,
   # then it will be imported only from the first mesh. 
@@ -319,7 +319,7 @@ This resource will own import-related resources, like `ServiceEntry` or `Workloa
 but it will not manage resource for egress gateway, i.e. `Gateway` and `VirtualService`.
 This is because there will be only one gateway and one virtual service for all imported services,
 so there would be N owners for 1 resource. Therefore, resources for egress gateway will need dedicated controllers,
-and their owner will be `FederatedServicePolicy`.
+and their owner will be `FederationServiceRules`.
 
 Example controller implementation:
 ```go
