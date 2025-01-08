@@ -148,11 +148,11 @@ spec:
     namespaceSelectors:
     - matchLabels:
         istio-injection: enabled
-    # Service list allows to export particular services in particular namespaces.
+    # Service list allows to export particular services in particular namespaces formatted as <namespace>/<service>.
     serviceList:
-    - "ratings/ns-1"
-    - "reviews/ns-1"
-    - "*/ns-2"
+    - "ns-1/ratings"
+    - "ns-1/reviews"
+    - "ns-2/*"
     # Optional
     # DNS settings allow to customize DNS names for exported services.
     dnsSettings:
