@@ -156,3 +156,7 @@ add-license: ## Adds license to all Golang files
 .PHONY: generate
 generate: $(CONTROLLER_GEN) ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile=$(LICENSE_FILE) paths="./..."
+
+.PHONY: manifests
+manifests: $(CONTROLLER_GEN) ## Generate CustomResourceDefinition objects.
+	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=chart/crds
