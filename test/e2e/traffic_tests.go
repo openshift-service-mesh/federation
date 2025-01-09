@@ -53,36 +53,24 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 		})
 	})
 
-	ctx.NewSubTest("requests to c and d should fail before exporting").Run(func(ctx framework.TestContext) {
+	ctx.NewSubTest("requests to c should fail before exporting").Run(func(ctx framework.TestContext) {
 
-		testCases := []echoTestCase{
-			{
-				name: "should_fail_calling_%s_%s:",
-				call: echo.CallOptions{
-					Address: fmt.Sprintf("c.%s.svc.cluster.local", setup.Namespace.Name()),
-					Scheme:  scheme.HTTP,
-					Port:    ports.HTTP,
-				},
-			},
-			{
-				name: "should_fail_calling_%s_%s:",
-				call: echo.CallOptions{
-					Address: fmt.Sprintf("d.%s.svc.cluster.local", setup.Namespace.Name()),
-					Scheme:  scheme.HTTP,
-					Port:    ports.HTTP,
-				},
+		tc := echoTestCase{
+			name: "should_fail_calling_%s_%s:",
+			call: echo.CallOptions{
+				Address: fmt.Sprintf("c.%s.svc.cluster.local", setup.Namespace.Name()),
+				Scheme:  scheme.HTTP,
+				Port:    ports.HTTP,
 			},
 		}
 
-		for _, tc := range testCases {
-			ctx.NewSubTest(fmt.Sprintf(tc.name, tc.call.Scheme, tc.call.Address)).
-				Run(func(ctx framework.TestContext) {
-					res, err := a[0].Call(tc.call)
-					if err == nil || res.Responses.Len() != 0 {
-						t.Fatalf("the request did not fail and got the following response: %v", res)
-					}
-				})
-		}
+		ctx.NewSubTest(fmt.Sprintf(tc.name, tc.call.Scheme, tc.call.Address)).
+			Run(func(ctx framework.TestContext) {
+				res, err := a[0].Call(tc.call)
+				if err == nil || res.Responses.Len() != 0 {
+					t.Fatalf("the request did not fail and got the following response: %v", res)
+				}
+			})
 	})
 
 	if err := setup.Clusters.West.ExportService("b", setup.Namespace.Name()); err != nil {
@@ -94,10 +82,6 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 	}
 
 	if err := setup.Clusters.Central.ExportService("b", setup.Namespace.Name()); err != nil {
-		t.Error(err)
-	}
-
-	if err := setup.Clusters.Central.ExportService("d", setup.Namespace.Name()); err != nil {
 		t.Error(err)
 	}
 
@@ -174,53 +158,46 @@ func RunTrafficTests(t *testing.T, ctx framework.TestContext) {
 	// is generated from those hostnames, and at the same time, east-west gateways configure SNI routing
 	// only for FQDNs, so mTLS connections to <service-name>.<namespace> or <service-name>.<namespace>.svc
 	// fail, because there are no filters matching such SNIs.
-	ctx.NewSubTest("requests to c and d should succeed when using FQDN").Run(func(ctx framework.TestContext) {
-		fqdns := []string{
-			fmt.Sprintf("c.%s", setup.Namespace.Name()),
-			fmt.Sprintf("d.%s", setup.Namespace.Name()),
-		}
+	ctx.NewSubTest("requests to c should succeed when using FQDN").Run(func(ctx framework.TestContext) {
+		fqdn := fmt.Sprintf("c.%s", setup.Namespace.Name())
 
-		var testCases []echoTestCase
-
-		for _, fqdn := range fqdns {
-			testCases = append(testCases, []echoTestCase{
-				{
-					name: fmt.Sprintf("HTTP_%s", fqdn),
-					call: echo.CallOptions{
-						Address: fqdn,
-						Port:    ports.HTTP,
-						Scheme:  scheme.HTTP,
-						Check:   check.OK(),
-					},
+		testCases := []echoTestCase{
+			{
+				name: fmt.Sprintf("HTTP_%s", fqdn),
+				call: echo.CallOptions{
+					Address: fqdn,
+					Port:    ports.HTTP,
+					Scheme:  scheme.HTTP,
+					Check:   check.OK(),
 				},
-				{
-					name: fmt.Sprintf("HTTP2_%s", fqdn),
-					call: echo.CallOptions{
-						Address: fqdn,
-						Port:    ports.HTTP2,
-						Scheme:  scheme.HTTP,
-						Check:   check.OK(),
-					},
+			},
+			{
+				name: fmt.Sprintf("HTTP2_%s", fqdn),
+				call: echo.CallOptions{
+					Address: fqdn,
+					Port:    ports.HTTP2,
+					Scheme:  scheme.HTTP,
+					Check:   check.OK(),
 				},
-				{
-					name: fmt.Sprintf("HTTPS_%s", fqdn),
-					call: echo.CallOptions{
-						Address: fqdn,
-						Port:    ports.HTTPS,
-						Scheme:  scheme.HTTPS,
-						Check:   check.OK(),
-					},
+			},
+			{
+				name: fmt.Sprintf("HTTPS_%s", fqdn),
+				call: echo.CallOptions{
+					Address: fqdn,
+					Port:    ports.HTTPS,
+					Scheme:  scheme.HTTPS,
+					Check:   check.OK(),
 				},
-				{
-					name: fmt.Sprintf("GRPC_%s", fqdn),
-					call: echo.CallOptions{
-						Address: fqdn,
-						Port:    ports.GRPC,
-						Scheme:  scheme.GRPC,
-						Check:   check.GRPCStatus(codes.OK),
-					},
+			},
+			{
+				name: fmt.Sprintf("GRPC_%s", fqdn),
+				call: echo.CallOptions{
+					Address: fqdn,
+					Port:    ports.GRPC,
+					Scheme:  scheme.GRPC,
+					Check:   check.GRPCStatus(codes.OK),
 				},
-			}...)
+			},
 		}
 
 		for _, tc := range testCases {

@@ -24,13 +24,11 @@ import (
 	"github.com/openshift-service-mesh/federation/test/e2e/setup"
 
 	"istio.io/istio/pkg/test/framework"
-	"istio.io/istio/pkg/test/framework/components/namespace"
 )
 
 func TestMain(m *testing.M) {
-	framework.
+	suite := framework.
 		NewSuite(m).
-		// TODO(multi-peer): two clusters
 		RequireMinClusters(3).
 		RequireMaxClusters(3).
 		Setup(installSpireCRDs).
@@ -38,19 +36,10 @@ func TestMain(m *testing.M) {
 		Setup(enableTrustDomainFederation).
 		Setup(setup.DeployControlPlanes("spire")).
 		Setup(setup.InstallOrUpgradeFederationControllers(setup.WithSpire{})).
-		Setup(namespace.Setup(&setup.Namespace, namespace.Config{Prefix: "app", Inject: true})).
-		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "a", setup.WithSpire{})).
-		Setup(setup.Clusters.East.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithSpire{})).
-		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithSpire{})).
-		Setup(setup.Clusters.West.DeployEcho(namespace.Future(&setup.Namespace), "c", setup.WithSpire{})).
-		Setup(setup.Clusters.Central.DeployEcho(namespace.Future(&setup.Namespace), "b", setup.WithSpire{})).
-		Setup(setup.Clusters.Central.DeployEcho(namespace.Future(&setup.Namespace), "d", setup.WithSpire{})).
-		// c and d must be removed from other clusters, because we want to test importing a service
-		// that exists only in the remote cluster.
-		Setup(setup.RemoveServiceFromClusters("c", namespace.Future(&setup.Namespace), &setup.Clusters.East, &setup.Clusters.Central)).
-		Setup(setup.RemoveServiceFromClusters("d", namespace.Future(&setup.Namespace), &setup.Clusters.East, &setup.Clusters.West)).
-		Setup(setup.EnsureStrictMutualTLS).
-		Run()
+		Setup(setup.EnsureStrictMutualTLS)
+
+	setup.DeployEcho(suite, setup.WithSpire{})
+	suite.Run()
 }
 
 func TestTraffic(t *testing.T) {
