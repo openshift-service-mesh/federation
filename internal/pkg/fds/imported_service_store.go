@@ -44,7 +44,6 @@ func (s *ImportedServiceStore) Update(source string, importedServices []*v1alpha
 	}
 
 	s.importedServices[source] = newImportedServices
-
 }
 
 // From returns copy of all services exported from given remote peer.

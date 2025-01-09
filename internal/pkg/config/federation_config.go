@@ -71,7 +71,6 @@ func (r *Remote) ServiceName() string {
 }
 
 func (r *Remote) ServiceFQDN() string {
-	// TODO(multi-peer) use namespace from identity
 	return fmt.Sprintf("%s.istio-system.svc.cluster.local", r.ServiceName())
 }
 

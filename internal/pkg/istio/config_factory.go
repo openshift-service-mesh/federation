@@ -350,7 +350,6 @@ func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 			}
 		}
 	}
-
 	return workloadEntries, nil
 }
 

@@ -128,13 +128,18 @@ func main() {
 		startFDSClient(ctx, remote, meshConfigPushRequests, importedServiceStore)
 	}
 
-	startReconciler(ctx, kubeConfig, cfg, serviceLister, meshConfigPushRequests, importedServiceStore)
+	startReconciler(ctx, cfg, serviceLister, meshConfigPushRequests, importedServiceStore)
 
 	<-ctx.Done()
 }
 
-// FIXME(multi-peer): lengthy params as hell. simplify
-func startReconciler(ctx context.Context, kubeConfig *rest.Config, cfg *config.Federation, serviceLister v1.ServiceLister, meshConfigPushRequests chan xds.PushRequest, importedServiceStore *fds.ImportedServiceStore) {
+func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister v1.ServiceLister, meshConfigPushRequests chan xds.PushRequest, importedServiceStore *fds.ImportedServiceStore) {
+
+	kubeConfig, err := rest.InClusterConfig()
+	if err != nil {
+		log.Fatalf("failed to create in-cluster config: %v", err)
+	}
+
 	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
 	if err != nil {
 		log.Fatalf("failed to create Istio client: %v", err)
