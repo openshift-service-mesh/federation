@@ -47,7 +47,7 @@ func (cf *ConfigFactory) Routes() ([]*routev1.Route, error) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("%s-%s-%d-to-federation-ingress-gateway", svcName, svcNamespace, port),
 				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+				Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 			},
 			Spec: routev1.RouteSpec{
 				Host: fmt.Sprintf("%s-%d.%s.svc.cluster.local", svcName, port, svcNamespace),

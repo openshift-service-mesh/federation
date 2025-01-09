@@ -52,7 +52,7 @@ func (r *PeerAuthResourceReconciler) Reconcile(ctx context.Context) error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "fds-strict-mtls",
 			Namespace: r.namespace,
-			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+			Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 		},
 		Spec: securityv1beta1.PeerAuthentication{
 			Selector: &typev1beta1.WorkloadSelector{

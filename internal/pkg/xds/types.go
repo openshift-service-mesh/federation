@@ -15,7 +15,7 @@
 package xds
 
 const (
-	ExportedServiceTypeUrl    = "federation.istio-ecosystem.io/v1alpha1/ExportedService"
+	ExportedServiceTypeUrl    = "federation.openshift-service-mesh.io/v1alpha1/ExportedService"
 	DestinationRuleTypeUrl    = "networking.istio.io/v1alpha3/DestinationRule"
 	GatewayTypeUrl            = "networking.istio.io/v1alpha3/Gateway"
 	ServiceEntryTypeUrl       = "networking.istio.io/v1alpha3/ServiceEntry"

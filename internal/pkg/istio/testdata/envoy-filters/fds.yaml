@@ -2,7 +2,7 @@ metadata:
   name: sni-federation-discovery-service-east-istio-system-15080
   namespace: istio-system
   labels:
-    federation.istio-ecosystem.io/peer: todo
+    federation.openshift-service-mesh.io/peer: todo
 spec:
   workloadSelector:
     labels:

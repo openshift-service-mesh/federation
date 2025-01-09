@@ -61,7 +61,7 @@ func (r *WorkloadEntryReconciler) Reconcile(ctx context.Context) error {
 
 	oldWorkloadEntries, err := r.client.Istio().NetworkingV1alpha3().WorkloadEntries(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{
-			MatchLabels: map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+			MatchLabels: map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 		}),
 	})
 	if err != nil {

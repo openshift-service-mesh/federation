@@ -2,7 +2,7 @@ metadata:
   name: federation-discovery-service-west
   namespace: istio-system
   labels:
-    federation.istio-ecosystem.io/peer: todo
+    federation.openshift-service-mesh.io/peer: todo
 spec:
   hosts:
   - federation-discovery-service-west.istio-system.svc.cluster.local

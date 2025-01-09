@@ -2,7 +2,7 @@ metadata:
   name: sni-a-ns2-80
   namespace: istio-system
   labels:
-    federation.istio-ecosystem.io/peer: todo
+    federation.openshift-service-mesh.io/peer: todo
 spec:
   workloadSelector:
     labels:
