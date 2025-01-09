@@ -124,6 +124,9 @@ spec:
       type: istio
 ```
 
+The controller for this resource will be responsible only for updating the mesh configuration in other components,
+like Istio resource factory, FDS clients manager, etc. It will not manage any child resources.
+
 #### FederationServiceRules
 
 `FederationServiceRules` is a namespaced resource for specifying export/import rules.
@@ -252,6 +255,14 @@ spec:
         - ratings
 ```
 
+Responsibilities of the controller for this resource:
+1. Owning resources for exported services:
+   * `Gateway`;
+   * `ServiceEntry` - if custom search domain configured;
+   * `EnvoyFilter` - if the ingress type is "openshift-router".
+2. Watching services and namespaces and check if they match export rules.
+3. Reconciling owned resource if `MeshFederation` was changed.
+
 Example controller:
 ```go
 func (r *FederationServiceRulesReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -262,7 +273,7 @@ func (r *FederationServiceRulesReconciler) SetupWithManager(mgr ctrl.Manager) er
         Owns(&v1.EnvoyFilter{}).
         Watches(&corev1.Service{}, WithPredicates(checkIfMatchesExportRules)).
         Watches(&corev1.Namespace{}, WithPredicates(checkIfMatchesExportRules)).
-        Watches(&v1alpha1.MeshFederation{}).
+		Watches(&MeshFederation{}).
         Complete(r)
 }
 ```
@@ -332,11 +343,13 @@ spec:
   - central
 ```
 
-This resource will own import-related resources, like `ServiceEntry` or `WorkloadEntry`, and `DestinationRule`,
-but it will not manage resource for egress gateway, i.e. `Gateway` and `VirtualService`.
-This is because there will be only one gateway and one virtual service for all imported services,
-so there would be N owners for 1 resource. Therefore, resources for egress gateway will need dedicated controllers,
-and their owner will be `FederationServiceRules`.
+Responsibility of the controller for this resource:
+1. Owning import-related resources: `ServiceEntry` or `WorkloadEntry`, and `DestinationRule`.
+2. Restoring the resource state in case of user's modification.
+3. Watching services and recreating `ImportedServices` when it's necessary, example:
+    * t0: `ImportedService` for `productpage` service was created, and that service does not exist in the local cluster, so `ServiceEntry` in `istio-system` namespace was created.
+    * t1: User creates `productpage` service in namespace `bookinfo`.
+    * t2: Controller removes `ImportedService` from `istio-system` namespace with its child resources and creates it again in `bookinfo` namespace with proper child resources.
 
 Example controller implementation:
 ```go
@@ -347,7 +360,6 @@ func (r *ImportedServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
         Owns(&v1.WorkloadEntry{}).
         Owns(&v1.DestinationRule{}).
         Watches(&corev1.Service{}, WithPredicates(checkIfMatchesExportRules)).
-        Watches(&corev1.Namespace{}, WithPredicates(checkIfMatchesExportRules)).
         Watches(&v1alpha1.MeshFederation{}).
         Complete(r)
 }
@@ -376,4 +388,41 @@ spec:
 > We should evaluate possible option and choose the best one during the implementation.
 > Example options:
 > * FDS client can call the controller function directly during processing FDS response.
-> * FDS client can trigger the reconciliation loop sending an imported service via a channel to the controller. 
+> * FDS client can trigger the reconciliation loop sending an imported service via a channel to the controller.
+
+#### Egress gateway controller
+
+Egress gateway can be used in routing traffic to imported services, but it cannot be owned by `ImportedService`,
+because all imported services will be handled by one `Gateway` and one `VirtualService`, so this is N:1 relation.
+Therefore, resources related to egress gateway will be handled by a dedicated controller, and their owner will be `FederationServiceRules`.
+
+Responsibility of this controller:
+1. Watching `ImportedService` and reconciling `Gateway` and `VirtualService` if needed.
+2. Reconciling `Gateway` and `VirtualService` on user's changes.
+
+Example controller implementation:
+```go
+return ctrl.NewControllerManagedBy(mgr).
+        Owns(&Gateway{}).
+        Owns(&VirtualService{}).
+        Watches(&source.Kind{Type: ImportServiceType}, &handler.EnqueueRequestForObject{}).
+        Complete(r)
+```
+
+Example child resource:
+```yaml
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: federation-egress-gateway
+  namespace: istio-system
+  ownerReferences:
+  - apiVersion: federation.openshift-service-mesh.io/v1alpha1
+    kind: FederationServiceRules
+    name: default
+    uid: a8e825b9-911e-40b8-abff-58f37bb3e05d
+spec:
+  selector:
+    app: federation-egress-gateway
+  ...
+```
