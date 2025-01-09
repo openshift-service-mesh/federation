@@ -89,11 +89,6 @@ func main() {
 		log.Fatalf("failed to parse configuration passed to the program arguments: %v", err)
 	}
 
-	// TODO(multi-peer): if 0 addresses given peer is not interested in importing anything - rework/rethink validation
-	if errValidation := config.ValidateRemotes(cfg.MeshPeers.Remotes...); errValidation != nil {
-		log.Fatalf("misconfigured remote: %v", errValidation)
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
