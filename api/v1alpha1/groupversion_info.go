@@ -14,7 +14,7 @@
 
 // Package v1alpha1 contains API Schema definitions for the federation v1alpha1 API group.
 // +kubebuilder:object:generate=true
-// +groupName=federation.federation.istio-ecosystem.io
+// +groupName=federation.openshift-service-mesh.io
 package v1alpha1
 
 import (
@@ -24,7 +24,7 @@ import (
 
 var (
 	// GroupVersion is group version used to register these objects.
-	GroupVersion = schema.GroupVersion{Group: "federation.federation.istio-ecosystem.io", Version: "v1alpha1"}
+	GroupVersion = schema.GroupVersion{Group: "federation.openshift-service-mesh.io", Version: "v1alpha1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme.
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}

@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.16.4
-  name: meshfederations.federation.federation.istio-ecosystem.io
+  name: meshfederations.federation.openshift-service-mesh.io
 spec:
-  group: federation.federation.istio-ecosystem.io
+  group: federation.openshift-service-mesh.io
   names:
     kind: MeshFederation
     listKind: MeshFederationList
