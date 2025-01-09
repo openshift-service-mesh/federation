@@ -2,7 +2,7 @@ metadata:
   name: import-b-ns1
   namespace: istio-system
   labels:
-    federation.istio-ecosystem.io/peer: todo
+    federation.openshift-service-mesh.io/peer: todo
 spec:
   hosts:
   - b.ns1.svc.cluster.local

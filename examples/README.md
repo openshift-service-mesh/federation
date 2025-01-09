@@ -209,8 +209,8 @@ for resource in "routes" "gateways" "serviceentries" "workloadentries" "envoyfil
 do
   for ns in "istio-system" "default"
   do
-    keast delete "$resource" -n "$ns" -l federation.istio-ecosystem.io/peer=todo
-    kwest delete "$resource" -n "$ns" -l federation.istio-ecosystem.io/peer=todo
+    keast delete "$resource" -n "$ns" -l federation.openshift-service-mesh.io/peer=todo
+    kwest delete "$resource" -n "$ns" -l federation.openshift-service-mesh.io/peer=todo
   done
 done
 ```

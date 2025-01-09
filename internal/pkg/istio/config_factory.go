@@ -73,7 +73,7 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 		return metav1.ObjectMeta{
 			Name:      fmt.Sprintf("mtls-sni-%s-%s", svcName, svcNs),
 			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+			Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 		}
 	}
 
@@ -119,7 +119,7 @@ func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      federationIngressGatewayName,
 			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+			Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 		},
 		Spec: istionetv1alpha3.Gateway{
 			Selector: cf.cfg.MeshPeers.Local.Gateways.Ingress.Selector,
@@ -176,7 +176,7 @@ func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("sni-%s-%s-%d", svcName, svcNamespace, port),
 				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+				Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 			},
 			Spec: istionetv1alpha3.EnvoyFilter{
 				WorkloadSelector: &istionetv1alpha3.WorkloadSelector{
@@ -256,7 +256,7 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fmt.Sprintf("import-%s-%s", importedSvc.Name, importedSvc.Namespace),
 					Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-					Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+					Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 				},
 				Spec: istionetv1alpha3.ServiceEntry{
 					Hosts: []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
@@ -296,7 +296,7 @@ func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      fmt.Sprintf("import-%s-%d", importedSvc.Name, idx),
 						Namespace: importedSvc.Namespace,
-						Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+						Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 					},
 					Spec: istionetv1alpha3.WorkloadEntry{
 						Address: ip,
@@ -317,7 +317,7 @@ func (cf *ConfigFactory) serviceEntryForRemoteFederationController() *v1alpha3.S
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      remote.ServiceName(),
 			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-			Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+			Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 		},
 		Spec: istionetv1alpha3.ServiceEntry{
 			Hosts: []string{remote.ServiceFQDN()},

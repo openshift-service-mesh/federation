@@ -157,7 +157,7 @@ func TestIngressGateway(t *testing.T) {
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "federation-ingress-gateway",
 				Namespace: "istio-system",
-				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+				Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 			},
 			Spec: istionetv1alpha3.Gateway{
 				Selector: map[string]string{"app": "federation-ingress-gateway"},
@@ -185,7 +185,7 @@ func TestIngressGateway(t *testing.T) {
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "federation-ingress-gateway",
 				Namespace: "istio-system",
-				Labels:    map[string]string{"federation.istio-ecosystem.io/peer": "todo"},
+				Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 			},
 			Spec: istionetv1alpha3.Gateway{
 				Selector: map[string]string{"app": "federation-ingress-gateway"},
