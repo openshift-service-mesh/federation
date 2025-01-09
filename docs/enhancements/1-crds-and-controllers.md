@@ -266,15 +266,15 @@ Responsibilities of the controller for this resource:
 Example controller:
 ```go
 func (r *FederationServiceRulesReconciler) SetupWithManager(mgr ctrl.Manager) error {
-    return ctrl.NewControllerManagedBy(mgr).
-        For(&v1alpha1.FederationServiceRules{}).
-        Owns(&v1.Gateway{}).
-        Owns(&v1.ServiceEntry{}).
-        Owns(&v1.EnvoyFilter{}).
-        Watches(&corev1.Service{}, WithPredicates(checkIfMatchesExportRules)).
-        Watches(&corev1.Namespace{}, WithPredicates(checkIfMatchesExportRules)).
-		Watches(&MeshFederation{}).
-        Complete(r)
+        return ctrl.NewControllerManagedBy(mgr).
+                For(&v1alpha1.FederationServiceRules{}).
+                Owns(&v1.Gateway{}).
+                Owns(&v1.ServiceEntry{}).
+                Owns(&v1.EnvoyFilter{}).
+                Watches(&corev1.Service{}, WithPredicates(checkIfMatchesExportRules)).
+                Watches(&corev1.Namespace{}, WithPredicates(checkIfMatchesExportRules)).
+                Watches(&MeshFederation{}).
+                Complete(r)
 }
 ```
 
@@ -354,14 +354,14 @@ Responsibility of the controller for this resource:
 Example controller implementation:
 ```go
 func (r *ImportedServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
-    return ctrl.NewControllerManagedBy(mgr).
-        For(&v1alpha1.ImportedService{}).
-        Owns(&v1.ServiceEntry{}).
-        Owns(&v1.WorkloadEntry{}).
-        Owns(&v1.DestinationRule{}).
-        Watches(&corev1.Service{}, WithPredicates(checkIfMatchesExportRules)).
-        Watches(&v1alpha1.MeshFederation{}).
-        Complete(r)
+        return ctrl.NewControllerManagedBy(mgr).
+                For(&v1alpha1.ImportedService{}).
+                Owns(&v1.ServiceEntry{}).
+                Owns(&v1.WorkloadEntry{}).
+                Owns(&v1.DestinationRule{}).
+                Watches(&corev1.Service{}, WithPredicates(checkIfMatchesExportRules)).
+                Watches(&v1alpha1.MeshFederation{}).
+                Complete(r)
 }
 ```
 
@@ -402,11 +402,13 @@ Responsibility of this controller:
 
 Example controller implementation:
 ```go
-return ctrl.NewControllerManagedBy(mgr).
-        Owns(&Gateway{}).
-        Owns(&VirtualService{}).
-        Watches(&source.Kind{Type: ImportServiceType}, &handler.EnqueueRequestForObject{}).
-        Complete(r)
+func (r *EgressGatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
+        return ctrl.NewControllerManagedBy(mgr).
+                Owns(&Gateway{}).
+                Owns(&VirtualService{}).
+                Watches(&source.Kind{Type: ImportServiceType}, &handler.EnqueueRequestForObject{}).
+                Complete(r)
+}
 ```
 
 Example child resource:
