@@ -19,6 +19,7 @@ package setup
 
 import (
 	"fmt"
+
 	"golang.org/x/sync/errgroup"
 	"istio.io/istio/pkg/test/scopes"
 
