@@ -52,6 +52,11 @@ spec:
     # Network name used by Istio for load balancing.
     network: east
     # Optional.
+    # Trust domain is a property of the identity, which can't be determined by the controller.
+    # Service account and namespace will be obtained from the downward API.
+    # Default value: "cluster.local".
+    trustDomain: mesh.east
+    # Optional.
     # If no ingress is specified, it means the controller supports only single network topology.
     ingress:
       # Optional.
@@ -89,6 +94,18 @@ spec:
   - id: west
     # Network name used by Istio for load balancing.
     network: west
+    # Optional.
+    # Identity is needed to configure proper authorization policy.
+    identity:
+      # Optional.
+      # Default value: "federation-discovery-service-<id>".
+      serviceAccount: federation-discovery-service-west
+      # Optional.
+      # Default value: "istio-system".
+      namespace: istio-system
+      # Optional.
+      # Default value: "cluster.local".
+      trustDomain: mesh.west
     # Optional
     ingress:
       # Optional
