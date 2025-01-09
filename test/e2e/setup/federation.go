@@ -19,21 +19,14 @@ package setup
 
 import (
 	"fmt"
+	"golang.org/x/sync/errgroup"
+	"istio.io/istio/pkg/test/scopes"
 
 	"istio.io/istio/pkg/test/framework/resource"
-	"istio.io/istio/pkg/test/scopes"
 )
 
 func InstallOrUpgradeFederationControllers(options ...CtrlOption) resource.SetupFn {
 	return func(ctx resource.Context) error {
-		for _, c := range ctx.Clusters() {
-			localCluster := Resolve(c)
-			remoteClusters := ctx.Clusters().Exclude(localCluster)
-			if out, err := localCluster.ConfigureFederationCtrl(remoteClusters, options...); err != nil {
-				return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %w", localCluster.ContextName, string(out), err)
-			}
-		}
-
 		ctx.Cleanup(func() {
 			for _, c := range ctx.Clusters() {
 				cc := Resolve(c)
@@ -43,6 +36,19 @@ func InstallOrUpgradeFederationControllers(options ...CtrlOption) resource.Setup
 			}
 		})
 
-		return nil
+		var g errgroup.Group
+		for _, c := range ctx.Clusters() {
+			localCluster := Resolve(c)
+			remoteClusters := ctx.Clusters().Exclude(localCluster)
+			g.Go(func() error {
+				if out, err := localCluster.ConfigureFederationCtrl(remoteClusters, options...); err != nil {
+					return fmt.Errorf("failed to upgrade federation controller (cluster=%s): %v, %w", localCluster.ContextName, string(out), err)
+				}
+
+				return nil
+			})
+		}
+
+		return g.Wait()
 	}
 }
