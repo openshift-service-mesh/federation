@@ -21,10 +21,6 @@ PROTOBUF_API_SRC := $(shell find $(PROTOBUF_API_DIR) -type f -name "*.proto")
 API_GEN_DIR=$(PROJECT_DIR)/internal/api
 PROTOBUF_GEN := $(shell find $(API_GEN_DIR) -type f -name "*.go")
 
-DEEP_COPY_DIR := $(PROJECT_DIR)/api/v1alpha1
-DEEP_COPY_SRC := $(shell find $(DEEP_COPY_DIR) -type f -not -name "*deepcopy.go")
-DEEP_COPY_GEN := $(DEEP_COPY_DIR)/zz_generated.deepcopy.go
-
 CRD_SRC_DIR := $(PROJECT_DIR)/api/v1alpha1
 CRD_SRC := $(shell find $(CRD_SRC_DIR) -type f -name "*.go")
 CRD_GEN_DIR := $(PROJECT_DIR)/chart/crds
@@ -146,11 +142,10 @@ clean:
 $(PROTOBUF_GEN): $(PROTOBUF_API_SRC) $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY) ## Generates Go files from protobuf-based API files
 	@PATH=$(LOCALBIN):$$PATH $(PROTOC) --proto_path=$(PROTOBUF_API_DIR) --go_out=$(API_GEN_DIR) --go-grpc_out=$(API_GEN_DIR) --golang-deepcopy_out=:$(API_GEN_DIR) $(PROTOBUF_API_DIR)/**/*.proto
 
-$(DEEP_COPY_GEN): $(DEEP_COPY_SRC) ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
-	$(CONTROLLER_GEN) object:headerFile=$(LICENSE_FILE) paths="./..."
-
-$(CRD_GEN): $(CRD_SRC) ## Generate CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=chart/crds
+$(CRD_GEN): $(CRD_SRC) $(CONTROLLER_GEN) ## Generates CRDs and DeepCopy method implementations.
+	$(CONTROLLER_GEN) paths="$(CRD_SRC_DIR)/..." \
+		crd output:crd:artifacts:config="$(CRD_GEN_DIR)" \
+		object:headerFile="$(LICENSE_FILE)"
 
 .PHONY: fix-imports
 fix-imports: $(GOIMPORTS) ## Fixes imports
