@@ -4,10 +4,10 @@ spec:
   profile: minimal
   meshConfig:
     accessLogFile: /dev/stdout
-    trustDomain: east.local
+    trustDomain: central.local
     trustDomainAliases:
+    - east.local
     - west.local
-    - central.local
     defaultConfig:
       proxyMetadata:
         ISTIO_META_DNS_CAPTURE: "true"
@@ -16,10 +16,10 @@ spec:
       mode: REGISTRY_ONLY
   values:
     global:
-      meshID: east-mesh
+      meshID: central-mesh
       multiCluster:
-        clusterName: east
-      network: east-network
+        clusterName: central
+      network: central-network
     pilot:
       env:
         ENABLE_NATIVE_SIDECARS: "true"
@@ -45,7 +45,7 @@ spec:
       enabled: true
       label:
         app: federation-ingress-gateway
-        topology.istio.io/network: east-network
+        topology.istio.io/network: central-network
       k8s:
         overlays:
         - apiVersion: apps/v1
@@ -86,7 +86,7 @@ spec:
                       ls -l ${CHECK_FILE}
         env:
         - name: ISTIO_META_REQUESTED_NETWORK_VIEW
-          value: east-network
+          value: central-network
         service:
           ports:
           - name: data-plane

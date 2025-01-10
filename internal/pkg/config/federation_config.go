@@ -21,15 +21,34 @@ const (
 )
 
 type Federation struct {
+	namespace          string
 	MeshPeers          MeshPeers
 	ExportedServiceSet ExportedServiceSet
 	ImportedServiceSet ImportedServiceSet
 }
 
+// PodNamespace where instance of federation controller is running.
+func (f *Federation) Namespace() string {
+	if f.namespace == "" {
+		f.namespace = PodNamespace()
+	}
+
+	return f.namespace
+}
+
 type MeshPeers struct {
-	Local Local `json:"local"`
-	// TODO: This should be a list of Remote objects
-	Remote Remote `json:"remote"`
+	Local   Local    `json:"local"`
+	Remotes []Remote `json:"remotes"`
+}
+
+func (m MeshPeers) AnyRemotePeerWithOpenshiftRouterIngress() bool {
+	for _, remote := range m.Remotes {
+		if remote.IngressType == OpenShiftRouter {
+			return true
+		}
+	}
+
+	return false
 }
 
 type Local struct {
@@ -94,7 +113,7 @@ type ExportedServiceSet struct {
 }
 
 func (s *ExportedServiceSet) GetLabelSelectors() []LabelSelectors {
-	if len(s.Rules) == 0 {
+	if s == nil || len(s.Rules) == 0 {
 		return []LabelSelectors{}
 	}
 	return s.Rules[0].LabelSelectors

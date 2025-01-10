@@ -40,7 +40,7 @@ func NewImportedServiceHandler(store *ImportedServiceStore, pushRequests chan<- 
 }
 
 func (h *ImportedServiceHandler) Handle(source string, resources []*anypb.Any) error {
-	importedServices := make(map[string][]*v1alpha1.ExportedService)
+	importedServices := make([]*v1alpha1.ExportedService, 0, len(resources))
 	for _, res := range resources {
 		exportedService := &v1alpha1.ExportedService{}
 		if err := proto.Unmarshal(res.Value, exportedService); err != nil {
@@ -52,10 +52,10 @@ func (h *ImportedServiceHandler) Handle(source string, resources []*anypb.Any) e
 			continue
 		}
 
-		importedServices[source] = append(importedServices[source], exportedService)
+		importedServices = append(importedServices, exportedService)
 	}
 
-	h.store.Update(importedServices)
+	h.store.Update(source, importedServices)
 	// TODO: push only if current state != received imported services (this can happen on reconnection)
 	h.pushRequests <- xds.PushRequest{TypeUrl: xds.ServiceEntryTypeUrl}
 	h.pushRequests <- xds.PushRequest{TypeUrl: xds.WorkloadEntryTypeUrl}

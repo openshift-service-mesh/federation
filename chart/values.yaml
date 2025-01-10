@@ -37,23 +37,21 @@ federation:
       # to customize the SNI filter in the auto-passthrough Gateway, because the default SNI DNAT format used by Istio
       # is not supported by OpenShift Router.
       ingressType: istio
-#    remote:
+#    remotes:
 #      # Name is a unique identifier of the peer used as its service name suffix.
-#      name: "west"
-#      addresses:
-#      - "192.168.0.1"
-#      ports:
-#        dataPlane: 15443 # default
-#        discovery: 15080 # default
-#      # Remote ingress type specifies how to manage client mTLS.
-#      # Currently, only two types are supported: istio and openshift-router.
-#      # If "openshift-router" is set the controller applies DestinationRules with SNI compatible with OpenShift Router.
-#      # If "istio" is set client mTLS settings are not modified.
-#      # Defaults to "istio"
-#      ingressType: istio
-#      # Unique network name ensures that importing and exporting the same services will not result
-#      # in routing requests to the cluster where the requests come from.
-#      network: west-network
+#      - name: "west"
+#        addresses:
+#        - "192.168.0.1"
+#        port: 15443 # default
+#        # Remote ingress type specifies how to manage client mTLS.
+#        # Currently, only two types are supported: istio and openshift-router.
+#        # If "openshift-router" is set the controller applies DestinationRules with SNI compatible with OpenShift Router.
+#        # If "istio" is set client mTLS settings are not modified.
+#        # Defaults to "istio"
+#        ingressType: istio
+#        # Unique network name ensures that importing and exporting the same services will not result
+#        # in routing requests to the cluster where the requests come from.
+#        network: west-network
 #  exportedServiceSet:
 #    rules:
 #    - type: LabelSelector

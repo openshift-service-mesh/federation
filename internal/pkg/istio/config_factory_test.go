@@ -293,18 +293,18 @@ func TestEnvoyFilters(t *testing.T) {
 
 func TestServiceEntries(t *testing.T) {
 	importConfigRemoteIP := copyConfig(&exportConfig)
-	importConfigRemoteIP.MeshPeers.Remote = config.Remote{
+	importConfigRemoteIP.MeshPeers.Remotes = []config.Remote{{
 		Name:      "west",
 		Addresses: []string{"1.1.1.1", "2.2.2.2"},
 		Network:   "west-network",
-	}
+	}}
 
 	importConfigRemoteDNS := copyConfig(&exportConfig)
-	importConfigRemoteDNS.MeshPeers.Remote = config.Remote{
+	importConfigRemoteDNS.MeshPeers.Remotes = []config.Remote{{
 		Name:      "west",
 		Addresses: []string{"remote-ingress.net"},
 		Network:   "west-network",
-	}
+	}}
 
 	testCases := []struct {
 		name                      string
@@ -353,9 +353,7 @@ func TestServiceEntries(t *testing.T) {
 			serviceController.RunAndWait(stopCh)
 
 			importedServiceStore := fds.NewImportedServiceStore()
-			importedServiceStore.Update(map[string][]*v1alpha1.ExportedService{
-				"west": tc.importedServices,
-			})
+			importedServiceStore.Update("west", tc.importedServices)
 
 			factory := NewConfigFactory(tc.cfg, serviceLister, importedServiceStore, "istio-system")
 			serviceEntries, err := factory.ServiceEntries()
