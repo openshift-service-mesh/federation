@@ -27,10 +27,10 @@ type Federation struct {
 	ImportedServiceSet ImportedServiceSet
 }
 
-// Namespace where instance of federation controller is running.
+// PodNamespace where instance of federation controller is running.
 func (f *Federation) Namespace() string {
 	if f.namespace == "" {
-		f.namespace = Namespace()
+		f.namespace = PodNamespace()
 	}
 
 	return f.namespace

@@ -19,7 +19,8 @@ import (
 	"strings"
 )
 
-func Namespace() string {
+// PodNamespace determines where the controller runs
+func PodNamespace() string {
 	// First, check POD_NAMESPACE environment variable if Downward API is used
 	if ns, defined := os.LookupEnv("POD_NAMESPACE"); defined {
 		return ns
