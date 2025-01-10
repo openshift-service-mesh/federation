@@ -40,10 +40,9 @@ deps: ## Downloads required dependencies
 	go mod tidy
 	go mod download
 
-
 EXTRA_BUILD_ARGS?=
 .PHONY: build
-build: deps $(PROTOBUF_GEN) $(DEEP_COPY_GEN) $(CRD_GEN) ## Builds the project
+build: deps $(PROTOBUF_GEN) $(CRD_GEN) ## Builds the project
 	go build -C $(PROJECT_DIR)/cmd/federation-controller -o $(PROJECT_DIR)/$(OUT_DIR)/federation-controller $(EXTRA_BUILD_ARGS)
 
 .PHONY: test
@@ -142,7 +141,7 @@ clean:
 $(PROTOBUF_GEN): $(PROTOBUF_API_SRC) $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY) ## Generates Go files from protobuf-based API files
 	@PATH=$(LOCALBIN):$$PATH $(PROTOC) --proto_path=$(PROTOBUF_API_DIR) --go_out=$(API_GEN_DIR) --go-grpc_out=$(API_GEN_DIR) --golang-deepcopy_out=:$(API_GEN_DIR) $(PROTOBUF_API_DIR)/**/*.proto
 
-$(CRD_GEN): $(CRD_SRC) $(CONTROLLER_GEN) ## Generates CRDs and DeepCopy method implementations.
+$(CRD_GEN): $(CRD_SRC) $(CONTROLLER_GEN) ## Generates Kubernetes CRDs, controller-runtime artifacts and related manifests.
 	$(CONTROLLER_GEN) paths="$(CRD_SRC_DIR)/..." \
 		crd output:crd:artifacts:config="$(CRD_GEN_DIR)" \
 		object:headerFile="$(LICENSE_FILE)"
