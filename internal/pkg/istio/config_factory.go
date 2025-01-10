@@ -263,11 +263,8 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 				}
 				// Service doesn't exist - create ServiceEntry.
 
-				// TODO(multi-peer) handle naming clash & different resolution strategy (known limitation?)
-				// What if we happen to have multiple remotes with exported serviceName/serviceNamespace but:
-				// - each remote has different address defined (leading to static or DNS resolution)
-				// - services per remote peer differ on service ports
-				// Should we fail registering such an endpoint?
+				// TODO(multi-peer) handle naming clash & different resolution strategy
+				// https://github.com/openshift-service-mesh/federation/issues/123
 				var ports []*istionetv1alpha3.ServicePort
 				for _, port := range importedSvc.Ports {
 					ports = append(ports, &istionetv1alpha3.ServicePort{
