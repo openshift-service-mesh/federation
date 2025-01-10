@@ -2,6 +2,7 @@ PROJECT_DIR:=$(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 OUT_DIR:=out
 
 export ISTIO_VERSION ?= 1.23.0
+CONTROLLER_TOOLS_VERSION ?= v0.16.4
 
 ## Required tooling.
 ## Needs to be defined early so that any target depending on given binary can resolve it when not present.
@@ -13,11 +14,17 @@ PROTOC := $(LOCALBIN)/protoc
 PROTOC_GEN_GO := $(LOCALBIN)/protoc-gen-go
 PROTOC_GEN_GRPC := $(LOCALBIN)/protoc-gen-go-grpc
 PROTOC_GEN_DEEPCOPY := $(LOCALBIN)/protoc-gen-golang-deepcopy
+CONTROLLER_GEN := $(LOCALBIN)/controller-gen
 
 PROTOBUF_API_DIR := $(PROJECT_DIR)/api/proto/federation
 PROTOBUF_API_SRC := $(shell find $(PROTOBUF_API_DIR) -type f -name "*.proto")
 API_GEN_DIR=$(PROJECT_DIR)/internal/api
 PROTOBUF_GEN := $(shell find $(API_GEN_DIR) -type f -name "*.go")
+
+CRD_SRC_DIR := $(PROJECT_DIR)/api/v1alpha1
+CRD_SRC := $(shell find $(CRD_SRC_DIR) -type f -name "*.go")
+CRD_GEN_DIR := $(PROJECT_DIR)/chart/crds
+CRD_GEN := $(shell find $(CRD_GEN_DIR) -type f -name "*.yaml")
 
 .PHONY: default
 default: build add-license fix-imports test
@@ -36,7 +43,7 @@ deps: ## Downloads required dependencies
 
 EXTRA_BUILD_ARGS?=
 .PHONY: build
-build: deps $(PROTOBUF_GEN) ## Builds the project
+build: deps $(PROTOBUF_GEN) $(DEEP_COPY_GEN) $(CRD_GEN) ## Builds the project
 	go build -C $(PROJECT_DIR)/cmd/federation-controller -o $(PROJECT_DIR)/$(OUT_DIR)/federation-controller $(EXTRA_BUILD_ARGS)
 
 .PHONY: test
@@ -123,8 +130,11 @@ $(PROTOC_GEN_DEEPCOPY):
 $(KIND):
 	@GOBIN=$(LOCALBIN) go install -mod=readonly sigs.k8s.io/kind@v0.26.0
 
+$(CONTROLLER_GEN):
+	GOBIN=$(LOCALBIN) go install -mod=readonly sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
+
 .PHONY: clean
-clean: 
+clean:
 	@rm -rf $(LOCALBIN) $(PROJECT_DIR)/$(OUT_DIR)
 
 ##@ Code Gen
@@ -132,34 +142,23 @@ clean:
 $(PROTOBUF_GEN): $(PROTOBUF_API_SRC) $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY) ## Generates Go files from protobuf-based API files
 	@PATH=$(LOCALBIN):$$PATH $(PROTOC) --proto_path=$(PROTOBUF_API_DIR) --go_out=$(API_GEN_DIR) --go-grpc_out=$(API_GEN_DIR) --golang-deepcopy_out=:$(API_GEN_DIR) $(PROTOBUF_API_DIR)/**/*.proto
 
+$(CRD_GEN): $(CRD_SRC) $(CONTROLLER_GEN) ## Generates CRDs and DeepCopy method implementations.
+	$(CONTROLLER_GEN) paths="$(CRD_SRC_DIR)/..." \
+		crd output:crd:artifacts:config="$(CRD_GEN_DIR)" \
+		object:headerFile="$(LICENSE_FILE)"
+
 .PHONY: fix-imports
 fix-imports: $(GOIMPORTS) ## Fixes imports
 	$(GOIMPORTS) -local "github.com/openshift-service-mesh/federation" -w $(PROJECT_DIR)/
 
-LICENSE_FILE := /tmp/license.txt
+LICENSE_FILE := $(PROJECT_DIR)/hack/boilerplate.go.txt
 GO_FILES := $(shell find $(PROJECT_DIR)/ -name '*.go')
 
 .PHONY: add-license
 add-license: ## Adds license to all Golang files
-	@echo "// Copyright Red Hat, Inc." > $(LICENSE_FILE)
-	@echo "//" >> $(LICENSE_FILE)
-	@echo "// Licensed under the Apache License, Version 2.0 (the "License");" >> $(LICENSE_FILE)
-	@echo "// you may not use this file except in compliance with the License." >> $(LICENSE_FILE)
-	@echo "// You may obtain a copy of the License at" >> $(LICENSE_FILE)
-	@echo "//" >> $(LICENSE_FILE)
-	@echo "//     http://www.apache.org/licenses/LICENSE-2.0" >> $(LICENSE_FILE)
-	@echo "//" >> $(LICENSE_FILE)
-	@echo "// Unless required by applicable law or agreed to in writing, software" >> $(LICENSE_FILE)
-	@echo "// distributed under the License is distributed on an "AS IS" BASIS," >> $(LICENSE_FILE)
-	@echo "// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied." >> $(LICENSE_FILE)
-	@echo "// See the License for the specific language governing permissions and" >> $(LICENSE_FILE)
-	@echo "// limitations under the License." >> $(LICENSE_FILE)
-	@echo "" >> $(LICENSE_FILE)
-
 	@for file in $(GO_FILES); do \
 		if ! grep -q "Licensed under the Apache License" $$file; then \
 			echo "Adding license to $$file"; \
 			cat $(LICENSE_FILE) $$file > temp && mv temp $$file; \
 		fi \
 	done
-	@rm -f $(LICENSE_FILE)
