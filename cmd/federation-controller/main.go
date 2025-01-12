@@ -134,7 +134,7 @@ func main() {
 		//WebhookServer:          webhook.NewServer(webhook.Options{Port: 9443}),
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "leader.federation.openshift-service-mesh.io",
+		LeaderElectionID:       "80807133.federation.openshift-service-mesh.io",
 	})
 	if err != nil {
 		log.Errorf("unable to start manager: %s", err)
