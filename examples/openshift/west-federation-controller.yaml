@@ -7,8 +7,8 @@ federation:
           selector:
             app: federation-ingress-gateway
       ingressType: openshift-router
-    remote:
-      name: east
+    remotes:
+    - name: east
       ingressType: openshift-router
       port: 443
       network: east-network

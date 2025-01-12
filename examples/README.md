@@ -107,21 +107,21 @@ On KinD:
 WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-east install east chart -n istio-system \
   --values examples/kind/east-federation-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$WEST_GATEWAY_IP"
+  --set "federation.meshPeers.remotes[0].addresses[0]=$WEST_GATEWAY_IP"
 EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 helm-west install west chart -n istio-system \
   --values examples/kind/west-federation-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$EAST_GATEWAY_IP"
+  --set "federation.meshPeers.remotes[0].addresses[0]=$EAST_GATEWAY_IP"
 ```
 
 On OpenShift:
 ```shell
 WEST_CONSOLE_URL=$(kwest get routes console -n openshift-console -o jsonpath='{.spec.host}')
 helm-east install east chart -n istio-system --values examples/openshift/east-federation-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$WEST_CONSOLE_URL"
+  --set "federation.meshPeers.remotes[0].addresses[0]=$WEST_CONSOLE_URL"
 EAST_CONSOLE_URL=$(keast get routes console -n openshift-console -o jsonpath='{.spec.host}')
 helm-west install west chart -n istio-system --values examples/openshift/west-federation-controller.yaml \
-  --set "federation.meshPeers.remote.addresses[0]=$EAST_CONSOLE_URL"
+  --set "federation.meshPeers.remotes[0].addresses[0]=$EAST_CONSOLE_URL"
 ```
 
 ### Deploy and export services
