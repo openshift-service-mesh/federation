@@ -35,9 +35,11 @@ import (
 	"k8s.io/client-go/informers"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	v1 "k8s.io/client-go/listers/core/v1"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
 	// +kubebuilder:scaffold:imports
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -45,6 +47,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	"github.com/openshift-service-mesh/federation/api/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/controller"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
@@ -71,6 +75,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 
 	// +kubebuilder:scaffold:scheme
 }
@@ -136,6 +141,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&controller.MeshFederationReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		log.Errorf("unable to create controller for MeshFederation custom resource: %s", err)
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

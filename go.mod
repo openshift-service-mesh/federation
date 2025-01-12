@@ -7,6 +7,7 @@ replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
 require (
 	github.com/envoyproxy/go-control-plane v0.12.1-0.20240415211714-57c85e1829e6
+	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/openshift/api v0.0.0-20240404200104-96ed2d49b255
 	github.com/openshift/client-go v0.0.0-20231212205830-0ab0864ec8c2
 	golang.org/x/net v0.27.0
@@ -125,7 +126,6 @@ require (
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
-	github.com/onsi/ginkgo/v2 v2.17.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc5 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.1 // indirect
