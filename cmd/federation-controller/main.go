@@ -123,7 +123,7 @@ func main() {
 		log.Fatalf("failed to parse configuration passed to the program arguments: %v", err)
 	}
 
-	// TODO: investigate if we could use Istio logger as it's built on top of zap
+	// TODO: investigate how we can unify logger
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
