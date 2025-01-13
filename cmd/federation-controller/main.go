@@ -196,13 +196,11 @@ func main() {
 
 	startReconciler(ctx, cfg, serviceLister, meshConfigPushRequests, importedServiceStore)
 
-	go func() {
-		log.Info("starting manager")
-		if err := mgr.Start(ctx); err != nil {
-			log.Errorf("failed to start manager: %s", err)
-			cancel()
-		}
-	}()
+	log.Info("starting manager")
+	if err := mgr.Start(ctx); err != nil {
+		log.Errorf("failed to start manager: %s", err)
+		cancel()
+	}
 
 	<-ctx.Done()
 }
