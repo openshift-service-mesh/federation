@@ -158,6 +158,14 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	go func() {
+		log.Info("starting manager")
+		if err := mgr.Start(ctx); err != nil {
+			log.Errorf("failed to start manager: %s", err)
+			cancel()
+		}
+	}()
+
 	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
 		log.Fatalf("failed to create in-cluster config: %v", err)
@@ -195,12 +203,6 @@ func main() {
 	}
 
 	startReconciler(ctx, cfg, serviceLister, meshConfigPushRequests, importedServiceStore)
-
-	log.Info("starting manager")
-	if err := mgr.Start(ctx); err != nil {
-		log.Errorf("failed to start manager: %s", err)
-		cancel()
-	}
 
 	<-ctx.Done()
 }
