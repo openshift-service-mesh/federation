@@ -89,6 +89,11 @@ func parseFlags() {
 		"ExportedServiceSet that includes selectors to match the services that will be exported")
 	flag.StringVar(&importedServiceSet, "importedServiceSet", "",
 		"ImportedServiceSet that includes selectors to match the services that will be imported")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
+		"Enable leader election for controller manager. "+
+			"Enabling this will ensure there is only one active controller manager.")
 
 	// Attach Istio logging options to the flag set
 	loggingOptions.AttachFlags(func(_ *[]string, _ string, _ []string, _ string) {
@@ -102,15 +107,8 @@ func parseFlags() {
 }
 
 func main() {
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
-
 	opts := zap.Options{Development: true}
 	opts.BindFlags(flag.CommandLine)
-
 	parseFlags()
 
 	if err := istiolog.Configure(loggingOptions); err != nil {
