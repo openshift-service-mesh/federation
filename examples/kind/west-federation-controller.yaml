@@ -6,8 +6,8 @@ federation:
         ingress:
           selector:
             app: federation-ingress-gateway
-    remote:
-      name: east
+    remotes:
+    - name: east
       network: east-network
   exportedServiceSet:
     rules:
