@@ -24,17 +24,31 @@ import (
 	"syscall"
 	"time"
 
-	v1 "k8s.io/client-go/listers/core/v1"
-
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	routev1client "github.com/openshift/client-go/route/clientset/versioned"
 	istiokube "istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/slices"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/rest"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	v1 "k8s.io/client-go/listers/core/v1"
 
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	// to ensure that exec-entrypoint and run can make use of them.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
+	// +kubebuilder:scaffold:imports
+	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	"github.com/openshift-service-mesh/federation/api/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/controller"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
@@ -49,11 +63,21 @@ import (
 
 var (
 	// Global variables to store the parsed commandline arguments
-	meshPeers, exportedServiceSet, importedServiceSet string
+	meshPeers, exportedServiceSet, importedServiceSet,
+	metricsAddr, probeAddr string
+	enableLeaderElection bool
 
 	loggingOptions = istiolog.DefaultOptions()
 	log            = istiolog.RegisterScope("default", "default logging scope")
+
+	scheme = runtime.NewScheme()
 )
+
+func init() {
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	// +kubebuilder:scaffold:scheme
+}
 
 const reconnectDelay = time.Second * 5
 
@@ -65,6 +89,11 @@ func parseFlags() {
 		"ExportedServiceSet that includes selectors to match the services that will be exported")
 	flag.StringVar(&importedServiceSet, "importedServiceSet", "",
 		"ImportedServiceSet that includes selectors to match the services that will be imported")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
+		"Enable leader election for controller manager. "+
+			"Enabling this will ensure there is only one active controller manager.")
 
 	// Attach Istio logging options to the flag set
 	loggingOptions.AttachFlags(func(_ *[]string, _ string, _ []string, _ string) {
@@ -78,6 +107,8 @@ func parseFlags() {
 }
 
 func main() {
+	opts := zap.Options{Development: true}
+	opts.BindFlags(flag.CommandLine)
 	parseFlags()
 
 	if err := istiolog.Configure(loggingOptions); err != nil {
@@ -89,8 +120,50 @@ func main() {
 		log.Fatalf("failed to parse configuration passed to the program arguments: %v", err)
 	}
 
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme: scheme,
+		Metrics: server.Options{
+			BindAddress: metricsAddr,
+		},
+		HealthProbeBindAddress: probeAddr,
+		LeaderElection:         enableLeaderElection,
+		LeaderElectionID:       "80807133.federation.openshift-service-mesh.io",
+	})
+	if err != nil {
+		log.Errorf("unable to start manager: %s", err)
+		os.Exit(1)
+	}
+
+	if err = (&controller.MeshFederationReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		log.Errorf("unable to create controller for MeshFederation custom resource: %s", err)
+		os.Exit(1)
+	}
+	// +kubebuilder:scaffold:builder
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		log.Errorf("unable to set up health check: %s", err)
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		log.Errorf("unable to set up ready check: %s", err)
+		os.Exit(1)
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+
+	go func() {
+		log.Info("starting manager")
+		if err := mgr.Start(ctx); err != nil {
+			log.Errorf("failed to start manager: %s", err)
+			cancel()
+		}
+	}()
 
 	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
