@@ -69,10 +69,9 @@ func (g *ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 				ports = append(ports, servicePort)
 			}
 			exportedService := &v1alpha1.FederatedService{
-				Name:      svc.Name,
-				Namespace: svc.Namespace,
-				Ports:     ports,
-				Labels:    svc.Labels,
+				Hostname: fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace),
+				Ports:    ports,
+				Labels:   svc.Labels,
 			}
 			exportedServices = append(exportedServices, exportedService)
 		}
@@ -103,7 +102,7 @@ func serialize(exportedServices []*v1alpha1.FederatedService) ([]*anypb.Any, err
 	for _, exportedService := range exportedServices {
 		serializedExportedService := &anypb.Any{}
 		if err := anypb.MarshalFrom(serializedExportedService, exportedService, proto.MarshalOptions{}); err != nil {
-			return []*anypb.Any{}, fmt.Errorf("failed to serialize ExportedService %s/%s to protobuf message: %w", exportedService.Name, exportedService.Namespace, err)
+			return []*anypb.Any{}, fmt.Errorf("failed to serialize ExportedService %s to protobuf message: %w", exportedService.Hostname, err)
 		}
 		serializedServices = append(serializedServices, serializedExportedService)
 	}

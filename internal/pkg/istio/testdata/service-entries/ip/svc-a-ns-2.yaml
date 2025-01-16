@@ -1,5 +1,5 @@
 metadata:
-  name: import-a-ns2
+  name: import-a-ns2-svc-cluster-local-west
   namespace: istio-system
   labels:
     federation.openshift-service-mesh.io/peer: todo

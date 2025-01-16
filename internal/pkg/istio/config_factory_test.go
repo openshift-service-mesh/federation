@@ -126,22 +126,19 @@ var (
 	}
 
 	importedSvcA_ns1 = &v1alpha1.FederatedService{
-		Name:      "a",
-		Namespace: "ns1",
-		Labels:    map[string]string{"app": "a"},
-		Ports:     []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
+		Hostname: "a.ns1.svc.cluster.local",
+		Labels:   map[string]string{"app": "a"},
+		Ports:    []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
 	}
 	importedSvcB_ns1 = &v1alpha1.FederatedService{
-		Name:      "b",
-		Namespace: "ns1",
-		Labels:    map[string]string{"app": "b"},
-		Ports:     []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
+		Hostname: "b.ns1.svc.cluster.local",
+		Labels:   map[string]string{"app": "b"},
+		Ports:    []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
 	}
 	importedSvcA_ns2 = &v1alpha1.FederatedService{
-		Name:      "a",
-		Namespace: "ns2",
-		Labels:    map[string]string{"app": "a"},
-		Ports:     []*v1alpha1.ServicePort{importedHttpPort},
+		Hostname: "a.ns2.svc.cluster.local",
+		Labels:   map[string]string{"app": "a"},
+		Ports:    []*v1alpha1.ServicePort{importedHttpPort},
 	}
 )
 

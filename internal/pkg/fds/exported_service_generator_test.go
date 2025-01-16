@@ -122,17 +122,15 @@ func TestNewExportedServicesGenerator(t *testing.T) {
 			Spec: corev1.ServiceSpec{Ports: allPorts},
 		}},
 		expectedExportedServices: []*v1alpha1.FederatedService{{
-			Name:      "b",
-			Namespace: "ns1",
-			Ports:     allExportedPorts,
+			Hostname: "b.ns1.svc.cluster.local",
+			Ports:    allExportedPorts,
 			Labels: map[string]string{
 				"app":    "b",
 				"export": "true",
 			},
 		}, {
-			Name:      "a",
-			Namespace: "ns2",
-			Ports:     allExportedPorts,
+			Hostname: "a.ns2.svc.cluster.local",
+			Ports:    allExportedPorts,
 			Labels: map[string]string{
 				"app":    "a",
 				"export": "true",
