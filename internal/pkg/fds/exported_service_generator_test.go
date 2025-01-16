@@ -89,7 +89,7 @@ func TestNewExportedServicesGenerator(t *testing.T) {
 	testCases := []struct {
 		name                     string
 		existingServices         []*corev1.Service
-		expectedExportedServices []*v1alpha1.ExportedService
+		expectedExportedServices []*v1alpha1.FederatedService
 	}{{
 		name: "found 2 services matching configured label selector",
 		existingServices: []*corev1.Service{{
@@ -121,7 +121,7 @@ func TestNewExportedServicesGenerator(t *testing.T) {
 			},
 			Spec: corev1.ServiceSpec{Ports: allPorts},
 		}},
-		expectedExportedServices: []*v1alpha1.ExportedService{{
+		expectedExportedServices: []*v1alpha1.FederatedService{{
 			Name:      "b",
 			Namespace: "ns1",
 			Ports:     allExportedPorts,
@@ -188,11 +188,11 @@ func TestNewExportedServicesGenerator(t *testing.T) {
 	}
 }
 
-func deserializeExportedServices(t *testing.T, resources []*anypb.Any) []*v1alpha1.ExportedService {
+func deserializeExportedServices(t *testing.T, resources []*anypb.Any) []*v1alpha1.FederatedService {
 	t.Helper()
-	var out []*v1alpha1.ExportedService
+	var out []*v1alpha1.FederatedService
 	for _, res := range resources {
-		var exportedService v1alpha1.ExportedService
+		var exportedService v1alpha1.FederatedService
 		if err := res.UnmarshalTo(&exportedService); err != nil {
 			t.Errorf("failed to deserialize XDS resource: %v", err)
 		}

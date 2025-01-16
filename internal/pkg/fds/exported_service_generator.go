@@ -48,7 +48,7 @@ func (g *ExportedServicesGenerator) GetTypeUrl() string {
 }
 
 func (g *ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
-	var exportedServices []*v1alpha1.ExportedService
+	var exportedServices []*v1alpha1.FederatedService
 	for _, exportLabelSelector := range g.cfg.ExportedServiceSet.GetLabelSelectors() {
 		matchExported := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
 		services, err := g.serviceLister.List(matchExported)
@@ -68,7 +68,7 @@ func (g *ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
 				servicePort.Protocol = detectProtocol(port.Name)
 				ports = append(ports, servicePort)
 			}
-			exportedService := &v1alpha1.ExportedService{
+			exportedService := &v1alpha1.FederatedService{
 				Name:      svc.Name,
 				Namespace: svc.Namespace,
 				Ports:     ports,
@@ -98,7 +98,7 @@ func detectProtocol(portName string) string {
 	return "TCP"
 }
 
-func serialize(exportedServices []*v1alpha1.ExportedService) ([]*anypb.Any, error) {
+func serialize(exportedServices []*v1alpha1.FederatedService) ([]*anypb.Any, error) {
 	var serializedServices []*anypb.Any
 	for _, exportedService := range exportedServices {
 		serializedExportedService := &anypb.Any{}

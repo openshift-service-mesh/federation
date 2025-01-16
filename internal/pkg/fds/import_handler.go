@@ -40,9 +40,9 @@ func NewImportedServiceHandler(store *ImportedServiceStore, pushRequests chan<- 
 }
 
 func (h *ImportedServiceHandler) Handle(source string, resources []*anypb.Any) error {
-	importedServices := make([]*v1alpha1.ExportedService, 0, len(resources))
+	importedServices := make([]*v1alpha1.FederatedService, 0, len(resources))
 	for _, res := range resources {
-		exportedService := &v1alpha1.ExportedService{}
+		exportedService := &v1alpha1.FederatedService{}
 		if err := proto.Unmarshal(res.Value, exportedService); err != nil {
 			return fmt.Errorf("unable to unmarshal exported service: %w", err)
 		}

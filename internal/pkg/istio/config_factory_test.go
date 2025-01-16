@@ -125,19 +125,19 @@ var (
 		Protocol:   "HTTPS",
 	}
 
-	importedSvcA_ns1 = &v1alpha1.ExportedService{
+	importedSvcA_ns1 = &v1alpha1.FederatedService{
 		Name:      "a",
 		Namespace: "ns1",
 		Labels:    map[string]string{"app": "a"},
 		Ports:     []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
 	}
-	importedSvcB_ns1 = &v1alpha1.ExportedService{
+	importedSvcB_ns1 = &v1alpha1.FederatedService{
 		Name:      "b",
 		Namespace: "ns1",
 		Labels:    map[string]string{"app": "b"},
 		Ports:     []*v1alpha1.ServicePort{importedHttpPort, importedHttpsPort},
 	}
-	importedSvcA_ns2 = &v1alpha1.ExportedService{
+	importedSvcA_ns2 = &v1alpha1.FederatedService{
 		Name:      "a",
 		Namespace: "ns2",
 		Labels:    map[string]string{"app": "a"},
@@ -310,7 +310,7 @@ func TestServiceEntries(t *testing.T) {
 		name                      string
 		cfg                       config.Federation
 		localServices             []*corev1.Service
-		importedServices          []*v1alpha1.ExportedService
+		importedServices          []*v1alpha1.FederatedService
 		expectedServiceEntryFiles []string
 	}{{
 		name:                      "no ServiceEntry is created if remote addresses are empty",
@@ -321,14 +321,14 @@ func TestServiceEntries(t *testing.T) {
 			"resolution type should be STATIC when remote addresses are IPs",
 		cfg:                       *importConfigRemoteIP,
 		localServices:             []*corev1.Service{svcA_ns1},
-		importedServices:          []*v1alpha1.ExportedService{importedSvcA_ns1, importedSvcB_ns1, importedSvcA_ns2},
+		importedServices:          []*v1alpha1.FederatedService{importedSvcA_ns1, importedSvcB_ns1, importedSvcA_ns2},
 		expectedServiceEntryFiles: []string{"ip/fds.yaml", "ip/svc-b-ns-1.yaml", "ip/svc-a-ns-2.yaml"},
 	}, {
 		name: "ServiceEntries should be created only for services, which do not exist locally; " +
 			"resolution type should be DNS when remote address is a DNS name",
 		cfg:                       *importConfigRemoteDNS,
 		localServices:             []*corev1.Service{svcA_ns1},
-		importedServices:          []*v1alpha1.ExportedService{importedSvcA_ns1, importedSvcB_ns1, importedSvcA_ns2},
+		importedServices:          []*v1alpha1.FederatedService{importedSvcA_ns1, importedSvcB_ns1, importedSvcA_ns2},
 		expectedServiceEntryFiles: []string{"dns/fds.yaml", "dns/svc-b-ns-1.yaml", "dns/svc-a-ns-2.yaml"},
 	}}
 	for _, tc := range testCases {

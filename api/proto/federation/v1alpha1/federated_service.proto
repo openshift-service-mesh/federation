@@ -4,8 +4,8 @@ package v1alpha1;
 
 option go_package = "federation/v1alpha1";
 
-// ExportedService represents a service available across federated meshes with a name and namespace.
-message ExportedService {
+// FederatedService represents a service available across federated meshes.
+message FederatedService {
   // Name of the exported service
   string name = 1;
   // Namespace where exported service is defined
