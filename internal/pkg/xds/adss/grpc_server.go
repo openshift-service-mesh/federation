@@ -20,7 +20,6 @@ import (
 	"net"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
@@ -52,10 +51,8 @@ func NewServer(pushRequests <-chan xds.PushRequest, onNewSubscriber func(), hand
 	}
 }
 
-// Run starts the gRPC server and the controllers.
+// Run starts the gRPC server and awaits for push requests to broadcast configuration.
 func (s *Server) Run(ctx context.Context) error {
-	var routinesGroup errgroup.Group
-
 	listener, err := net.Listen("tcp", ":15080")
 	if err != nil {
 		return fmt.Errorf("creating TCP listener: %w", err)
@@ -63,24 +60,20 @@ func (s *Server) Run(ctx context.Context) error {
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	routinesGroup.Go(func() error {
-		defer cancel()
+	go func() {
 		log.Info("Running gRPC server")
-		return s.grpc.Serve(listener)
-	})
-
-	routinesGroup.Go(func() error {
-		defer log.Info("gRPC server was shut down")
-		<-ctx.Done()
-		s.grpc.GracefulStop()
-		return nil
-	})
+		if err := s.grpc.Serve(listener); err != nil {
+			cancel()
+		}
+	}()
 
 loop:
 	for {
 		select {
 		case <-ctx.Done():
 			s.ads.closeSubscribers()
+			s.grpc.GracefulStop()
+			log.Info("gRPC server was shut down")
 			break loop
 
 		case pushRequest := <-s.pushRequests:
@@ -91,5 +84,5 @@ loop:
 		}
 	}
 
-	return routinesGroup.Wait()
+	return nil
 }
