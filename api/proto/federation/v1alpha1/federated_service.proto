@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package v1alpha1;
+
+option go_package = "federation/v1alpha1";
+
+// FederatedService represents a service available across federated meshes.
+message FederatedService {
+  string hostname = 1;
+  repeated ServicePort ports = 2;
+  map<string, string> labels = 3;
+}
+
+message ServicePort {
+  uint32 number = 1;
+  string protocol = 2;
+  string name = 3;
+  uint32 targetPort = 4;
+}

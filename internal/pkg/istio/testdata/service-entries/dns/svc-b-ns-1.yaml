@@ -1,5 +1,5 @@
 metadata:
-  name: import-b-ns1
+  name: import-b-ns1-svc-cluster-local-west
   namespace: istio-system
   labels:
     federation.openshift-service-mesh.io/peer: todo

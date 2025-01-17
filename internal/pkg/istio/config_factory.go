@@ -17,6 +17,7 @@ package istio
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
@@ -75,16 +76,16 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 			continue
 		}
 
-		createObjectMeta := func(svcName, svcNs string) metav1.ObjectMeta {
+		createObjectMeta := func(hostname string) metav1.ObjectMeta {
 			return metav1.ObjectMeta{
-				Name:      fmt.Sprintf("mtls-sni-%s-%s", svcName, svcNs),
+				Name:      fmt.Sprintf("mtls-sni-%s", separateWithDash(hostname)),
 				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
 				Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 			}
 		}
 
 		destinationRules = append(destinationRules, &v1alpha3.DestinationRule{
-			ObjectMeta: createObjectMeta(remote.ServiceName(), "istio-system"),
+			ObjectMeta: createObjectMeta(fmt.Sprintf("%s.%s.svc.cluster.local", remote.ServiceName(), "istio-system")),
 			Spec: istionetv1alpha3.DestinationRule{
 				Host: remote.ServiceFQDN(),
 				TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
@@ -99,23 +100,24 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 		for _, svc := range cf.importedServiceStore.From(remote) {
 			// Currently it's assumed that the same service (name+ns) exported by multiple remotes
 			// is configured exactly the same, therefore we create DestinationRule only once.
-			drMeta := createObjectMeta(svc.Name, svc.Namespace)
+			drMeta := createObjectMeta(svc.GetHostname())
 			if !destinationRulesAlreadyCreated[drMeta.Name] {
 				dr := &v1alpha3.DestinationRule{
 					ObjectMeta: drMeta,
 					Spec: istionetv1alpha3.DestinationRule{
-						Host: fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace),
+						Host: svc.GetHostname(),
 						TrafficPolicy: &istionetv1alpha3.TrafficPolicy{
 							PortLevelSettings: []*istionetv1alpha3.TrafficPolicy_PortTrafficPolicy{},
 						},
 					},
 				}
 				for _, port := range svc.Ports {
+					svcName, svcNs := getServiceNameAndNs(svc.GetHostname())
 					dr.Spec.TrafficPolicy.PortLevelSettings = append(dr.Spec.TrafficPolicy.PortLevelSettings, &istionetv1alpha3.TrafficPolicy_PortTrafficPolicy{
 						Port: &istionetv1alpha3.PortSelector{Number: port.Number},
 						Tls: &istionetv1alpha3.ClientTLSSettings{
 							Mode: istionetv1alpha3.ClientTLSSettings_ISTIO_MUTUAL,
-							Sni:  routerCompatibleSNI(svc.Name, svc.Namespace, port.Number),
+							Sni:  routerCompatibleSNI(svcName, svcNs, port.Number),
 						},
 					})
 				}
@@ -256,10 +258,11 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 		}
 
 		for _, importedSvc := range cf.importedServiceStore.From(remote) {
-			_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
+			svcName, svcNs := getServiceNameAndNs(importedSvc.GetHostname())
+			_, err := cf.serviceLister.Services(svcNs).Get(svcName)
 			if err != nil {
 				if !errors.IsNotFound(err) {
-					return nil, fmt.Errorf("failed to get Service %s/%s: %w", importedSvc.Name, importedSvc.Namespace, err)
+					return nil, fmt.Errorf("failed to get Service %s/%s: %w", svcNs, svcName, err)
 				}
 				// Service doesn't exist - create ServiceEntry.
 
@@ -284,7 +287,7 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 					}
 				})
 
-				svcEntryName := fmt.Sprintf("import-%s-%s", importedSvc.Name, importedSvc.Namespace)
+				svcEntryName := fmt.Sprintf("import-%s-%s", separateWithDash(importedSvc.GetHostname()), remote.Name)
 				serviceEntry, exists := serviceEntriesByName[svcEntryName]
 				if exists {
 					// If the ServiceEntry already exists due to multiple remotes exporting the same service,
@@ -298,7 +301,7 @@ func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {
 							Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 						},
 						Spec: istionetv1alpha3.ServiceEntry{
-							Hosts:      []string{fmt.Sprintf("%s.%s.svc.cluster.local", importedSvc.Name, importedSvc.Namespace)},
+							Hosts:      []string{importedSvc.GetHostname()},
 							Ports:      ports,
 							Endpoints:  endpoints,
 							Location:   istionetv1alpha3.ServiceEntry_MESH_INTERNAL,
@@ -322,18 +325,19 @@ func (cf *ConfigFactory) WorkloadEntries() ([]*v1alpha3.WorkloadEntry, error) {
 
 	for _, remote := range cf.cfg.MeshPeers.Remotes {
 		for _, importedSvc := range cf.importedServiceStore.From(remote) {
-			_, err := cf.serviceLister.Services(importedSvc.Namespace).Get(importedSvc.Name)
+			svcName, svcNs := getServiceNameAndNs(importedSvc.GetHostname())
+			_, err := cf.serviceLister.Services(svcNs).Get(svcName)
 			if err != nil {
 				if !errors.IsNotFound(err) {
-					return nil, fmt.Errorf("failed to get Service %s/%s: %w", importedSvc.Name, importedSvc.Namespace, err)
+					return nil, fmt.Errorf("failed to get Service %s/%s: %w", svcNs, svcName, err)
 				}
 			} else {
 				// Service already exists - create WorkloadEntries.
 				for idx, ip := range networking.Resolve(remote.Addresses...) {
 					workloadEntries = append(workloadEntries, &v1alpha3.WorkloadEntry{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("import-%s-%s-%d", remote.Name, importedSvc.Name, idx),
-							Namespace: importedSvc.Namespace,
+							Name:      fmt.Sprintf("import-%s-%s-%d", remote.Name, svcName, idx),
+							Namespace: svcNs,
 							Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
 						},
 						Spec: istionetv1alpha3.WorkloadEntry{
@@ -394,4 +398,16 @@ func makePortsMap(ports []*v1alpha1.ServicePort, remotePort uint32) map[string]u
 		m[p.Name] = remotePort
 	}
 	return m
+}
+
+func separateWithDash(hostname string) string {
+	domainLabels := strings.Split(hostname, ".")
+	return strings.Join(domainLabels, "-")
+}
+
+// TODO: this may not work as expected when aliasing will be supported,
+// because there will be no be guarantee that namespace is included.
+func getServiceNameAndNs(hostname string) (string, string) {
+	domainLabels := strings.Split(hostname, ".")
+	return domainLabels[0], domainLabels[1]
 }
