@@ -75,7 +75,7 @@ func (a *ADSC) Run(ctx context.Context) error {
 	}
 
 	for _, r := range a.cfg.InitialDiscoveryRequests {
-		if sendErr := a.send(r); sendErr != nil {
+		if sendErr := a.Send(r); sendErr != nil {
 			a.log.Errorf("failed sending initial discovery request: %+v", sendErr)
 		}
 	}
@@ -100,7 +100,7 @@ func (a *ADSC) Restart(ctx context.Context) {
 	}
 }
 
-func (a *ADSC) send(req *discovery.DiscoveryRequest) error {
+func (a *ADSC) Send(req *discovery.DiscoveryRequest) error {
 	req.ResponseNonce = time.Now().String()
 	a.log.Infof("Sending Discovery Request to ADS server: %s", req.String())
 	return a.stream.Send(req)
