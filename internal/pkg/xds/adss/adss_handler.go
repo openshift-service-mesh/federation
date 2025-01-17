@@ -48,7 +48,6 @@ type adsServer struct {
 	handlers         map[string]RequestHandler
 	subscribers      sync.Map
 	nextSubscriberID atomic.Uint64
-	onNewSubscriber  func()
 }
 
 // subscriber represents a client that is subscribed to XDS resources.
@@ -72,9 +71,6 @@ func (adss *adsServer) StreamAggregatedResources(downstream DiscoveryStream) err
 
 	adss.subscribers.Store(sub.id, sub)
 
-	if adss.onNewSubscriber != nil {
-		adss.onNewSubscriber()
-	}
 	go adss.recvFromStream(int64(sub.id), downstream)
 
 	<-ctx.Done()

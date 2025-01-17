@@ -24,7 +24,6 @@ import (
 	"syscall"
 	"time"
 
-	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	routev1client "github.com/openshift/client-go/route/clientset/versioned"
 	istiokube "istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
@@ -251,13 +250,8 @@ func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister 
 }
 
 func startFederationServer(ctx context.Context, cfg *config.Federation, serviceLister v1.ServiceLister, fdsPushRequests chan xds.PushRequest) {
-	triggerFDSPushOnNewSubscription := func() {
-		fdsPushRequests <- xds.PushRequest{TypeUrl: xds.ExportedServiceTypeUrl}
-	}
-
 	federationServer := adss.NewServer(
 		fdsPushRequests,
-		triggerFDSPushOnNewSubscription,
 		fds.NewExportedServicesGenerator(*cfg, serviceLister),
 	)
 
@@ -316,9 +310,6 @@ func startFDSClient(ctx context.Context, remote config.Remote, meshConfigPushReq
 		PeerName:      remote.Name,
 		DiscoveryAddr: discoveryAddr,
 		Authority:     remote.ServiceFQDN(),
-		InitialDiscoveryRequests: []*discovery.DiscoveryRequest{{
-			TypeUrl: xds.ExportedServiceTypeUrl,
-		}},
 		Handlers: map[string]adsc.ResponseHandler{
 			xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, meshConfigPushRequests),
 		},

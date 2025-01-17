@@ -35,12 +35,11 @@ const (
 )
 
 type ADSCConfig struct {
-	PeerName                 string
-	DiscoveryAddr            string
-	Authority                string
-	InitialDiscoveryRequests []*discovery.DiscoveryRequest
-	Handlers                 map[string]ResponseHandler
-	ReconnectDelay           time.Duration
+	PeerName       string
+	DiscoveryAddr  string
+	Authority      string
+	Handlers       map[string]ResponseHandler
+	ReconnectDelay time.Duration
 }
 
 type ADSC struct {
@@ -66,17 +65,17 @@ func New(opts *ADSCConfig) (*ADSC, error) {
 }
 
 func (a *ADSC) Run(ctx context.Context) error {
-	var err error
-
 	client := discovery.NewAggregatedDiscoveryServiceClient(a.conn)
-	a.stream, err = client.StreamAggregatedResources(ctx)
-	if err != nil {
-		return err
+
+	var err error
+	if a.stream, err = client.StreamAggregatedResources(ctx); err != nil {
+		return fmt.Errorf("failed setting resource stream: %w", err)
 	}
 
-	for _, r := range a.cfg.InitialDiscoveryRequests {
-		if sendErr := a.Send(r); sendErr != nil {
-			a.log.Errorf("failed sending initial discovery request: %+v", sendErr)
+	for k, _ := range a.cfg.Handlers {
+		discoveryRequest := &discovery.DiscoveryRequest{TypeUrl: k}
+		if sendErr := a.Send(discoveryRequest); sendErr != nil {
+			a.log.Errorf("[%s] failed requesting initial discovery sync: %+v", k, sendErr)
 		}
 	}
 
