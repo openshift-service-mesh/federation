@@ -307,7 +307,7 @@ func startFDSClient(ctx context.Context, remote config.Remote, meshConfigPushReq
 	}
 
 	fdsClient, errNew := adsc.New(&adsc.ADSCConfig{
-		PeerName:      remote.Name,
+		RemoteName:    remote.Name,
 		DiscoveryAddr: discoveryAddr,
 		Authority:     remote.ServiceFQDN(),
 		Handlers: map[string]adsc.ResponseHandler{

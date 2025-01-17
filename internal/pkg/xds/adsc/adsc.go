@@ -35,7 +35,7 @@ const (
 )
 
 type ADSCConfig struct {
-	PeerName       string
+	RemoteName     string
 	DiscoveryAddr  string
 	Authority      string
 	Handlers       map[string]ResponseHandler
@@ -55,7 +55,7 @@ func New(opts *ADSCConfig) (*ADSC, error) {
 	}
 	adsc := &ADSC{
 		cfg: opts,
-		log: istiolog.RegisterScope("adsc", "Aggregated Discovery Service Client").WithLabels("peer", opts.PeerName),
+		log: istiolog.RegisterScope("adsc", "Aggregated Discovery Service Client").WithLabels("peer", opts.RemoteName),
 	}
 	if err := adsc.dial(); err != nil {
 		return nil, err
@@ -148,7 +148,7 @@ loop:
 			}
 			a.log.Infof("received response for %s: %v", msg.TypeUrl, msg.Resources)
 			if handler, found := a.cfg.Handlers[msg.TypeUrl]; found {
-				if err := handler.Handle(a.cfg.PeerName, msg.Resources); err != nil {
+				if err := handler.Handle(a.cfg.RemoteName, msg.Resources); err != nil {
 					a.log.Infof("error handling resource %s: %v", msg.TypeUrl, err)
 				}
 			} else {
