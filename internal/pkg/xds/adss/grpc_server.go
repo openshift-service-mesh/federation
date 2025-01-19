@@ -31,15 +31,14 @@ type Server struct {
 	pushRequests <-chan xds.PushRequest
 }
 
-func NewServer(pushRequests <-chan xds.PushRequest, onNewSubscriber func(), handlers ...RequestHandler) *Server {
+func NewServer(pushRequests <-chan xds.PushRequest, handlers ...RequestHandler) *Server {
 	grpcServer := grpc.NewServer()
 	handlerMap := make(map[string]RequestHandler)
 	for _, g := range handlers {
 		handlerMap[g.GetTypeUrl()] = g
 	}
 	ads := &adsServer{
-		handlers:        handlerMap,
-		onNewSubscriber: onNewSubscriber,
+		handlers: handlerMap,
 	}
 
 	discovery.RegisterAggregatedDiscoveryServiceServer(grpcServer, ads)
