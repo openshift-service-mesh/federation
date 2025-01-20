@@ -26,8 +26,8 @@ rules:
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 {{- end }}
 - apiGroups: ["federation.openshift-service-mesh.io"]
-  resources: ["meshfederations"]
+  resources: ["meshfederations", "federatedservices"]
   verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
 - apiGroups: ["federation.openshift-service-mesh.io"]
-  resources: ["meshfederations/status"]
+  resources: ["meshfederations/status", "federatedservices/status"]
   verbs: ["get"]

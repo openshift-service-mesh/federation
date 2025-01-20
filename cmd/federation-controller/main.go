@@ -75,6 +75,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -140,6 +141,13 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		log.Errorf("unable to create controller for MeshFederation custom resource: %s", err)
+		os.Exit(1)
+	}
+	if err = (&controller.FederatedServiceReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		log.Errorf("unable to create FederatedService controller: %s", err)
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

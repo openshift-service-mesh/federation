@@ -16,4 +16,13 @@ resources:
   kind: MeshFederation
   path: github.com/openshift-service-mesh/federation/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: openshift-service-mesh.io
+  group: federation
+  kind: FederatedService
+  path: github.com/openshift-service-mesh/federation/api/v1alpha1
+  version: v1alpha1
 version: "3"

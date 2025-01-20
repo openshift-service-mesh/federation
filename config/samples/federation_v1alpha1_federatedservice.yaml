@@ -1,0 +1,9 @@
+apiVersion: federation.openshift-service-mesh.io/v1alpha1
+kind: FederatedService
+metadata:
+  labels:
+    app.kubernetes.io/name: federation
+    app.kubernetes.io/managed-by: kustomize
+  name: federatedservice-sample
+spec:
+  # TODO(user): Add fields here
