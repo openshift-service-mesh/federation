@@ -1,0 +1,27 @@
+# permissions for end users to edit federatedservices.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: federation
+    app.kubernetes.io/managed-by: kustomize
+  name: federatedservice-editor-role
+rules:
+- apiGroups:
+  - federation.openshift-service-mesh.io
+  resources:
+  - federatedservices
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - federation.openshift-service-mesh.io
+  resources:
+  - federatedservices/status
+  verbs:
+  - get
