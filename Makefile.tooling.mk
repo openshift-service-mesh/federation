@@ -1,3 +1,7 @@
+## Versions
+CONTROLLER_TOOLS_VERSION ?= v0.16.4
+
+## Binaries
 KIND := $(LOCALBIN)/kind
 HELM := $(LOCALBIN)/helm
 PROTOC := $(LOCALBIN)/protoc
@@ -8,6 +12,8 @@ CONTROLLER_GEN := $(LOCALBIN)/controller-gen
 GCI := $(LOCALBIN)/gci
 
 $(shell mkdir -p $(LOCALBIN))
+
+## Installation targets
 
 $(GCI):
 	@GOBIN=$(LOCALBIN) go install github.com/daixiang0/gci@v0.13.5
@@ -37,7 +43,6 @@ $(PROTOC_GEN_DEEPCOPY):
 $(KIND):
 	@GOBIN=$(LOCALBIN) go install -mod=readonly sigs.k8s.io/kind@v0.26.0
 
-CONTROLLER_TOOLS_VERSION ?= v0.16.4
 $(CONTROLLER_GEN):
 	GOBIN=$(LOCALBIN) go install -mod=readonly sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
 
