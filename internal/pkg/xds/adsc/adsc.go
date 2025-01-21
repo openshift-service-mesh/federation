@@ -74,8 +74,8 @@ func (a *ADSC) Run(ctx context.Context) error {
 
 	for k, _ := range a.cfg.Handlers {
 		discoveryRequest := &discovery.DiscoveryRequest{TypeUrl: k}
-		if sendErr := a.Send(discoveryRequest); sendErr != nil {
-			a.log.Errorf("[%s] failed requesting initial discovery sync: %+v", k, sendErr)
+		if errSend := a.Send(discoveryRequest); errSend != nil {
+			a.log.Errorf("[%s] failed requesting initial discovery sync: %+v", k, errSend)
 		}
 	}
 
@@ -89,8 +89,8 @@ func (a *ADSC) Restart(ctx context.Context) {
 	if err := a.Run(ctx); err != nil {
 		a.log.Errorf("failed to connect to ADS server %s, will reconnect in %s: %v", a.cfg.DiscoveryAddr, a.cfg.ReconnectDelay, err)
 		time.AfterFunc(a.cfg.ReconnectDelay, func() {
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				a.log.Infof("Parent ctx is done: %v", ctxErr)
+			if errCtx := ctx.Err(); errCtx != nil {
+				a.log.Infof("Parent ctx is done: %v", errCtx)
 				return
 			}
 
