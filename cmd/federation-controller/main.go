@@ -314,7 +314,7 @@ func startFDSClient(ctx context.Context, remote config.Remote, meshConfigPushReq
 		discoveryAddr = fmt.Sprintf("%s:%d", remote.Addresses[0], remote.ServicePort())
 	}
 
-	fdsClient, errNew := adsc.New(&adsc.ADSCConfig{
+	fdsClient, errClient := adsc.New(&adsc.ADSCConfig{
 		RemoteName:    remote.Name,
 		DiscoveryAddr: discoveryAddr,
 		Authority:     remote.ServiceFQDN(),
@@ -323,16 +323,16 @@ func startFDSClient(ctx context.Context, remote config.Remote, meshConfigPushReq
 		},
 		ReconnectDelay: reconnectDelay,
 	})
-	if errNew != nil {
-		log.Fatalf("failed to create FDS client: %v", errNew)
+	if errClient != nil {
+		log.Fatalf("failed to create FDS client: %v", errClient)
 	}
 
 	go func() {
 		if errRun := fdsClient.Run(ctx); errRun != nil {
 			log.Errorf("failed to start FDS client, will reconnect in %s: %v", reconnectDelay, errRun)
 			time.AfterFunc(reconnectDelay, func() {
-				if ctxErr := ctx.Err(); ctxErr != nil {
-					log.Infof("Parent ctx is done: %v", ctxErr)
+				if errCtx := ctx.Err(); errCtx != nil {
+					log.Infof("Parent ctx is done: %v", errCtx)
 					return
 				}
 
