@@ -113,16 +113,18 @@ func (adss *adsServer) recvFromStream(id int64, downstream DiscoveryStream) {
 }
 
 func (adss *adsServer) generateResources(typeUrl string) ([]*anypb.Any, error) {
-	if handler, found := adss.handlers[typeUrl]; found {
-		log.Infof("Generating config snapshot for type %s", typeUrl)
-		if resources, err := handler.GenerateResponse(); err != nil {
-			log.Errorf("error generating resources of type %s: %v", typeUrl, err)
-			return []*anypb.Any{}, fmt.Errorf("error generating resources of type %s: %w", typeUrl, err)
-		} else {
-			return resources, nil
-		}
+	handler, found := adss.handlers[typeUrl]
+	if !found {
+		return []*anypb.Any{}, nil
 	}
-	return []*anypb.Any{}, nil
+
+	log.Infof("Generating config snapshot for type %s", typeUrl)
+	resources, err := handler.GenerateResponse()
+	if err != nil {
+		log.Errorf("failed generating resources for type %s: %v", typeUrl, err)
+		return []*anypb.Any{}, fmt.Errorf("failed generating resources for type %s: %w", typeUrl, err)
+	}
+	return resources, nil
 }
 
 // sendToStream sends XDS resources to the subscriber.
