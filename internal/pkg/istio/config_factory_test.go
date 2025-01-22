@@ -33,8 +33,8 @@ import (
 
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/fds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/informer"
 )
 
 var (

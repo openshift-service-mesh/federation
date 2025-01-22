@@ -20,7 +20,7 @@ import (
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/common"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
 )
 
 var _ Handler = (*ServiceExportEventHandler)(nil)

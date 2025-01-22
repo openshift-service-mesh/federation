@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
 )
 
 var _ Reconciler = (*EnvoyFilterReconciler)(nil)
