@@ -159,14 +159,12 @@ func runCtrls(ctx context.Context, cancel context.CancelFunc) {
 
 	if err = (&controller.MeshFederationReconciler{
 		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		log.Errorf("unable to create controller for MeshFederation custom resource: %s", err)
 		os.Exit(1)
 	}
 	if err = (&controller.FederatedServiceReconciler{
 		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		log.Errorf("unable to create FederatedService controller: %s", err)
 		os.Exit(1)

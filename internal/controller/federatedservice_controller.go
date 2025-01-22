@@ -17,7 +17,6 @@ package controller
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -28,7 +27,6 @@ import (
 // FederatedServiceReconciler reconciles a FederatedService object
 type FederatedServiceReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
 }
 
 // +kubebuilder:rbac:groups=federation.openshift-service-mesh.io,resources=federatedservices,verbs=get;list;watch;create;update;patch;delete
