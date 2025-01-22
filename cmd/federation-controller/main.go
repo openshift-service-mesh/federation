@@ -324,7 +324,7 @@ func startFDSClient(ctx context.Context, remote config.Remote, meshConfigPushReq
 		DiscoveryAddr: discoveryAddr,
 		Authority:     remote.ServiceFQDN(),
 		Handlers: map[string]adsc.ResponseHandler{
-			xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, meshConfigPushRequests),
+			xds.FederatedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, meshConfigPushRequests),
 		},
 		ReconnectDelay: reconnectDelay,
 	})

@@ -164,7 +164,7 @@ func TestXDSTriggers(t *testing.T) {
 			checkChannel(t, mcpPushRequests, xds.GatewayTypeUrl, tc.isTimeoutExpected)
 			checkChannel(t, mcpPushRequests, xds.EnvoyFilterTypeUrl, tc.isTimeoutExpected)
 			checkChannel(t, mcpPushRequests, xds.RouteTypeUrl, tc.isTimeoutExpected)
-			checkChannel(t, fdsPushRequests, xds.ExportedServiceTypeUrl, tc.isTimeoutExpected)
+			checkChannel(t, fdsPushRequests, xds.FederatedServiceTypeUrl, tc.isTimeoutExpected)
 		})
 	}
 }

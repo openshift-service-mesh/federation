@@ -74,6 +74,9 @@ type MeshFederationStatus struct {
 	// Conditions describes the state of the MeshFederation resource.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// +optional
+	ExportedServices []string `json:"exportedServices,omitempty"`
 }
 
 type PortConfig struct {

@@ -59,10 +59,10 @@ func CreateCleaner(k8sClient client.Client, config *rest.Config, timeout, interv
 	}
 }
 
-func (c *Cleaner) DeleteAll(objects ...client.Object) { //nolint:gocognit //reason it is what is ;)
+func (c *Cleaner) DeleteAll(ctx context.Context, objects ...client.Object) { //nolint:gocognit //reason it is what is ;)
 	for _, o := range objects {
 		obj := o
-		Expect(client.IgnoreNotFound(c.client.Delete(context.Background(), obj))).Should(Succeed())
+		Expect(client.IgnoreNotFound(c.client.Delete(ctx, obj))).Should(Succeed())
 
 		if namespace, ok := obj.(*corev1.Namespace); ok {
 			// Normally the kube-controller-manager would handle finalization
@@ -79,14 +79,14 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) { //nolint:gocognit //reas
 				u := unstructured.Unstructured{}
 				u.SetGroupVersionKind(gvk)
 
-				errDelete := c.client.DeleteAllOf(context.Background(), &u, client.InNamespace(namespace.Name))
+				errDelete := c.client.DeleteAllOf(ctx, &u, client.InNamespace(namespace.Name))
 				Expect(client.IgnoreNotFound(ignoreMethodNotAllowed(errDelete))).ShouldNot(HaveOccurred())
 			}
 
 			Eventually(func() error {
 				key := client.ObjectKeyFromObject(namespace)
 
-				if errGet := c.client.Get(context.Background(), key, namespace); errGet != nil {
+				if errGet := c.client.Get(ctx, key, namespace); errGet != nil {
 					return client.IgnoreNotFound(errGet)
 				}
 				// remove `kubernetes` finalizer
@@ -101,7 +101,7 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) { //nolint:gocognit //reas
 
 				// We have to use the k8s.io/client-go library here to expose
 				// ability to patch the /finalize subresource on the namespace
-				_, err := c.clientset.CoreV1().Namespaces().Finalize(context.Background(), namespace, metav1.UpdateOptions{})
+				_, err := c.clientset.CoreV1().Namespaces().Finalize(ctx, namespace, metav1.UpdateOptions{})
 
 				return err
 			}, c.timeout, c.interval).Should(Succeed())
@@ -109,7 +109,7 @@ func (c *Cleaner) DeleteAll(objects ...client.Object) { //nolint:gocognit //reas
 
 		Eventually(func() metav1.StatusReason {
 			key := client.ObjectKeyFromObject(obj)
-			if err := c.client.Get(context.Background(), key, obj); err != nil {
+			if err := c.client.Get(ctx, key, obj); err != nil {
 				return k8serr.ReasonForError(err)
 			}
 

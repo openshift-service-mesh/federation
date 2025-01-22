@@ -12,19 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package discovery
 
-import (
-	"context"
+import "google.golang.org/protobuf/types/known/anypb"
 
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-)
-
-// Reconciler defines required functions for each
-type Reconciler interface {
-	Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
-	SetupWithManager(mgr ctrl.Manager) error
+// RequestHandler generates XDS response for requests from subscribers or push requests triggered by other events.
+type RequestHandler interface {
+	// GetTypeUrl returns supported XDS type.
+	// An implementation can support only one XDS type.
+	GetTypeUrl() string
+	// GenerateResponse returns generated resources for requested XDS type.
+	GenerateResponse() ([]*anypb.Any, error)
 }
-
-type SubReconciler[T client.Object] func(ctx context.Context, cl client.Client, parent T) (ctrl.Result, error)
