@@ -1,5 +1,6 @@
 ## Versions
 CONTROLLER_TOOLS_VERSION ?= v0.16.4
+ENVTEST_PACKAGE_VERSION = release-0.20
 
 ## Binaries
 KIND := $(LOCALBIN)/kind
@@ -10,6 +11,8 @@ PROTOC_GEN_GRPC := $(LOCALBIN)/protoc-gen-go-grpc
 PROTOC_GEN_DEEPCOPY := $(LOCALBIN)/protoc-gen-golang-deepcopy
 CONTROLLER_GEN := $(LOCALBIN)/controller-gen
 GCI := $(LOCALBIN)/gci
+GINKGO := $(LOCALBIN)/ginkgo
+ENVTEST := $(LOCALBIN)/setup-envtest
 
 $(shell mkdir -p $(LOCALBIN))
 
@@ -46,3 +49,8 @@ $(KIND):
 $(CONTROLLER_GEN):
 	GOBIN=$(LOCALBIN) go install -mod=readonly sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
 
+$(GINKGO):
+	@GOBIN=$(LOCALBIN) go install -mod=readonly github.com/onsi/ginkgo/v2/ginkgo
+
+$(ENVTEST):
+	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_PACKAGE_VERSION)

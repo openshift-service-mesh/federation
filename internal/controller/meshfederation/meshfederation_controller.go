@@ -16,7 +16,12 @@ package meshfederation
 
 import (
 	"context"
+	"fmt"
+	"slices"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	machinerymeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -35,12 +40,47 @@ type Reconciler struct {
 	client.Client
 }
 
+var _ controller.Reconciler = (*Reconciler)(nil)
+
 func NewReconciler(c client.Client) *Reconciler {
 	return &Reconciler{Client: c}
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log.FromContext(ctx).Info("Reconciling object", "namespace", req.Namespace)
+
+	meshFederation := &v1alpha1.MeshFederation{}
+	if err := r.Client.Get(ctx, req.NamespacedName, meshFederation); err != nil {
+		if apierrors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		} else {
+			return ctrl.Result{}, fmt.Errorf("failed fetching MeshFederation %s, reason: %w", req.NamespacedName, err)
+		}
+	}
+
+	// TODO(meshfederation-ctrl): main logic goes here
+
+	// Dummy success
+	// TODO: figure out preferred approach to deal with conditions (metav1 vs conditionsv1 from Openshift)
+	// TODO: wrap conditions handling in a pkg/funcs representing domain-oriented conditions
+	conditionsChanged := machinerymeta.SetStatusCondition(&meshFederation.Status.Conditions, metav1.Condition{
+		Type:    "Available",
+		Status:  "True",
+		Reason:  "MeshFederationReconciled",
+		Message: "Reconcile completed successfully",
+	})
+
+	if conditionsChanged {
+		conditions := slices.Clone(meshFederation.Status.Conditions)
+		// TODO: patch and call only when actually conditionsChanged
+		_, errStatusUpdate := controller.RetryStatusUpdate(ctx, r.Client, meshFederation, func(saved *v1alpha1.MeshFederation) {
+			for _, condition := range conditions {
+				machinerymeta.SetStatusCondition(&saved.Status.Conditions, condition)
+			}
+		})
+		return ctrl.Result{}, errStatusUpdate
+	}
+
 	return ctrl.Result{}, nil
 }
 

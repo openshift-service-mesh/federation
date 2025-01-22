@@ -5,6 +5,10 @@ bin/
 .idea/
 .vscode/
 
+# Test artifacts
+cover.out
+ginkgo-test-results.xml
+
 # demo output
 Makefile.selfsigned.mk
 common.mk
