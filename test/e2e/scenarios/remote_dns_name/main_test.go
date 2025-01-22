@@ -20,12 +20,11 @@ package remote_dns_name
 import (
 	"testing"
 
+	"istio.io/istio/pkg/test/framework"
+
 	"github.com/openshift-service-mesh/federation/test/e2e"
 	"github.com/openshift-service-mesh/federation/test/e2e/setup"
-
 	"github.com/openshift-service-mesh/federation/test/e2e/setup/coredns"
-
-	"istio.io/istio/pkg/test/framework"
 )
 
 func TestMain(m *testing.M) {

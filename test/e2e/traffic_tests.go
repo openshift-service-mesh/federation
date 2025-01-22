@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/openshift-service-mesh/federation/test/e2e/setup"
-
 	"google.golang.org/grpc/codes"
 	"istio.io/istio/pkg/test/echo/common/scheme"
 	"istio.io/istio/pkg/test/framework"
@@ -31,6 +29,8 @@ import (
 	"istio.io/istio/pkg/test/framework/components/echo/check"
 	"istio.io/istio/pkg/test/framework/components/echo/common/ports"
 	"istio.io/istio/pkg/test/framework/components/echo/match"
+
+	"github.com/openshift-service-mesh/federation/test/e2e/setup"
 )
 
 type echoTestCase struct {

@@ -20,10 +20,10 @@ package remote_ip
 import (
 	"testing"
 
+	"istio.io/istio/pkg/test/framework"
+
 	"github.com/openshift-service-mesh/federation/test/e2e"
 	"github.com/openshift-service-mesh/federation/test/e2e/setup"
-
-	"istio.io/istio/pkg/test/framework"
 )
 
 func TestMain(m *testing.M) {
