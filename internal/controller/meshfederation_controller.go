@@ -19,7 +19,6 @@ import (
 
 	"github.com/openshift-service-mesh/federation/api/v1alpha1"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -28,7 +27,6 @@ import (
 // MeshFederationReconciler reconciles a MeshFederation object
 type MeshFederationReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
 }
 
 // +kubebuilder:rbac:groups=federation.openshift-service-mesh.io,resources=meshfederations,verbs=get;list;watch;create;update;patch;delete
