@@ -12,7 +12,7 @@ spec:
     listKind: MeshFederationList
     plural: meshfederations
     singular: meshfederation
-  scope: Cluster
+  scope: Namespaced
   versions:
   - name: v1alpha1
     schema:

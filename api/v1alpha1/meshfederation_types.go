@@ -38,7 +38,7 @@ type MeshFederationStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Namespaced
 
 // MeshFederation is the Schema for the meshfederations API.
 type MeshFederation struct {
