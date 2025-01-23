@@ -26,6 +26,8 @@ CRD_SRC := $(shell find $(CRD_SRC_DIR) -type f -name "*.go")
 CRD_GEN_DIR := $(PROJECT_DIR)/chart/crds
 CRD_GEN := $(shell find $(CRD_GEN_DIR) -type f -name "*.yaml")
 
+RBAC_GEN_DIR := $(PROJECT_DIR)/chart/rbac
+
 .PHONY: default
 default: build add-license fix-imports test
 
@@ -144,8 +146,9 @@ $(PROTOBUF_GEN): $(PROTOBUF_API_SRC) $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRP
 	@$(MAKE) fix-imports
 
 $(CRD_GEN): $(CRD_SRC) $(CONTROLLER_GEN) ## Generates Kubernetes CRDs, controller-runtime artifacts and related manifests.
-	$(CONTROLLER_GEN) paths="$(CRD_SRC_DIR)/..." \
+	$(CONTROLLER_GEN) paths="./..." \
 		crd output:crd:artifacts:config="$(CRD_GEN_DIR)" \
+		rbac:roleName=manager-role output:rbac:artifacts:config="$(RBAC_GEN_DIR)"  \
 		object:headerFile="$(LICENSE_FILE)"
 
 .PHONY: fix-imports
