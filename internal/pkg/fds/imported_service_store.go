@@ -17,9 +17,8 @@ package fds
 import (
 	"sync"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 )
 
 // ImportedServiceStore is a thread-safe wrapper for current state of imported services

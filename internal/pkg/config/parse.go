@@ -15,10 +15,9 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
-
-	"encoding/json"
 )
 
 // ParseArgs parses input arguments passed in JSON format to the config.Federation struct.

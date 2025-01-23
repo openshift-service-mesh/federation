@@ -21,9 +21,8 @@ import (
 	"fmt"
 
 	"golang.org/x/sync/errgroup"
-	"istio.io/istio/pkg/test/scopes"
-
 	"istio.io/istio/pkg/test/framework/resource"
+	"istio.io/istio/pkg/test/scopes"
 )
 
 func InstallOrUpgradeFederationControllers(options ...CtrlOption) resource.SetupFn {

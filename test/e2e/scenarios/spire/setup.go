@@ -23,13 +23,13 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/openshift-service-mesh/federation/test"
-	"github.com/openshift-service-mesh/federation/test/e2e/setup"
-
 	"golang.org/x/sync/errgroup"
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/resource"
 	"istio.io/istio/pkg/test/scopes"
+
+	"github.com/openshift-service-mesh/federation/test"
+	"github.com/openshift-service-mesh/federation/test/e2e/setup"
 )
 
 var spireComponents = []string{

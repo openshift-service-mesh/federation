@@ -23,14 +23,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openshift-service-mesh/federation/test/e2e/setup"
-
 	"istio.io/istio/pkg/test/framework/components/cluster"
 	"istio.io/istio/pkg/test/framework/resource"
 	"istio.io/istio/pkg/test/scopes"
 	"istio.io/istio/pkg/test/util/retry"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift-service-mesh/federation/test/e2e/setup"
 )
 
 var originalCorefilesPerCluster = map[string]string{}

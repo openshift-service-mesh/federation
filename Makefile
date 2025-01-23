@@ -7,7 +7,6 @@ CONTROLLER_TOOLS_VERSION ?= v0.16.4
 ## Required tooling.
 ## Needs to be defined early so that any target depending on given binary can resolve it when not present.
 LOCALBIN := $(PROJECT_DIR)/bin
-GOIMPORTS := $(LOCALBIN)/goimports
 KIND := $(LOCALBIN)/kind
 HELM := $(LOCALBIN)/helm
 PROTOC := $(LOCALBIN)/protoc
@@ -15,6 +14,7 @@ PROTOC_GEN_GO := $(LOCALBIN)/protoc-gen-go
 PROTOC_GEN_GRPC := $(LOCALBIN)/protoc-gen-go-grpc
 PROTOC_GEN_DEEPCOPY := $(LOCALBIN)/protoc-gen-golang-deepcopy
 CONTROLLER_GEN := $(LOCALBIN)/controller-gen
+GCI := $(LOCALBIN)/gci
 
 PROTOBUF_API_DIR := $(PROJECT_DIR)/api/proto/federation
 PROTOBUF_API_SRC := $(shell find $(PROTOBUF_API_DIR) -type f -name "*.proto")
@@ -101,8 +101,8 @@ e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
 
 $(shell mkdir -p $(LOCALBIN))
 
-$(GOIMPORTS):
-	@GOBIN=$(LOCALBIN) go install -mod=readonly golang.org/x/tools/cmd/goimports@latest
+$(GCI):
+	@GOBIN=$(LOCALBIN) go install github.com/daixiang0/gci@v0.13.5
 
 $(HELM):
 	@curl -sSL https://get.helm.sh/helm-v3.14.2-linux-amd64.tar.gz -o $(LOCALBIN)/helm.tar.gz
@@ -141,7 +141,7 @@ clean:
 $(PROTOBUF_GEN): $(PROTOBUF_API_SRC) $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY) $(GOIMPORTS) ## Generates Go files from protobuf-based API files
 	@PATH=$(LOCALBIN):$$PATH $(PROTOC) --proto_path=$(PROTOBUF_API_DIR) --go_out=$(API_GEN_DIR) --go-grpc_out=$(API_GEN_DIR) --golang-deepcopy_out=:$(API_GEN_DIR) $(PROTOBUF_API_DIR)/**/*.proto
 	@$(MAKE) add-license
-	@$(GOIMPORTS) -local "github.com/openshift-service-mesh/federation" -w $(API_GEN_DIR)/
+	@$(MAKE) fix-imports
 
 $(CRD_GEN): $(CRD_SRC) $(CONTROLLER_GEN) ## Generates Kubernetes CRDs, controller-runtime artifacts and related manifests.
 	$(CONTROLLER_GEN) paths="$(CRD_SRC_DIR)/..." \
@@ -149,8 +149,13 @@ $(CRD_GEN): $(CRD_SRC) $(CONTROLLER_GEN) ## Generates Kubernetes CRDs, controlle
 		object:headerFile="$(LICENSE_FILE)"
 
 .PHONY: fix-imports
-fix-imports: $(GOIMPORTS) ## Fixes imports
-	$(GOIMPORTS) -local "github.com/openshift-service-mesh/federation" -w $(PROJECT_DIR)/
+fix-imports: $(GCI) ## Fixes imports
+	$(GCI) write $(PROJECT_DIR) \
+		--section standard \
+		--section default \
+		--section "prefix(github.com/openshift-service-mesh/federation)" \
+		--section blank \
+		--section dot
 
 LICENSE_FILE := $(PROJECT_DIR)/hack/boilerplate.go.txt
 GO_FILES := $(shell find $(PROJECT_DIR)/ -name '*.go')
