@@ -1,20 +1,15 @@
 PROJECT_DIR:=$(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
-OUT_DIR:=out
+OUT_DIR:=$(PROJECT_DIR)/out
+
+.PHONY: default
+default: build add-license fix-imports test
 
 export ISTIO_VERSION ?= 1.23.0
-CONTROLLER_TOOLS_VERSION ?= v0.16.4
 
 ## Required tooling.
-## Needs to be defined early so that any target depending on given binary can resolve it when not present.
 LOCALBIN := $(PROJECT_DIR)/bin
-KIND := $(LOCALBIN)/kind
-HELM := $(LOCALBIN)/helm
-PROTOC := $(LOCALBIN)/protoc
-PROTOC_GEN_GO := $(LOCALBIN)/protoc-gen-go
-PROTOC_GEN_GRPC := $(LOCALBIN)/protoc-gen-go-grpc
-PROTOC_GEN_DEEPCOPY := $(LOCALBIN)/protoc-gen-golang-deepcopy
-CONTROLLER_GEN := $(LOCALBIN)/controller-gen
-GCI := $(LOCALBIN)/gci
+
+include Makefile.tooling.mk
 
 PROTOBUF_API_DIR := $(PROJECT_DIR)/api/proto/federation
 PROTOBUF_API_SRC := $(shell find $(PROTOBUF_API_DIR) -type f -name "*.proto")
@@ -26,12 +21,9 @@ CRD_SRC := $(shell find $(CRD_SRC_DIR) -type f -name "*.go")
 CRD_GEN_DIR := $(PROJECT_DIR)/chart/crds
 CRD_GEN := $(shell find $(CRD_GEN_DIR) -type f -name "*.yaml")
 
-.PHONY: default
-default: build add-license fix-imports test
-
 .PHONY: help
 help:
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-25s\033[0m\033[2m %s\033[0m\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-25s\033[0m\033[2m %s\033[0m\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Build
 
@@ -43,11 +35,42 @@ deps: ## Downloads required dependencies
 EXTRA_BUILD_ARGS?=
 .PHONY: build
 build: deps $(PROTOBUF_GEN) $(CRD_GEN) ## Builds the project
-	go build -C $(PROJECT_DIR)/cmd/federation-controller -o $(PROJECT_DIR)/$(OUT_DIR)/federation-controller $(EXTRA_BUILD_ARGS)
+	go build -C $(PROJECT_DIR)/cmd/federation-controller -o $(OUT_DIR)/federation-controller $(EXTRA_BUILD_ARGS)
+
+##@ Development
 
 .PHONY: test
 test: build ## Runs tests
 	go test $(PROJECT_DIR)/...
+
+define local_tag
+$(TAG)$(shell [ "$(USE_LOCAL_IMAGE)" = "true" ] && echo "-local")
+endef
+
+.PHONY: e2e
+TEST_SUITES ?= remote_ip remote_dns_name spire
+e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
+	@local_tag=$(call local_tag); \
+	$(foreach suite, $(TEST_SUITES), \
+		PATH=$(LOCALBIN):$$PATH \
+		TAG=$$local_tag \
+		go test -tags=integ -run TestTraffic $(PROJECT_DIR)/test/e2e/scenarios/$(suite) \
+			--istio.test.hub=docker.io/istio\
+			--istio.test.tag=$(ISTIO_VERSION)\
+			--istio.test.kube.config=$(PROJECT_DIR)/test/east.kubeconfig,$(PROJECT_DIR)/test/west.kubeconfig,$(PROJECT_DIR)/test/central.kubeconfig\
+			--istio.test.kube.networkTopology=0:east-network,1:west-network,2:central-network\
+			--istio.test.onlyWorkloads=standard; \
+	)
+
+.PHONY: kind-clusters
+kind-clusters: $(KIND) $(HELM) ## Provisions KinD clusters for local development or testing
+	@local_tag=$(call local_tag); \
+	$(MAKE) docker-build -e TAG=$$local_tag; \
+	export TAG=$$local_tag; \
+	PATH=$(LOCALBIN):$$PATH \
+	$(PROJECT_DIR)/test/scripts/kind_provisioner.sh
+
+##@ Containers
 
 CONTAINER_CLI ?= docker
 ## Image settings need to be exported.
@@ -68,85 +91,25 @@ docker-push: ## Pushes container image to the registry
 .PHONY: docker
 docker: docker-build docker-push ## Combines build and push targets
 
-##@ Development
+## Code Gen
 
-define local_tag
-$(TAG)$(shell [ "$(USE_LOCAL_IMAGE)" = "true" ] && echo "-local")
-endef
-
-.PHONY: kind-clusters
-kind-clusters: $(KIND) $(HELM) ## Provisions KinD clusters for local development or testing
-	@local_tag=$(call local_tag); \
-	$(MAKE) docker-build -e TAG=$$local_tag; \
-	export TAG=$$local_tag; \
-	PATH=$(LOCALBIN):$$PATH \
-	$(PROJECT_DIR)/test/scripts/kind_provisioner.sh
-
-.PHONY: e2e
-TEST_SUITES ?= remote_ip remote_dns_name spire
-e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
-	@local_tag=$(call local_tag); \
-	$(foreach suite, $(TEST_SUITES), \
-		PATH=$(LOCALBIN):$$PATH \
-		TAG=$$local_tag \
-		go test -tags=integ -run TestTraffic $(PROJECT_DIR)/test/e2e/scenarios/$(suite) \
-			--istio.test.hub=docker.io/istio\
-			--istio.test.tag=$(ISTIO_VERSION)\
-			--istio.test.kube.config=$(PROJECT_DIR)/test/east.kubeconfig,$(PROJECT_DIR)/test/west.kubeconfig,$(PROJECT_DIR)/test/central.kubeconfig\
-			--istio.test.kube.networkTopology=0:east-network,1:west-network,2:central-network\
-			--istio.test.onlyWorkloads=standard; \
-	)
-
-## Tooling
-
-$(shell mkdir -p $(LOCALBIN))
-
-$(GCI):
-	@GOBIN=$(LOCALBIN) go install github.com/daixiang0/gci@v0.13.5
-
-$(HELM):
-	@curl -sSL https://get.helm.sh/helm-v3.14.2-linux-amd64.tar.gz -o $(LOCALBIN)/helm.tar.gz
-	@tar -xzf $(LOCALBIN)/helm.tar.gz -C $(LOCALBIN) --strip-components=1 linux-amd64/helm
-	@rm -f $(LOCALBIN)/helm.tar.gz
-
-$(PROTOC):
-	@curl -sSL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/protoc-21.12-linux-x86_64.zip -o $(LOCALBIN)/protoc.zip
-	@python3 -c "import zipfile; z=zipfile.ZipFile('$(LOCALBIN)/protoc.zip'); z.extract('bin/protoc', '$(LOCALBIN)')"
-	@mv $(LOCALBIN)/bin/protoc $(LOCALBIN)
-	@rm -rf $(LOCALBIN)/bin
-	@rm -f $(LOCALBIN)/protoc.zip
-	@chmod +x $(PROTOC)
-
-$(PROTOC_GEN_GO):
-	@GOBIN=$(LOCALBIN) go install -mod=readonly google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.0
-
-$(PROTOC_GEN_GRPC):
-	@GOBIN=$(LOCALBIN) go install -mod=readonly google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-
-$(PROTOC_GEN_DEEPCOPY):
-	@GOBIN=$(LOCALBIN) go install -mod=readonly istio.io/tools/cmd/protoc-gen-golang-deepcopy@latest
-
-$(KIND):
-	@GOBIN=$(LOCALBIN) go install -mod=readonly sigs.k8s.io/kind@v0.26.0
-
-$(CONTROLLER_GEN):
-	GOBIN=$(LOCALBIN) go install -mod=readonly sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
-
-.PHONY: clean
-clean:
-	@rm -rf $(LOCALBIN) $(PROJECT_DIR)/$(OUT_DIR)
-
-##@ Code Gen
-
-$(PROTOBUF_GEN): $(PROTOBUF_API_SRC) $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY) $(GOIMPORTS) ## Generates Go files from protobuf-based API files
+$(PROTOBUF_GEN): $(PROTOBUF_API_SRC) ## Generates Go files from protobuf-based API files
+$(PROTOBUF_GEN): $(PROTOC) $(PROTOC_GEN_GO) $(PROTOC_GEN_GRPC) $(PROTOC_GEN_DEEPCOPY) # Required tools
 	@PATH=$(LOCALBIN):$$PATH $(PROTOC) --proto_path=$(PROTOBUF_API_DIR) --go_out=$(API_GEN_DIR) --go-grpc_out=$(API_GEN_DIR) --golang-deepcopy_out=:$(API_GEN_DIR) $(PROTOBUF_API_DIR)/**/*.proto
 	@$(MAKE) add-license
 	@$(MAKE) fix-imports
 
-$(CRD_GEN): $(CRD_SRC) $(CONTROLLER_GEN) ## Generates Kubernetes CRDs, controller-runtime artifacts and related manifests.
+$(CRD_GEN): $(CRD_SRC) ## Generates Kubernetes CRDs, controller-runtime artifacts and related manifests.
+$(CRD_GEN): $(CONTROLLER_GEN) # Required tools
 	$(CONTROLLER_GEN) paths="$(CRD_SRC_DIR)/..." \
 		crd output:crd:artifacts:config="$(CRD_GEN_DIR)" \
 		object:headerFile="$(LICENSE_FILE)"
+
+##@ Misc
+
+.PHONY: clean
+clean: ## Purges local artifacts (e.g. binary, tools)
+	@rm -rf $(LOCALBIN) $(OUT_DIR)
 
 .PHONY: fix-imports
 fix-imports: $(GCI) ## Fixes imports
