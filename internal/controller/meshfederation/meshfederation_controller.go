@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package meshfederation
 
 import (
 	"context"
@@ -24,31 +24,26 @@ import (
 	"github.com/openshift-service-mesh/federation/api/v1alpha1"
 )
 
-// MeshFederationReconciler reconciles a MeshFederation object
-type MeshFederationReconciler struct {
-	client.Client
-}
-
 // +kubebuilder:rbac:groups=federation.openshift-service-mesh.io,resources=meshfederations,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=federation.openshift-service-mesh.io,resources=meshfederations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=federation.openshift-service-mesh.io,resources=meshfederations/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the MeshFederation object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.1/pkg/reconcile
-func (r *MeshFederationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+// Reconciler ensure that cluster is configured according to the spec defined in MeshFederation object.
+type Reconciler struct {
+	client.Client
+}
+
+func NewReconciler(c client.Client) *Reconciler {
+	return &Reconciler{Client: c}
+}
+
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log.FromContext(ctx).Info("Reconciling object", "namespace", req.Namespace)
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *MeshFederationReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.MeshFederation{}).
 		Complete(r)
