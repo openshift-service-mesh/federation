@@ -45,15 +45,15 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/controller/federatedservice"
 	"github.com/openshift-service-mesh/federation/internal/controller/meshfederation"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
-	"github.com/openshift-service-mesh/federation/internal/pkg/kube"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/fds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/informer"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/kube"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds/adsc"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds/adss"
 	"github.com/openshift-service-mesh/federation/internal/pkg/networking"
 	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.

@@ -25,8 +25,8 @@ import (
 
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds/adss"
 )
 
 var _ adss.RequestHandler = (*ExportedServicesGenerator)(nil)
