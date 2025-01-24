@@ -56,43 +56,35 @@ func NewHandler(cl client.Client, finalizerName string) *Handler {
 	}
 }
 
-// Add adds defined finalizer to the object and immediately persist it to ensure that finalizer has been added.
-// Returns true if finalizer was added and persisted in the cluster and error if the update failed.
+// Add adds the defined finalizer to the object and then persists it if the finalizer was not already present.
+// Returns true if the finalizer was already present.
+// Returns an error if updating the object failed.
 func (f *Handler) Add(ctx context.Context, obj client.Object) (bool, error) {
-	justAdded := controllerutil.AddFinalizer(obj, f.finalizerName)
-
-	if justAdded {
-		addFinalizer := func(saved client.Object) {
-			controllerutil.AddFinalizer(saved, f.finalizerName) // in case of conflict retry adding finalizer on the obj fetched from cluster
-		}
-		if _, errRetry := controller.RetryUpdate(ctx, f.cl, obj, addFinalizer); errRetry != nil {
-			return false, errRetry
-		}
+	if added := controllerutil.AddFinalizer(obj, f.finalizerName); !added {
+		return true, nil
 	}
-
-	return justAdded, nil
+	
+	addFinalizer := func(saved client.Object) {
+		controllerutil.AddFinalizer(saved, f.finalizerName) // in case of conflict retry adding finalizer on the obj fetched from cluster
+	}
+	_, errRetry := controller.RetryUpdate(ctx, f.cl, obj, addFinalizer)
+	return false, errRetry
 }
 
 // Finalize executes finalizeFn when the object is about to be deleted.
-// Returns true if finalizer logic was successfully executed or error otherwise.
+// Returns true if the execution of the finalizeFn plus object update were attempted.
+// Returns an error if the finalize function was unsuccessful or the object update failed.
 func (f *Handler) Finalize(ctx context.Context, obj client.Object, finalizeFn FinalizeFn) (bool, error) {
-
-	shouldExecuteFinalize := !obj.GetDeletionTimestamp().IsZero() && controllerutil.ContainsFinalizer(obj, f.finalizerName)
-
-	if shouldExecuteFinalize {
-		if err := finalizeFn(); err != nil {
-			return false, err
-		}
-
-		removeFinalizer := func(saved client.Object) {
-			controllerutil.RemoveFinalizer(saved, f.finalizerName) // in case of conflict retry removing finalizer on the obj fetched from cluster
-		}
-		if _, errRetry := controller.RetryUpdate(ctx, f.cl, obj, removeFinalizer); errRetry != nil {
-			return false, errRetry
-		}
-
-		return true, nil
+	if shouldExecuteFinalize := !obj.GetDeletionTimestamp().IsZero() && controllerutil.ContainsFinalizer(obj, f.finalizerName); !shouldExecuteFinalize {
+		return false, nil
 	}
 
-	return false, nil
+	if err := finalizeFn(); err != nil {
+		return true, err
+	}
+	removeFinalizer := func(saved client.Object) {
+		controllerutil.RemoveFinalizer(saved, f.finalizerName) // in case of conflict retry removing finalizer on the obj fetched from cluster
+	}
+	_, errRetry := controller.RetryUpdate(ctx, f.cl, obj, removeFinalizer)
+	return true, errRetry
 }
