@@ -23,13 +23,13 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/controller"
 )
 
-// FinalizeFn is a closure which can be used in the reconciler to define finalizer logic just before
+// CleanupFn is a closure which can be used in the reconciler to define finalizer logic just before
 // the object is removed from kube-apiserver.
-type FinalizeFn func() error
+type CleanupFn func() error
 
 // Handler encapsulates finalizer handling. It can:
 // - add finalizer to a given object and persist it
-// - perform cleanup defined as FinalizeFn if the object is marked for deletion
+// - perform cleanup defined as CleanupFn if the object is marked for deletion
 //
 // Example usage in the controller reconcile loop:
 //
@@ -37,11 +37,11 @@ type FinalizeFn func() error
 //	if finalized, errFinalize := finalizerHandler.Finalize(ctx, meshFederation, func() error {
 //		// finalizer logic
 //		return nil
-//	}); finalized || errFinalize != nil {
+//	}); finalized {
 //		return ctrl.Result{}, errFinalize
 //	}
 //
-//	if justAdded, errAdd := finalizerHandler.Add(ctx, meshFederation); justAdded || errAdd != nil {
+//	if finalizerAlreadyExists, errAdd := finalizerHandler.Add(ctx, meshFederation); !finalizerAlreadyExists {
 //		return ctrl.Result{}, errAdd
 //	}
 type Handler struct {
@@ -60,31 +60,32 @@ func NewHandler(cl client.Client, finalizerName string) *Handler {
 // Returns true if the finalizer was already present.
 // Returns an error if updating the object failed.
 func (f *Handler) Add(ctx context.Context, obj client.Object) (bool, error) {
-	if added := controllerutil.AddFinalizer(obj, f.finalizerName); !added {
-		return true, nil
+	if finalizersUpdated := controllerutil.AddFinalizer(obj, f.finalizerName); !finalizersUpdated {
+		return true, nil // Finalizer already exists, no need to add it
 	}
-	
-	addFinalizer := func(saved client.Object) {
+
+	_, errRetry := controller.RetryUpdate(ctx, f.cl, obj, func(saved client.Object) {
 		controllerutil.AddFinalizer(saved, f.finalizerName) // in case of conflict retry adding finalizer on the obj fetched from cluster
-	}
-	_, errRetry := controller.RetryUpdate(ctx, f.cl, obj, addFinalizer)
+	})
+
 	return false, errRetry
 }
 
-// Finalize executes finalizeFn when the object is about to be deleted.
-// Returns true if the execution of the finalizeFn plus object update were attempted.
-// Returns an error if the finalize function was unsuccessful or the object update failed.
-func (f *Handler) Finalize(ctx context.Context, obj client.Object, finalizeFn FinalizeFn) (bool, error) {
-	if shouldExecuteFinalize := !obj.GetDeletionTimestamp().IsZero() && controllerutil.ContainsFinalizer(obj, f.finalizerName); !shouldExecuteFinalize {
+// Finalize executes cleanup logic defined in cleanupFn only if the object is marked for deletion.
+// Returns true if finalizer logic was attempted.
+// Returns an error if the cleanup function was unsuccessful or the removal of the finalizer failed.
+func (f *Handler) Finalize(ctx context.Context, obj client.Object, cleanupFn CleanupFn) (bool, error) {
+	if finalizeNeeded := !obj.GetDeletionTimestamp().IsZero() && controllerutil.ContainsFinalizer(obj, f.finalizerName); !finalizeNeeded {
 		return false, nil
 	}
 
-	if err := finalizeFn(); err != nil {
+	if err := cleanupFn(); err != nil {
 		return true, err
 	}
-	removeFinalizer := func(saved client.Object) {
+
+	_, errRetry := controller.RetryUpdate(ctx, f.cl, obj, func(saved client.Object) {
 		controllerutil.RemoveFinalizer(saved, f.finalizerName) // in case of conflict retry removing finalizer on the obj fetched from cluster
-	}
-	_, errRetry := controller.RetryUpdate(ctx, f.cl, obj, removeFinalizer)
+	})
+
 	return true, errRetry
 }
