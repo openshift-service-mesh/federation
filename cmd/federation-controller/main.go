@@ -42,7 +42,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/openshift-service-mesh/federation/api/v1alpha1"
-	"github.com/openshift-service-mesh/federation/internal/controller"
+	"github.com/openshift-service-mesh/federation/internal/controller/federatedservice"
+	"github.com/openshift-service-mesh/federation/internal/controller/meshfederation"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/informer"
@@ -156,15 +157,11 @@ func runCtrls(ctx context.Context, cancel context.CancelFunc) {
 		os.Exit(1)
 	}
 
-	if err = (&controller.MeshFederationReconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
+	if err = meshfederation.NewReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
 		log.Errorf("unable to create controller for MeshFederation custom resource: %s", err)
 		os.Exit(1)
 	}
-	if err = (&controller.FederatedServiceReconciler{
-		Client: mgr.GetClient(),
-	}).SetupWithManager(mgr); err != nil {
+	if err = federatedservice.NewReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
 		log.Errorf("unable to create FederatedService controller: %s", err)
 		os.Exit(1)
 	}
