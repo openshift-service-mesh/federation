@@ -20,8 +20,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/openshift-service-mesh/federation/api/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/controller"
 )
 
 // +kubebuilder:rbac:groups=federation.openshift-service-mesh.io,resources=meshfederations,verbs=get;list;watch;create;update;patch;delete
@@ -45,6 +47,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		Named("mesh-federation-ctrl").
 		For(&v1alpha1.MeshFederation{}).
+		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, controller.FinalizerChanged())).
 		Complete(r)
 }
