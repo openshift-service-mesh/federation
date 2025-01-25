@@ -1,3 +1,5 @@
+image:
+  tag: latest-local
 federation:
   meshPeers:
     local:
@@ -9,9 +11,3 @@ federation:
     remotes:
     - name: west
       network: west-network
-  exportedServiceSet:
-    rules:
-    - type: LabelSelector
-      labelSelectors:
-        - matchLabels:
-            export-service: "true"

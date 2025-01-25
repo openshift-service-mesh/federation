@@ -27,8 +27,8 @@ import (
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var _ Reconciler = (*RouteReconciler)(nil)

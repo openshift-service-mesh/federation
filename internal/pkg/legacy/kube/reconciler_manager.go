@@ -20,7 +20,7 @@ import (
 
 	istiolog "istio.io/istio/pkg/log"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var log = istiolog.RegisterScope("kube", "Kubernetes reconciler")

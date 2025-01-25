@@ -26,7 +26,7 @@ import (
 	"istio.io/istio/pkg/kube"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var _ Reconciler = (*PeerAuthResourceReconciler)(nil)

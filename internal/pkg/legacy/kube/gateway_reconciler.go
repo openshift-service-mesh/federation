@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var _ Reconciler = (*GatewayResourceReconciler)(nil)

@@ -124,6 +124,35 @@ helm-west install west chart -n istio-system --values examples/openshift/west-fe
   --set "federation.meshPeers.remotes[0].addresses[0]=$EAST_CONSOLE_URL"
 ```
 
+### Enable mesh federation
+
+```shell
+keast apply -f - <<EOF
+apiVersion: federation.openshift-service-mesh.io/v1alpha1
+kind: MeshFederation
+metadata:
+  name: east
+  namespace: istio-system
+spec:
+  export:
+    serviceSelectors:
+      matchLabels:
+        export: "true"
+EOF
+kwest apply -f - <<EOF
+apiVersion: federation.openshift-service-mesh.io/v1alpha1
+kind: MeshFederation
+metadata:
+  name: west
+  namespace: istio-system
+spec:
+  export:
+    serviceSelectors:
+      matchLabels:
+        export: "true"
+EOF
+```
+
 ### Deploy and export services
 
 1. Enable mTLS and deploy apps:
@@ -156,12 +185,12 @@ keast delete sa bookinfo-ratings
 
 3. Export services:
 ```shell
-kwest label svc productpage export-service=true
-kwest label svc reviews export-service=true
-kwest label svc ratings export-service=true
-keast label svc productpage export-service=true
-keast label svc reviews export-service=true
-keast label svc details export-service=true
+kwest label svc productpage export=true
+kwest label svc reviews export=true
+kwest label svc ratings export=true
+keast label svc productpage export=true
+keast label svc reviews export=true
+keast label svc details export=true
 ```
 
 4. Get gateway addresses:

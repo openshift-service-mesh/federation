@@ -21,8 +21,8 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds/adsc"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
 )
 
 var _ adsc.ResponseHandler = (*ImportedServiceHandler)(nil)

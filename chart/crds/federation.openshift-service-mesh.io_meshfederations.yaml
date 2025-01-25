@@ -154,17 +154,9 @@ spec:
                 - gateway
                 - type
                 type: object
-              network:
-                description: Network name used by Istio for load balancing
-                type: string
               trustDomain:
                 default: cluster.local
                 type: string
-            required:
-            - controlPlaneNamespace
-            - ingress
-            - network
-            - trustDomain
             type: object
           status:
             description: MeshFederationStatus defines the observed state of MeshFederation.

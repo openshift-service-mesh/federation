@@ -49,11 +49,10 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/informer"
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/kube"
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds/adsc"
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds/adss"
 	"github.com/openshift-service-mesh/federation/internal/pkg/networking"
 	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -191,8 +190,6 @@ func main() {
 	}
 	serviceController.RunAndWait(ctx.Done())
 
-	startFederationServer(ctx, cfg, serviceLister, fdsPushRequests)
-
 	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
 		go resolveRemoteIP(ctx, cfg.MeshPeers.Remotes, meshConfigPushRequests)
 	}
@@ -249,19 +246,6 @@ func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister 
 	}
 
 	go rm.Start(ctx)
-}
-
-func startFederationServer(ctx context.Context, cfg *config.Federation, serviceLister v1.ServiceLister, fdsPushRequests chan xds.PushRequest) {
-	federationServer := adss.NewServer(
-		fdsPushRequests,
-		fds.NewExportedServicesGenerator(*cfg, serviceLister),
-	)
-
-	go func() {
-		if err := federationServer.Run(ctx); err != nil {
-			log.Fatalf("failed to start FDS server: %v", err)
-		}
-	}()
 }
 
 func resolveRemoteIP(ctx context.Context, remotes []config.Remote, meshConfigPushRequests chan xds.PushRequest) {

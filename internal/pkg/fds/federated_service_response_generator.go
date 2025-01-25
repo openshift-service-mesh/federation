@@ -15,68 +15,66 @@
 package fds
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
-	"k8s.io/apimachinery/pkg/labels"
-	v1 "k8s.io/client-go/listers/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
-	"github.com/openshift-service-mesh/federation/internal/pkg/config"
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds/adss"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
 )
 
-var _ adss.RequestHandler = (*ExportedServicesGenerator)(nil)
+var _ adss.RequestHandler = (*DiscoveryResponseGenerator)(nil)
 
-type ExportedServicesGenerator struct {
-	cfg           config.Federation
-	serviceLister v1.ServiceLister
+type DiscoveryResponseGenerator struct {
+	c                client.Client
+	serviceSelectors *metav1.LabelSelector
 }
 
-func NewExportedServicesGenerator(cfg config.Federation, serviceLister v1.ServiceLister) *ExportedServicesGenerator {
-	return &ExportedServicesGenerator{
-		cfg:           cfg,
-		serviceLister: serviceLister,
+func NewDiscoveryResponseGenerator(c client.Client, serviceSelectors *metav1.LabelSelector) *DiscoveryResponseGenerator {
+	return &DiscoveryResponseGenerator{
+		c:                c,
+		serviceSelectors: serviceSelectors,
 	}
 }
 
-func (g *ExportedServicesGenerator) GetTypeUrl() string {
+func (f *DiscoveryResponseGenerator) GetTypeUrl() string {
 	return xds.ExportedServiceTypeUrl
 }
 
-func (g *ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {
-	var exportedServices []*v1alpha1.FederatedService
-	for _, exportLabelSelector := range g.cfg.ExportedServiceSet.GetLabelSelectors() {
-		matchExported := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
-		services, err := g.serviceLister.List(matchExported)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list services: %w", err)
-		}
-		for _, svc := range services {
-			var ports []*v1alpha1.ServicePort
-			for _, port := range svc.Spec.Ports {
-				servicePort := &v1alpha1.ServicePort{
-					Name:   port.Name,
-					Number: uint32(port.Port),
-				}
-				if port.TargetPort.IntVal != 0 {
-					servicePort.TargetPort = uint32(port.TargetPort.IntVal)
-				}
-				servicePort.Protocol = detectProtocol(port.Name)
-				ports = append(ports, servicePort)
-			}
-			exportedService := &v1alpha1.FederatedService{
-				Hostname: fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace),
-				Ports:    ports,
-				Labels:   svc.Labels,
-			}
-			exportedServices = append(exportedServices, exportedService)
-		}
+func (f *DiscoveryResponseGenerator) GenerateResponse() ([]*anypb.Any, error) {
+	var federatedServices []*v1alpha1.FederatedService
+	serviceList := &corev1.ServiceList{}
+	// TODO: Add support for matchExpressions
+	if err := f.c.List(context.Background(), serviceList, client.MatchingLabels(f.serviceSelectors.MatchLabels)); err != nil {
+		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
-	return serialize(exportedServices)
+	for _, svc := range serviceList.Items {
+		var ports []*v1alpha1.ServicePort
+		for _, port := range svc.Spec.Ports {
+			servicePort := &v1alpha1.ServicePort{
+				Name:   port.Name,
+				Number: uint32(port.Port),
+			}
+			if port.TargetPort.IntVal != 0 {
+				servicePort.TargetPort = uint32(port.TargetPort.IntVal)
+			}
+			servicePort.Protocol = detectProtocol(port.Name)
+			ports = append(ports, servicePort)
+		}
+		federatedServices = append(federatedServices, &v1alpha1.FederatedService{
+			Hostname: fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace),
+			Ports:    ports,
+			Labels:   svc.Labels,
+		})
+	}
+	return serialize(federatedServices)
 }
 
 // TODO: check appProtocol and reject UDP
