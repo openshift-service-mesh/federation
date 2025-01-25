@@ -62,14 +62,9 @@ import (
 
 var (
 	// Global variables to store the parsed commandline arguments
-	meshPeers,
-	exportedServiceSet,
-	importedServiceSet,
-	metricsAddr,
-	probeAddr string
-
-	enableLeaderElection,
-	useCtrls bool
+	meshPeers, exportedServiceSet, importedServiceSet,
+	metricsAddr, probeAddr string
+	enableLeaderElection bool
 
 	loggingOptions = istiolog.DefaultOptions()
 	log            = istiolog.RegisterScope("default", "default logging scope")
@@ -100,9 +95,6 @@ func parseFlags() {
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 
-	flag.BoolVar(&useCtrls, "use-ctrls", false,
-		"feature-flag: enables controller-runtime reconcilers instead of legacy mode.")
-
 	// Attach Istio logging options to the flag set
 	loggingOptions.AttachFlags(func(_ *[]string, _ string, _ []string, _ string) {
 		// unused and not available out-of-the box in flag package
@@ -115,6 +107,8 @@ func parseFlags() {
 }
 
 func main() {
+	opts := zap.Options{Development: true}
+	opts.BindFlags(flag.CommandLine)
 	parseFlags()
 
 	if err := istiolog.Configure(loggingOptions); err != nil {
@@ -126,21 +120,6 @@ func main() {
 		log.Fatalf("failed to parse configuration passed to the program arguments: %v", err)
 	}
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-
-	if useCtrls {
-		runCtrls(ctx, cancel)
-	}
-
-	runLegacyMode(ctx, cfg)
-
-	<-ctx.Done()
-}
-
-func runCtrls(ctx context.Context, cancel context.CancelFunc) {
-	opts := zap.Options{Development: true}
-	opts.BindFlags(flag.CommandLine)
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -166,6 +145,7 @@ func runCtrls(ctx context.Context, cancel context.CancelFunc) {
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		log.Errorf("unable to set up health check: %s", err)
 		os.Exit(1)
@@ -174,6 +154,10 @@ func runCtrls(ctx context.Context, cancel context.CancelFunc) {
 		log.Errorf("unable to set up ready check: %s", err)
 		os.Exit(1)
 	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
 	go func() {
 		log.Info("starting manager")
 		if err := mgr.Start(ctx); err != nil {
@@ -181,9 +165,7 @@ func runCtrls(ctx context.Context, cancel context.CancelFunc) {
 			cancel()
 		}
 	}()
-}
 
-func runLegacyMode(ctx context.Context, cfg *config.Federation) {
 	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
 		log.Fatalf("failed to create in-cluster config: %v", err)
@@ -221,6 +203,8 @@ func runLegacyMode(ctx context.Context, cfg *config.Federation) {
 	}
 
 	startReconciler(ctx, cfg, serviceLister, meshConfigPushRequests, importedServiceStore)
+
+	<-ctx.Done()
 }
 
 func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister v1.ServiceLister, meshConfigPushRequests chan xds.PushRequest, importedServiceStore *fds.ImportedServiceStore) {
