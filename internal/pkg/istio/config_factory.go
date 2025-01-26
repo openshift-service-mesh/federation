@@ -16,7 +16,6 @@ package istio
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
@@ -35,10 +34,6 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/networking"
-)
-
-const (
-	federationIngressGatewayName = "federation-ingress-gateway"
 )
 
 type ConfigFactory struct {
@@ -129,48 +124,6 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 	}
 
 	return destinationRules
-}
-
-func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
-	gateway := &v1alpha3.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      federationIngressGatewayName,
-			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-			Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
-		},
-		Spec: istionetv1alpha3.Gateway{
-			Selector: cf.cfg.MeshPeers.Local.Gateways.Ingress.Selector,
-			Servers: []*istionetv1alpha3.Server{{
-				Hosts: []string{},
-				Port: &istionetv1alpha3.Port{
-					Number:   cf.cfg.MeshPeers.Local.Gateways.Ingress.Port.Number,
-					Name:     cf.cfg.MeshPeers.Local.Gateways.Ingress.Port.Name,
-					Protocol: "TLS",
-				},
-				Tls: &istionetv1alpha3.ServerTLSSettings{
-					Mode: istionetv1alpha3.ServerTLSSettings_AUTO_PASSTHROUGH,
-				},
-			}},
-		},
-	}
-
-	hosts := []string{fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.Name, cf.namespace)}
-	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
-		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
-		services, err := cf.serviceLister.List(matchLabels)
-		if err != nil {
-			return nil, fmt.Errorf("error listing services (selector=%s): %w", matchLabels, err)
-		}
-		for _, svc := range services {
-			hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace))
-		}
-	}
-	// ServiceLister.List is not idempotent, so to avoid redundant XDS push from Istio to proxies,
-	// we must return hostnames in the same order.
-	sort.Strings(hosts)
-	gateway.Spec.Servers[0].Hosts = hosts
-
-	return gateway, nil
 }
 
 // EnvoyFilters returns patches for SNI filters matching SNIs of exported services in federation ingress gateway.
