@@ -48,15 +48,6 @@ type MeshFederationList struct {
 
 // MeshFederationSpec defines the desired state of MeshFederation.
 type MeshFederationSpec struct {
-	// +kubebuilder:default:=cluster.local
-	// +kubebuilder:validation:Optional
-	TrustDomain string `json:"trustDomain"`
-
-	// Namespace used to create mesh-wide resources
-	// +kubebuilder:default:=istio-system
-	// +kubebuilder:validation:Optional
-	ControlPlaneNamespace string `json:"controlPlaneNamespace"`
-
 	// TODO: CRD proposal states "If no ingress is specified, it means the controller supports only single network topology". However, some config, such as gateway/port config, seems to be required.
 	// Config specifying ingress type and ingress gateway config
 	// +kubebuilder:validation:Optional

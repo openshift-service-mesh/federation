@@ -39,10 +39,6 @@ spec:
           spec:
             description: MeshFederationSpec defines the desired state of MeshFederation.
             properties:
-              controlPlaneNamespace:
-                default: istio-system
-                description: Namespace used to create mesh-wide resources
-                type: string
               export:
                 description: |-
                   Selects the K8s Services to export to all remote meshes.
@@ -154,9 +150,6 @@ spec:
                 - gateway
                 - type
                 type: object
-              trustDomain:
-                default: cluster.local
-                type: string
             type: object
           status:
             description: MeshFederationStatus defines the observed state of MeshFederation.
