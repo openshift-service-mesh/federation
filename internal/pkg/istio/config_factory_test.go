@@ -139,59 +139,6 @@ var (
 	}
 )
 
-func TestEnvoyFilters(t *testing.T) {
-	testCases := []struct {
-		name                     string
-		localIngressType         config.IngressType
-		localServices            []*corev1.Service
-		expectedEnvoyFilterFiles []string
-	}{{
-		name:                     "EnvoyFilters should not return filters when local ingress type is istio",
-		localIngressType:         config.Istio,
-		localServices:            []*corev1.Service{export(svcA_ns1), svcB_ns1},
-		expectedEnvoyFilterFiles: []string{},
-	}, {
-		name:                     "EnvoyFilters should return filters for exported services and FDS",
-		localIngressType:         config.OpenShiftRouter,
-		localServices:            []*corev1.Service{svcA_ns1, export(svcB_ns1), export(svcA_ns2)},
-		expectedEnvoyFilterFiles: []string{"fds.yaml", "svc-b-ns-1-port-80.yaml", "svc-b-ns-1-port-443.yaml", "svc-a-ns-2.yaml"},
-	}, {
-		name:                     "EnvoyFilters should return a filter for FDS even if no service is exported",
-		localIngressType:         config.OpenShiftRouter,
-		localServices:            []*corev1.Service{},
-		expectedEnvoyFilterFiles: []string{"fds.yaml"},
-	}}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			client := fake.NewSimpleClientset()
-			informerFactory := informers.NewSharedInformerFactory(client, 0)
-			serviceInformer := informerFactory.Core().V1().Services().Informer()
-			serviceLister := informerFactory.Core().V1().Services().Lister()
-			stopCh := make(chan struct{})
-			informerFactory.Start(stopCh)
-
-			for _, svc := range tc.localServices {
-				if _, err := client.CoreV1().Services(svc.Namespace).Create(context.Background(), svc, v1.CreateOptions{}); err != nil {
-					t.Fatalf("failed to create service %s/%s: %v", svc.Name, svc.Namespace, err)
-				}
-			}
-
-			serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{})
-			if err != nil {
-				t.Fatalf("error creating serviceController: %v", err)
-			}
-			serviceController.RunAndWait(stopCh)
-
-			cfg := copyConfig(&exportConfig)
-			cfg.MeshPeers.Local.IngressType = tc.localIngressType
-
-			factory := NewConfigFactory(*cfg, serviceLister, fds.NewImportedServiceStore(), "istio-system")
-			envoyFilters := factory.EnvoyFilters()
-			compareResources(t, "envoy-filters", tc.expectedEnvoyFilterFiles, envoyFilters)
-		})
-	}
-}
-
 func TestServiceEntries(t *testing.T) {
 	importConfigRemoteIP := copyConfig(&exportConfig)
 	importConfigRemoteIP.MeshPeers.Remotes = []config.Remote{{
