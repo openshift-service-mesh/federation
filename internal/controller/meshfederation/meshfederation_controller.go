@@ -50,12 +50,19 @@ type Reconciler struct {
 	pushRequests chan xds.PushRequest
 
 	instance *v1alpha1.MeshFederation
+
+	remotes []config.Remote
+
+	dnsResolverCtx         context.Context
+	meshConfigPushRequests chan xds.PushRequest
 }
 
-func NewReconciler(c client.Client, namespace string) *Reconciler {
+func NewReconciler(c client.Client, remotes []config.Remote, meshConfigPushRequests chan xds.PushRequest) *Reconciler {
 	return &Reconciler{
-		Client:    c,
-		namespace: namespace,
+		Client:                 c,
+		namespace:              config.PodNamespace(),
+		remotes:                remotes,
+		meshConfigPushRequests: meshConfigPushRequests,
 	}
 }
 
@@ -75,12 +82,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if !instance.DeletionTimestamp.IsZero() {
 		logger.Info("Object is being deleted", "name", req.Name, "namespace", req.Namespace)
 
-		// TODO: Stop FDS server
+		// stop FDS server
 		if r.serverCtx != nil {
 			r.serverCtx.Done()
 		}
 		r.fdsServer = nil
 		close(r.pushRequests)
+
+		// stop DNS reconciler
+		if r.dnsResolverCtx != nil {
+			r.dnsResolverCtx.Done()
+		}
 
 		// TODO: Handle finalizer
 
@@ -130,6 +142,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			logger.Error(err, "failed to reconcile routes")
 			return ctrl.Result{}, err
 		}
+		// TODO: We should run DNS resolver when ingress address is DNS as well, not only when remote ingress is OpenShift Router
+		r.dnsResolverCtx = context.Background()
+		go r.resolveRemoteIP(r.dnsResolverCtx)
 	}
 
 	return ctrl.Result{}, nil

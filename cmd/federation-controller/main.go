@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sort"
 	"syscall"
 	"time"
 
@@ -30,7 +29,6 @@ import (
 	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	istiokube "istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
-	"istio.io/istio/pkg/slices"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -136,7 +134,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = meshfederation.NewReconciler(mgr.GetClient(), config.PodNamespace()).SetupWithManager(mgr); err != nil {
+	meshConfigPushRequests := make(chan xds.PushRequest)
+
+	if err = meshfederation.NewReconciler(mgr.GetClient(), cfg.MeshPeers.Remotes, meshConfigPushRequests).SetupWithManager(mgr); err != nil {
 		log.Errorf("unable to create controller for MeshFederation custom resource: %s", err)
 		os.Exit(1)
 	}
@@ -174,12 +174,6 @@ func main() {
 	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
 	if err != nil {
 		log.Fatalf("failed to create Istio client: %v", err)
-	}
-
-	meshConfigPushRequests := make(chan xds.PushRequest)
-
-	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
-		go resolveRemoteIP(ctx, cfg.MeshPeers.Remotes, meshConfigPushRequests)
 	}
 
 	importedServiceStore := fds.NewImportedServiceStore()
@@ -225,42 +219,6 @@ func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister 
 	}
 
 	go rm.Start(ctx)
-}
-
-func resolveRemoteIP(ctx context.Context, remotes []config.Remote, meshConfigPushRequests chan xds.PushRequest) {
-	var prevIPs []string
-	for _, remote := range remotes {
-		prevIPs = append(prevIPs, networking.Resolve(remote.Addresses[0])...)
-	}
-
-	resolveIPs := func() {
-		var currIPs []string
-		for _, remote := range remotes {
-			log.Debugf("Resolving %s", remote.Name)
-			currIPs = append(currIPs, networking.Resolve(remote.Addresses[0])...)
-		}
-
-		sort.Strings(currIPs)
-		if !slices.Equal(prevIPs, currIPs) {
-			log.Infof("IP addresses have changed")
-			prevIPs = currIPs
-			meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.WorkloadEntryTypeUrl}
-		}
-	}
-
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-resolveLoop:
-	for {
-		select {
-		case <-ctx.Done():
-			break resolveLoop
-		case <-ticker.C:
-			resolveIPs()
-		}
-	}
-
 }
 
 func startFDSClient(ctx context.Context, remote config.Remote, meshConfigPushRequests chan xds.PushRequest, importedServiceStore *fds.ImportedServiceStore) {
