@@ -8,7 +8,7 @@ rules:
   verbs: ["get", "watch", "list"]
 - apiGroups: ["networking.istio.io"]
   resources: ["gateways", "serviceentries", "workloadentries"]
-  verbs: ["get", "list", "create", "update", "patch", "delete"]
+  verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
 - apiGroups: ["security.istio.io"]
   resources: ["peerauthentications"]
   verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]

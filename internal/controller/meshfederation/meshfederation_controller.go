@@ -18,19 +18,20 @@ import (
 	"context"
 	"fmt"
 
-	securityv1beta1 "istio.io/api/security/v1beta1"
+	networkingspecv1alpha3 "istio.io/api/networking/v1alpha3"
+	securityspecv1beta1 "istio.io/api/security/v1beta1"
 	typev1beta1 "istio.io/api/type/v1beta1"
-	"istio.io/client-go/pkg/apis/security/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
+	networkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -99,21 +100,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	r.instance = instance
 
 	// ensure strict mTLS for local FDS server
-	peerAuth := &v1beta1.PeerAuthentication{
+	// TODO: do not update if not necessary
+	peerAuth := &securityv1beta1.PeerAuthentication{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "fds-strict-mtls",
 			Namespace: r.namespace,
 		},
 	}
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, peerAuth, func() error {
-		peerAuth.Spec = securityv1beta1.PeerAuthentication{
+		peerAuth.Spec = securityspecv1beta1.PeerAuthentication{
 			Selector: &typev1beta1.WorkloadSelector{
 				MatchLabels: map[string]string{
 					"app.kubernetes.io/name": "federation-controller",
 				},
 			},
-			Mtls: &securityv1beta1.PeerAuthentication_MutualTLS{
-				Mode: securityv1beta1.PeerAuthentication_MutualTLS_STRICT,
+			Mtls: &securityspecv1beta1.PeerAuthentication_MutualTLS{
+				Mode: securityspecv1beta1.PeerAuthentication_MutualTLS_STRICT,
 			},
 		}
 		return controllerutil.SetControllerReference(instance, peerAuth, r.Scheme())
@@ -136,13 +138,46 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}()
 	}
 
-	// Export services
+	// Send federated services
 	exportedServices := &corev1.ServiceList{}
 	// TODO: Add support for matchExpressions
 	if err := r.Client.List(context.Background(), exportedServices, client.MatchingLabels(r.instance.Spec.ExportRules.ServiceSelectors.MatchLabels)); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to list services: %w", err)
 	}
 	r.pushRequests <- xds.PushRequest{TypeUrl: xds.ExportedServiceTypeUrl}
+
+	// Expose federated services
+	// TODO: do not update if not necessary
+	hosts := []string{fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local", instance.Name, instance.Namespace)}
+	for _, svc := range exportedServices.Items {
+		hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace))
+	}
+	gateway := &networkingv1alpha3.Gateway{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "federation-ingress-gateway",
+			Namespace: r.namespace,
+		},
+	}
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, gateway, func() error {
+		gateway.Spec = networkingspecv1alpha3.Gateway{
+			Selector: r.instance.Spec.IngressConfig.GatewayConfig.Selector,
+			Servers: []*networkingspecv1alpha3.Server{{
+				Hosts: hosts,
+				Port: &networkingspecv1alpha3.Port{
+					Number:   r.instance.Spec.IngressConfig.GatewayConfig.PortConfig.Number,
+					Name:     r.instance.Spec.IngressConfig.GatewayConfig.PortConfig.Name,
+					Protocol: "TLS",
+				},
+				Tls: &networkingspecv1alpha3.ServerTLSSettings{
+					Mode: networkingspecv1alpha3.ServerTLSSettings_AUTO_PASSTHROUGH,
+				},
+			}},
+		}
+		return controllerutil.SetControllerReference(instance, peerAuth, r.Scheme())
+	}); err != nil {
+		logger.Error(err, "failed to create or update peer authentication")
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }

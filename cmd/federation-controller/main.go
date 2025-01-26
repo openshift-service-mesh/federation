@@ -25,11 +25,11 @@ import (
 	"time"
 
 	routev1client "github.com/openshift/client-go/route/clientset/versioned"
+	networkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	istiokube "istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/slices"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -48,7 +48,6 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/fds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/informer"
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/kube"
 	"github.com/openshift-service-mesh/federation/internal/pkg/networking"
 	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
@@ -75,6 +74,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(networkingv1alpha3.AddToScheme(scheme))
 	utilruntime.Must(securityv1beta1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
@@ -176,20 +176,7 @@ func main() {
 		log.Fatalf("failed to create Istio client: %v", err)
 	}
 
-	fdsPushRequests := make(chan xds.PushRequest)
 	meshConfigPushRequests := make(chan xds.PushRequest)
-
-	informerFactory := informers.NewSharedInformerFactory(istioClient.Kube(), 0)
-	serviceInformer := informerFactory.Core().V1().Services().Informer()
-	serviceLister := informerFactory.Core().V1().Services().Lister()
-	informerFactory.Start(ctx.Done())
-
-	serviceController, err := informer.NewResourceController(serviceInformer, corev1.Service{},
-		informer.NewServiceExportEventHandler(*cfg, fdsPushRequests, meshConfigPushRequests))
-	if err != nil {
-		log.Fatalf("failed to create service informer: %v", err)
-	}
-	serviceController.RunAndWait(ctx.Done())
 
 	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
 		go resolveRemoteIP(ctx, cfg.MeshPeers.Remotes, meshConfigPushRequests)
@@ -200,6 +187,9 @@ func main() {
 		startFDSClient(ctx, remote, meshConfigPushRequests, importedServiceStore)
 	}
 
+	informerFactory := informers.NewSharedInformerFactory(istioClient.Kube(), 0)
+	serviceLister := informerFactory.Core().V1().Services().Lister()
+	informerFactory.Start(ctx.Done())
 	startReconciler(ctx, cfg, serviceLister, meshConfigPushRequests, importedServiceStore)
 
 	<-ctx.Done()
@@ -221,7 +211,6 @@ func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister 
 
 	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, namespace)
 	reconcilers := []kube.Reconciler{
-		kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
 		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
 	}

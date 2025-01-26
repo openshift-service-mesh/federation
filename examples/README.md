@@ -134,6 +134,14 @@ metadata:
   name: east
   namespace: istio-system
 spec:
+  ingress:
+    type: istio
+    gateway:
+      selector:
+        app: federation-ingress-gateway
+      portConfig:
+        name: tls-passthrough
+        number: 15443
   export:
     serviceSelectors:
       matchLabels:
@@ -146,6 +154,14 @@ metadata:
   name: west
   namespace: istio-system
 spec:
+  ingress:
+    type: istio
+    gateway:
+      selector:
+        app: federation-ingress-gateway
+      portConfig:
+        name: tls-passthrough
+        number: 15443
   export:
     serviceSelectors:
       matchLabels:
