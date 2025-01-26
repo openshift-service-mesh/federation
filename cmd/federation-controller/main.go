@@ -224,8 +224,6 @@ func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister 
 		if err != nil {
 			log.Fatalf("failed to create Route client: %v", err)
 		}
-
-		reconcilers = append(reconcilers, kube.NewEnvoyFilterReconciler(istioClient, istioConfigFactory))
 		reconcilers = append(reconcilers, kube.NewRouteReconciler(routeClient, openshift.NewConfigFactory(*cfg, serviceLister)))
 	}
 
