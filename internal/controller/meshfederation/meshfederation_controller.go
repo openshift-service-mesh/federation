@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/openshift-service-mesh/federation/api/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
@@ -120,9 +121,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	if r.instance.Spec.IngressConfig.Type == "openshift-router" {
+	if r.instance.Spec.IngressConfig.Type == string(config.OpenShiftRouter) {
 		if err := r.reconcileEnvoyFilters(ctx, federatedServices); err != nil {
 			logger.Error(err, "failed to reconcile envoy filters")
+			return ctrl.Result{}, err
+		}
+		if err := r.reconcileRoutes(ctx, federatedServices); err != nil {
+			logger.Error(err, "failed to reconcile routes")
 			return ctrl.Result{}, err
 		}
 	}

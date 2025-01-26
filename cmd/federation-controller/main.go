@@ -24,7 +24,8 @@ import (
 	"syscall"
 	"time"
 
-	routev1client "github.com/openshift/client-go/route/clientset/versioned"
+	// +kubebuilder:scaffold:imports
+	routev1 "github.com/openshift/api/route/v1"
 	networkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	istiokube "istio.io/istio/pkg/kube"
@@ -35,7 +36,6 @@ import (
 	"k8s.io/client-go/informers"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	v1 "k8s.io/client-go/listers/core/v1"
-	// +kubebuilder:scaffold:imports
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -50,7 +50,6 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/kube"
 	"github.com/openshift-service-mesh/federation/internal/pkg/networking"
-	"github.com/openshift-service-mesh/federation/internal/pkg/openshift"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
 
@@ -76,6 +75,7 @@ func init() {
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 	utilruntime.Must(networkingv1alpha3.AddToScheme(scheme))
 	utilruntime.Must(securityv1beta1.AddToScheme(scheme))
+	utilruntime.Must(routev1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -217,14 +217,6 @@ func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister 
 
 	if cfg.MeshPeers.AnyRemotePeerWithOpenshiftRouterIngress() {
 		reconcilers = append(reconcilers, kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory))
-	}
-
-	if cfg.MeshPeers.Local.IngressType == config.OpenShiftRouter {
-		routeClient, err := routev1client.NewForConfig(kubeConfig)
-		if err != nil {
-			log.Fatalf("failed to create Route client: %v", err)
-		}
-		reconcilers = append(reconcilers, kube.NewRouteReconciler(routeClient, openshift.NewConfigFactory(*cfg, serviceLister)))
 	}
 
 	rm := kube.NewReconcilerManager(meshConfigPushRequests, reconcilers...)

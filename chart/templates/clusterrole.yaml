@@ -23,7 +23,7 @@ rules:
   verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
 - apiGroups: ["route.openshift.io"]
   resources: ["routes", "routes/custom-host"]
-  verbs: ["get", "list", "create", "update", "patch", "delete"]
+  verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
 {{- end }}
 - apiGroups: ["federation.openshift-service-mesh.io"]
   resources: ["meshfederations", "federatedservices"]

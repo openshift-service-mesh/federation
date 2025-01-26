@@ -8,7 +8,6 @@ replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 require (
 	github.com/envoyproxy/go-control-plane v0.12.1-0.20240415211714-57c85e1829e6
 	github.com/openshift/api v0.0.0-20240404200104-96ed2d49b255
-	github.com/openshift/client-go v0.0.0-20231212205830-0ab0864ec8c2
 	golang.org/x/sync v0.7.0
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.2
