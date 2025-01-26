@@ -17,17 +17,18 @@ rules:
   resources: ["destinationrules"]
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 {{- end }}
-{{- if eq .Values.federation.meshPeers.local.ingressType "openshift-router" }}
 - apiGroups: ["networking.istio.io"]
   resources: ["envoyfilters"]
   verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
 - apiGroups: ["route.openshift.io"]
   resources: ["routes", "routes/custom-host"]
   verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
-{{- end }}
 - apiGroups: ["federation.openshift-service-mesh.io"]
   resources: ["meshfederations", "federatedservices"]
   verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
 - apiGroups: ["federation.openshift-service-mesh.io"]
   resources: ["meshfederations/status", "federatedservices/status"]
-  verbs: ["get"]
+  verbs: ["get", "update", "patch"]
+- apiGroups: ["federation.openshift-service-mesh.io"]
+  resources: ["meshfederations/finalizers"]
+  verbs: ["get", "update", "patch"]

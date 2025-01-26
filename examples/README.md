@@ -117,56 +117,25 @@ helm-west upgrade --install west chart -n istio-system \
 On OpenShift:
 ```shell
 WEST_CONSOLE_URL=$(kwest get routes console -n openshift-console -o jsonpath='{.spec.host}')
-helm-east install east chart -n istio-system --values examples/openshift/east-federation-controller.yaml \
+helm-east upgrade --install east chart -n istio-system --values examples/openshift/east-federation-controller.yaml \
   --set "federation.meshPeers.remotes[0].addresses[0]=$WEST_CONSOLE_URL"
 EAST_CONSOLE_URL=$(keast get routes console -n openshift-console -o jsonpath='{.spec.host}')
-helm-west install west chart -n istio-system --values examples/openshift/west-federation-controller.yaml \
+helm-west upgrade --install west chart -n istio-system --values examples/openshift/west-federation-controller.yaml \
   --set "federation.meshPeers.remotes[0].addresses[0]=$EAST_CONSOLE_URL"
 ```
 
 ### Enable mesh federation
 
+On KinD:
 ```shell
-keast apply -f - <<EOF
-apiVersion: federation.openshift-service-mesh.io/v1alpha1
-kind: MeshFederation
-metadata:
-  name: east
-  namespace: istio-system
-spec:
-  ingress:
-    type: istio
-    gateway:
-      selector:
-        app: federation-ingress-gateway
-      portConfig:
-        name: tls-passthrough
-        number: 15443
-  export:
-    serviceSelectors:
-      matchLabels:
-        export: "true"
-EOF
-kwest apply -f - <<EOF
-apiVersion: federation.openshift-service-mesh.io/v1alpha1
-kind: MeshFederation
-metadata:
-  name: west
-  namespace: istio-system
-spec:
-  ingress:
-    type: istio
-    gateway:
-      selector:
-        app: federation-ingress-gateway
-      portConfig:
-        name: tls-passthrough
-        number: 15443
-  export:
-    serviceSelectors:
-      matchLabels:
-        export: "true"
-EOF
+keast apply -f examples/kind/east-mesh-federation.yaml
+kwest apply -f examples/kind/west-mesh-federation.yaml
+```
+
+On OpenShift:
+```shell
+keast apply -f examples/openshift/east-mesh-federation.yaml
+kwest apply -f examples/openshift/west-mesh-federation.yaml
 ```
 
 ### Deploy and export services

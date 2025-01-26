@@ -1,20 +1,10 @@
+image:
+  repository: quay.io/jewertow/federation-controller
+  tag: mesh-federation-controller-3
 federation:
   meshPeers:
-    local:
-      name: west
-      gateways:
-        ingress:
-          selector:
-            app: federation-ingress-gateway
-      ingressType: openshift-router
     remotes:
     - name: east
       ingressType: openshift-router
       port: 443
       network: east-network
-  exportedServiceSet:
-    rules:
-    - type: LabelSelector
-      labelSelectors:
-      - matchLabels:
-          export-service: "true"

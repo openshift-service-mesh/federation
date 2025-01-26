@@ -37,13 +37,12 @@ func (r *Reconciler) resolveRemoteIP(ctx context.Context) {
 	resolveIPs := func() {
 		var currIPs []string
 		for _, remote := range r.remotes {
-			logger.Info("Resolving %s", remote.Name)
+			logger.Info("Resolving address", "remote-mesh", remote.Name)
 			currIPs = append(currIPs, networking.Resolve(remote.Addresses[0])...)
 		}
 
 		sort.Strings(currIPs)
 		if !slices.Equal(prevIPs, currIPs) {
-			logger.Info("IP addresses have changed")
 			prevIPs = currIPs
 			r.meshConfigPushRequests <- xds.PushRequest{TypeUrl: xds.WorkloadEntryTypeUrl}
 		}
