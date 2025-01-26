@@ -91,7 +91,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	r.instance = instance
 
 	if err := r.reconcilePeerAuthentication(ctx); err != nil {
-		logger.Error(err, "failed to create or update peer authentication")
+		logger.Error(err, "failed to reconcile peer authentication")
 		return ctrl.Result{}, err
 	}
 
@@ -116,8 +116,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if err := r.reconcileGateway(ctx, federatedServices); err != nil {
-		logger.Error(err, "failed to create or update peer authentication")
+		logger.Error(err, "failed to reconcile gateway")
 		return ctrl.Result{}, err
+	}
+
+	if r.instance.Spec.IngressConfig.Type == "openshift-router" {
+		if err := r.reconcileEnvoyFilters(ctx, federatedServices); err != nil {
+			logger.Error(err, "failed to reconcile envoy filters")
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil
