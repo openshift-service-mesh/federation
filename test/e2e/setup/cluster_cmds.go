@@ -73,7 +73,7 @@ func (c *Cluster) ExportService(svcName, svcNs string) error {
 			return fmt.Errorf("failed to get service %s/%s in cluster %s: %w", svcNs, svcName, c.ContextName, err)
 		}
 
-		svc.Labels["export-service"] = "true"
+		svc.Labels["export"] = "true"
 		if _, err := c.Kube().CoreV1().Services(svcNs).Update(context.Background(), svc, metav1.UpdateOptions{}); err != nil {
 			return fmt.Errorf("failed to update service %s/%s in cluster %s: %w", svcNs, svcName, c.ContextName, err)
 		}
@@ -114,7 +114,6 @@ func (c *Cluster) ConfigureFederationCtrl(remoteClusters cluster.Clusters, optio
 		"-n", "istio-system",
 		"federation",
 		fmt.Sprintf("%s/chart", test.ProjectRoot()),
-		fmt.Sprintf("--values=%s/test/testdata/federation-controller.yaml", test.ProjectRoot()),
 		"--set", fmt.Sprintf("image.repository=%s/federation-controller", TestHub),
 		"--set", fmt.Sprintf("image.tag=%s", TestTag),
 		"--set", fmt.Sprintf("federation.meshPeers.local.name=%s", c.ContextName),

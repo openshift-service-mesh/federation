@@ -25,6 +25,27 @@ import (
 	"istio.io/istio/pkg/test/scopes"
 )
 
+const meshFederationTemplate = `
+apiVersion: federation.openshift-service-mesh.io/v1alpha1
+kind: MeshFederation
+metadata:
+  name: %s
+  namespace: istio-system
+spec:
+  ingress:
+    type: istio
+    gateway:
+      selector:
+        app: federation-ingress-gateway
+      portConfig:
+        name: tls-passthrough
+        number: 15443
+  export:
+    serviceSelectors:
+      matchLabels:
+        export: "true"
+`
+
 func InstallOrUpgradeFederationControllers(options ...CtrlOption) resource.SetupFn {
 	return func(ctx resource.Context) error {
 		ctx.Cleanup(func() {
@@ -51,4 +72,28 @@ func InstallOrUpgradeFederationControllers(options ...CtrlOption) resource.Setup
 
 		return g.Wait()
 	}
+}
+
+func CreateMeshFederationCR(ctx resource.Context) error {
+	ctx.Cleanup(func() {
+		for _, c := range ctx.Clusters() {
+			localCluster := Resolve(c)
+			if err := c.DeleteYAMLFiles("istio-system", fmt.Sprintf(meshFederationTemplate, localCluster.ContextName)); err != nil {
+				scopes.Framework.Errorf("failed to delete mesh federation (cluster=%s): %v", localCluster.ContextName, err)
+			}
+		}
+	})
+
+	var g errgroup.Group
+	for _, c := range ctx.Clusters() {
+		localCluster := Resolve(c)
+		g.Go(func() error {
+			if err := c.ApplyYAMLContents("istio-system", fmt.Sprintf(meshFederationTemplate, localCluster.ContextName)); err != nil {
+				return fmt.Errorf("failed to apply mesh federation (cluster=%s): %w", localCluster.ContextName, err)
+			}
+			return nil
+		})
+	}
+
+	return g.Wait()
 }

@@ -35,6 +35,7 @@ func TestMain(m *testing.M) {
 		Setup(setup.CreateCACertsSecret).
 		Setup(setup.DeployControlPlanes("k8s")).
 		Setup(setup.InstallOrUpgradeFederationControllers()).
+		Setup(setup.CreateMeshFederationCR).
 		Setup(setup.EnsureStrictMutualTLS)
 
 	setup.DeployEcho(suite)
