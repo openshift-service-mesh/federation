@@ -1,6 +1,3 @@
-image:
-  repository: quay.io/jewertow/federation-controller
-  tag: mesh-federation-controller-3
 federation:
   meshPeers:
     remotes:
