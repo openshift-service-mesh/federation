@@ -18,16 +18,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // FederatedServiceSpec defines the desired state of FederatedService.
 type FederatedServiceSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Host is a FQDN of the federated service.
+	Host string `json:"host,omitempty"`
 
-	// Foo is an example field of FederatedService. Edit federatedservice_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Ports of the federated service.
+	Ports []Port `json:"ports,omitempty"`
+
+	// Labels associated with endpoints of the federated service.
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type Port struct {
+	Name     string `json:"name,omitempty"`
+	Number   int32  `json:"number,omitempty"`
+	Protocol string `json:"protocol,omitempty"`
 }
 
 // FederatedServiceStatus defines the observed state of FederatedService.

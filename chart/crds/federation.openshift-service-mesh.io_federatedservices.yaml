@@ -39,10 +39,27 @@ spec:
           spec:
             description: FederatedServiceSpec defines the desired state of FederatedService.
             properties:
-              foo:
-                description: Foo is an example field of FederatedService. Edit federatedservice_types.go
-                  to remove/update
+              host:
+                description: Host is a FQDN of the federated service.
                 type: string
+              labels:
+                additionalProperties:
+                  type: string
+                description: Labels associated with endpoints of the federated service.
+                type: object
+              ports:
+                description: Ports of the federated service.
+                items:
+                  properties:
+                    name:
+                      type: string
+                    number:
+                      format: int32
+                      type: integer
+                    protocol:
+                      type: string
+                  type: object
+                type: array
             type: object
           status:
             description: FederatedServiceStatus defines the observed state of FederatedService.
