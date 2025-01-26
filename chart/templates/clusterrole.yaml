@@ -11,7 +11,7 @@ rules:
   verbs: ["get", "list", "create", "update", "patch", "delete"]
 - apiGroups: ["security.istio.io"]
   resources: ["peerauthentications"]
-  verbs: ["get", "list", "create", "update", "patch", "delete"]
+  verbs: ["get", "list", "create", "update", "patch", "delete", "watch"]
 {{- if (include "remotes.hasOpenshiftRouterPeer" .) }}
 - apiGroups: ["networking.istio.io"]
   resources: ["destinationrules"]

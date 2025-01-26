@@ -105,11 +105,11 @@ kwest apply -f examples/openshift/west-federation-ingress-gateway.yaml
 On KinD:
 ```shell
 WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-east install east chart -n istio-system \
+helm-east upgrade --install east chart -n istio-system \
   --values examples/kind/east-federation-controller.yaml \
   --set "federation.meshPeers.remotes[0].addresses[0]=$WEST_GATEWAY_IP"
 EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-west install west chart -n istio-system \
+helm-west upgrade --install west chart -n istio-system \
   --values examples/kind/west-federation-controller.yaml \
   --set "federation.meshPeers.remotes[0].addresses[0]=$EAST_GATEWAY_IP"
 ```

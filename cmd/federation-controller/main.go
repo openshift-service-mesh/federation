@@ -25,6 +25,7 @@ import (
 	"time"
 
 	routev1client "github.com/openshift/client-go/route/clientset/versioned"
+	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	istiokube "istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/slices"
@@ -74,7 +75,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
-	utilruntime.Must(v1alpha1.AddToScheme(scheme))
+	utilruntime.Must(securityv1beta1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -135,7 +136,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = meshfederation.NewReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
+	if err = meshfederation.NewReconciler(mgr.GetClient(), config.PodNamespace()).SetupWithManager(mgr); err != nil {
 		log.Errorf("unable to create controller for MeshFederation custom resource: %s", err)
 		os.Exit(1)
 	}
@@ -223,7 +224,6 @@ func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister 
 		kube.NewGatewayResourceReconciler(istioClient, istioConfigFactory),
 		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
 		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
-		kube.NewPeerAuthResourceReconciler(istioClient, namespace),
 	}
 
 	if cfg.MeshPeers.AnyRemotePeerWithOpenshiftRouterIngress() {
