@@ -2,12 +2,6 @@ image:
   tag: latest-local
 federation:
   meshPeers:
-    local:
-      name: west
-      gateways:
-        ingress:
-          selector:
-            app: federation-ingress-gateway
     remotes:
     - name: east
       network: east-network
