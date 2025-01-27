@@ -193,9 +193,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		conditions := slices.Clone(meshFederation.Status.Conditions)
 		// TODO: patch and call only when actually conditionsChanged
 		_, errStatusUpdate := controller.RetryStatusUpdate(ctx, r.Client, meshFederation, func(saved *v1alpha1.MeshFederation) {
+			saved.Status.ExportedServices = meshFederation.Status.ExportedServices
 			for _, condition := range conditions {
 				machinerymeta.SetStatusCondition(&saved.Status.Conditions, condition)
-				saved.Status.ExportedServices = meshFederation.Status.ExportedServices
 			}
 		})
 
