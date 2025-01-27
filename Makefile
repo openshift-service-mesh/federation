@@ -10,6 +10,7 @@ export ISTIO_VERSION ?= 1.23.0
 LOCALBIN := $(PROJECT_DIR)/bin
 
 include Makefile.tooling.mk
+include Makefile.func.mk
 
 PROTOBUF_API_DIR := $(PROJECT_DIR)/api/proto/federation
 PROTOBUF_API_SRC := $(shell find $(PROTOBUF_API_DIR) -type f -name "*.proto")
@@ -40,8 +41,27 @@ build: deps $(PROTOBUF_GEN) $(CRD_GEN) ## Builds the project
 ##@ Development
 
 .PHONY: test
-test: build ## Runs tests
-	go test $(PROJECT_DIR)/...
+test: test-unit test-ctrl ## Runs unit and controller tests
+
+.PHONY: test-unit
+test-unit: build ## Runs unit tests
+	go test $(PROJECT_DIR)/internal/pkg/...
+
+ENVTEST_K8S_VERSION = 1.31 # refers to the version of kubebuilder assets to be downloaded by envtest binary.
+test-ctrl: fetch-test-crds
+test-ctrl: $(ENVTEST) $(GINKGO) ## Runs controller tests using k8s envtest
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" \
+	$(GINKGO) $(PROJECT_DIR)/internal/controller/... -r \
+		-vet=off \
+		-coverprofile cover.out \
+		--junit-report=ginkgo-test-results.xml ${args}
+
+.PHONY: fetch-test-crds
+fetch-test-crds: $(CONTROLLER_GEN)
+	$(eval crd_folder = "$(PROJECT_DIR)/test/testdata/crds/external")
+	@$(call fetch-external-crds,github.com/openshift/api,route/v1,$(crd_folder))
+	@curl -s https://raw.githubusercontent.com/istio/istio/$(ISTIO_VERSION)/manifests/charts/base/crds/crd-all.gen.yaml > $(crd_folder)/istio.yaml
+
 
 define local_tag
 $(TAG)$(shell [ "$(USE_LOCAL_IMAGE)" = "true" ] && echo "-local")

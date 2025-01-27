@@ -30,9 +30,7 @@ import (
 	"istio.io/istio/pkg/slices"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	v1 "k8s.io/client-go/listers/core/v1"
 	// +kubebuilder:scaffold:imports
 	"k8s.io/client-go/rest"
@@ -41,7 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	"github.com/openshift-service-mesh/federation/api/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/controller"
 	"github.com/openshift-service-mesh/federation/internal/controller/federatedservice"
 	"github.com/openshift-service-mesh/federation/internal/controller/meshfederation"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
@@ -78,10 +76,7 @@ var (
 )
 
 func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(v1alpha1.AddToScheme(scheme))
-	utilruntime.Must(v1alpha1.AddToScheme(scheme))
-	// +kubebuilder:scaffold:scheme
+	controller.MustAddToScheme(scheme)
 }
 
 const reconnectDelay = time.Second * 5
@@ -158,7 +153,7 @@ func runCtrls(ctx context.Context, cancel context.CancelFunc) {
 	}
 
 	if err = meshfederation.NewReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
-		log.Errorf("unable to create controller for MeshFederation custom resource: %s", err)
+		log.Errorf("unable to create MeshFederation controller: %s", err)
 		os.Exit(1)
 	}
 	if err = federatedservice.NewReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
