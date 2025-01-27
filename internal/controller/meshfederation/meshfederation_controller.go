@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"time"
 
 	routev1 "github.com/openshift/api/route/v1"
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
@@ -91,7 +90,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	exportSelector, err := metav1.LabelSelectorAsSelector(meshFederation.Spec.ExportRules.ServiceSelectors)
 	if err != nil {
-		return reconcile.Result{RequeueAfter: 2 * time.Second}, fmt.Errorf("invalid label selector: %v", err)
+		logger.Error(err, "failed while creating service export selector")
+		return reconcile.Result{}, nil
 	}
 
 	server := r.exporterRegistry.LoadOrStore(req.NamespacedName.String(), &exportedServicesBroadcaster{
@@ -128,7 +128,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// TODO paginate? options?
 	// TODO handle multiple matching rules (as one is AND-ed, not OR-ed)
 	if errSvcList := r.Client.List(ctx, exportedServices, client.MatchingLabelsSelector{Selector: exportSelector}); errSvcList != nil {
-		return reconcile.Result{RequeueAfter: 2 * time.Second}, errSvcList
+		return reconcile.Result{}, errSvcList
 	}
 
 	federatedServices, errConvert := convert(exportedServices.Items)
@@ -282,6 +282,8 @@ func isExported(ctx context.Context, federation v1alpha1.MeshFederation, object 
 	labelSelector, errLabel := metav1.LabelSelectorAsSelector(federation.Spec.ExportRules.ServiceSelectors)
 	if errLabel != nil {
 		logger.Error(errLabel, "failed evaluating selectors", "MeshFederation", federation.GetName()+"/"+federation.GetNamespace())
+
+		return false
 	}
 
 	return labelSelector.Matches(labels.Set(object.GetLabels()))
