@@ -9,6 +9,9 @@ bin/
 cover.out
 ginkgo-test-results.xml
 
+# Docs
+*.drawio.bkp
+
 # demo output
 Makefile.selfsigned.mk
 common.mk
