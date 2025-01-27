@@ -181,9 +181,12 @@ func (r *Reconciler) SetupWithManager(mgr manager.Manager) error {
 		Owns(&v1beta1.PeerAuthentication{}).
 		Owns(&v1alpha3.Gateway{}).
 		Owns(&routev1.Route{}).
-		// We don't need a predicate first, unless we really want to check old values -> all the logic can be done in mapper
-		// TODO(design): initial reconcile will trigger a lot of requests - one for each service. This can become expensive.
-		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(r.handleServiceToExport)).
+		Watches(
+			// TODO(design): initial reconcile will trigger a lot of requests - one for each service. This can become expensive.
+			&corev1.Service{},
+			handler.EnqueueRequestsFromMapFunc(r.handleServiceToExport),
+			builder.WithPredicates(predicate.Or(predicate.GenerationChangedPredicate{}, predicate.LabelChangedPredicate{})),
+		).
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, controller.FinalizerChanged())).
 		Complete(r)
 }
