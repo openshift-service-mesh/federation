@@ -63,8 +63,6 @@ type Reconciler struct {
 
 var _ controller.Reconciler = (*Reconciler)(nil)
 
-var _ controller.Reconciler = (*Reconciler)(nil)
-
 func NewReconciler(c client.Client) *Reconciler {
 	return &Reconciler{
 		Client:           c,
