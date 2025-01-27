@@ -183,7 +183,7 @@ func (r *Reconciler) SetupWithManager(mgr manager.Manager) error {
 		Owns(&routev1.Route{}).
 		// We don't need a predicate first, unless we really want to check old values -> all the logic can be done in mapper
 		// TODO(design): initial reconcile will trigger a lot of requests - one for each service. This can become expensive.
-		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(r.handleServicesToExport)).
+		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(r.handleServiceToExport)).
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, controller.FinalizerChanged())).
 		Complete(r)
 }
@@ -223,7 +223,7 @@ func (r *Reconciler) subReconcile(ctx context.Context, meshFederation *v1alpha1.
 	return accResult, errors.Join(errs...)
 }
 
-func (r *Reconciler) handleServicesToExport(ctx context.Context, object client.Object) []reconcile.Request {
+func (r *Reconciler) handleServiceToExport(ctx context.Context, object client.Object) []reconcile.Request {
 	logger := log.FromContext(ctx)
 	meshFederations := &v1alpha1.MeshFederationList{}
 	// TODO paginate? options?
