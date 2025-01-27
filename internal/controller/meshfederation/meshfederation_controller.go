@@ -59,6 +59,7 @@ type Reconciler struct {
 	client.Client
 	exporterRegistry *serviceExporterRegistry
 	exporter         *exportedServicesBroadcaster
+	finalizerHandler *finalizer.Handler
 }
 
 var _ controller.Reconciler = (*Reconciler)(nil)
@@ -69,6 +70,7 @@ func NewReconciler(c client.Client) *Reconciler {
 	return &Reconciler{
 		Client:           c,
 		exporterRegistry: &serviceExporterRegistry{},
+		finalizerHandler: finalizer.NewHandler(c, "federation.openshift-service-mesh.io/mesh-federation"),
 	}
 }
 
@@ -98,8 +100,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		selector: exportSelector,
 	})
 
-	finalizerHandler := finalizer.NewHandler(r.Client, "federation.openshift-service-mesh.io/mesh-federation")
-	if finalized, errFinalize := finalizerHandler.Finalize(ctx, meshFederation, func() error {
+	if finalized, errFinalize := r.finalizerHandler.Finalize(ctx, meshFederation, func() error {
 		server.Stop()
 
 		return nil
@@ -107,7 +108,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, errFinalize
 	}
 
-	if finalizerAlreadyExists, errAdd := finalizerHandler.Add(ctx, meshFederation); !finalizerAlreadyExists {
+	if finalizerAlreadyExists, errAdd := r.finalizerHandler.Add(ctx, meshFederation); !finalizerAlreadyExists {
 		return reconcile.Result{}, errAdd
 	}
 
