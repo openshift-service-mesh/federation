@@ -71,7 +71,7 @@ func (e exportedServicesBroadcaster) GetTypeUrl() string {
 func (e exportedServicesBroadcaster) GenerateResponse() ([]*anypb.Any, error) {
 	services := &corev1.ServiceList{}
 	// TODO: rework ads(s|c) to get ctx?
-	// We cannot latch into ctx from owning Reconcile call, as it generator can be called from outside reconcile loop
+	// We cannot latch into ctx from owning Reconcile call, as this piece of code can be called from outside reconcile loop on client push request.
 	if errSvcList := e.client.List(context.TODO(), services, client.MatchingLabelsSelector{Selector: e.selector}); errSvcList != nil {
 		return []*anypb.Any{}, errSvcList
 	}
