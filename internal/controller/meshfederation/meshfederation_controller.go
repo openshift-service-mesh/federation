@@ -30,7 +30,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -144,38 +143,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	if result, errReconcile := r.subReconcile(ctx, meshFederation, exportedServices); errReconcile != nil {
-		meshFederation := &v1alpha1.MeshFederation{}
-		if err := r.Client.Get(ctx, req.NamespacedName, meshFederation); err != nil {
-			if apierrors.IsNotFound(err) {
-				return ctrl.Result{}, nil
-			} else {
-				return ctrl.Result{}, fmt.Errorf("failed fetching MeshFederation %s, reason: %w", req.NamespacedName, err)
-			}
-		}
-
-		// TODO(meshfederation-ctrl): main logic goes here
-
-		// Dummy success
-		// TODO: figure out preferred approach to deal with conditions (metav1 vs conditionsv1 from Openshift)
-		// TODO: wrap conditions handling in a pkg/funcs representing domain-oriented conditions
-		conditionsChanged := machinerymeta.SetStatusCondition(&meshFederation.Status.Conditions, metav1.Condition{
-			Type:    "Available",
-			Status:  "True",
-			Reason:  "MeshFederationReconciled",
-			Message: "Reconcile completed successfully",
-		})
-
-		if conditionsChanged {
-			conditions := slices.Clone(meshFederation.Status.Conditions)
-			// TODO: patch and call only when actually conditionsChanged
-			_, errStatusUpdate := controller.RetryStatusUpdate(ctx, r.Client, meshFederation, func(saved *v1alpha1.MeshFederation) {
-				for _, condition := range conditions {
-					machinerymeta.SetStatusCondition(&saved.Status.Conditions, condition)
-				}
-			})
-			return ctrl.Result{}, errStatusUpdate
-		}
-
 		return result, errReconcile
 	}
 
