@@ -36,6 +36,7 @@ import (
 	v1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -178,7 +179,7 @@ func main() {
 
 	importedServiceStore := fds.NewImportedServiceStore()
 	for _, remote := range cfg.MeshPeers.Remotes {
-		startFDSClient(ctx, remote, meshConfigPushRequests, importedServiceStore)
+		startFDSClient(ctx, remote, mgr.GetClient())
 	}
 
 	informerFactory := informers.NewSharedInformerFactory(istioClient.Kube(), 0)
@@ -221,7 +222,7 @@ func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister 
 	go rm.Start(ctx)
 }
 
-func startFDSClient(ctx context.Context, remote config.Remote, meshConfigPushRequests chan xds.PushRequest, importedServiceStore *fds.ImportedServiceStore) {
+func startFDSClient(ctx context.Context, remote config.Remote, c client.Client) {
 	var discoveryAddr string
 	if networking.IsIP(remote.Addresses[0]) {
 		discoveryAddr = fmt.Sprintf("%s:%d", remote.ServiceFQDN(), remote.ServicePort())
@@ -234,7 +235,7 @@ func startFDSClient(ctx context.Context, remote config.Remote, meshConfigPushReq
 		DiscoveryAddr: discoveryAddr,
 		Authority:     remote.ServiceFQDN(),
 		Handlers: map[string]adsc.ResponseHandler{
-			xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(importedServiceStore, meshConfigPushRequests),
+			xds.ExportedServiceTypeUrl: fds.NewImportedServiceHandler(c, config.PodNamespace()),
 		},
 		ReconnectDelay: reconnectDelay,
 	})
