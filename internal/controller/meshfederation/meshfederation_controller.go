@@ -157,8 +157,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	if !reflect.DeepEqual(original.Status, meshFederation.Status) {
 		conditions := slices.Clone(meshFederation.Status.Conditions)
-		// TODO: patch and call only when actually conditionsChanged
+		// TODO: patch and call only when conditions were changed
 		_, errStatusUpdate := controller.RetryStatusUpdate(ctx, r.Client, meshFederation, func(saved *v1alpha1.MeshFederation) {
+			// TODO(design): do we want to keep all the services? seems convenient, but shouldn't we be concerned about the size?
 			saved.Status.ExportedServices = meshFederation.Status.ExportedServices
 			for _, condition := range conditions {
 				machinerymeta.SetStatusCondition(&saved.Status.Conditions, condition)
