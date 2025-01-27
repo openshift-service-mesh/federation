@@ -18,12 +18,15 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"google.golang.org/grpc"
 
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
 )
+
+const restartDelay = 2 * time.Second
 
 type Server struct {
 	grpc    *grpc.Server
@@ -81,12 +84,25 @@ func (s *Server) IsRunning() bool {
 	return s.running
 }
 
-// Start will start the server if it's not already running.
-// Return true if it has been started or false if it's been already running.
-func (s *Server) Start(ctx context.Context) bool {
+// StartOnce will start the server if it's not already running.
+// Returns true if it has been started or false if it's been already running.
+func (s *Server) StartOnce(ctx context.Context) bool {
 	if !s.IsRunning() {
 		go func() {
-			_ = s.Run(ctx)
+			for {
+				if err := s.Run(ctx); err != nil {
+					log.Errorf("server encountered an error: %v, restarting in %s...", err, restartDelay)
+
+					select {
+					case <-time.After(restartDelay):
+					case <-ctx.Done():
+						log.Info("context canceled, stopping restart attempts")
+						return
+					}
+				} else {
+					break // running, break out of the retry loop
+				}
+			}
 		}()
 
 		return true

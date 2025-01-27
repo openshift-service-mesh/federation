@@ -111,15 +111,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	// TODO: figure out preferred approach to deal with conditions (metav1 vs conditionsv1 from Openshift)
 	// TODO: wrap conditions handling in a pkg/funcs representing domain-oriented conditions
-	justStarted := server.Start(ctx)
-	if justStarted {
-		_ = machinerymeta.SetStatusCondition(&meshFederation.Status.Conditions, metav1.Condition{
-			Type:    "FDSServerRunning",
-			Status:  "True",
-			Reason:  "FDSServerStarted",
-			Message: "FDS Server has started",
-		})
-	}
+	server.StartOnce(ctx)
 
 	exportedServices := &corev1.ServiceList{}
 	// TODO paginate? options?
