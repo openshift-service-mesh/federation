@@ -85,9 +85,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	original := meshFederation.DeepCopy()
 
-	exportSelector, err := metav1.LabelSelectorAsSelector(meshFederation.Spec.ExportRules.ServiceSelectors)
-	if err != nil {
-		logger.Error(err, "failed while creating service export selector")
+	exportSelector, errSelector := metav1.LabelSelectorAsSelector(meshFederation.Spec.ExportRules.ServiceSelectors)
+	if errSelector != nil {
+		logger.Error(errSelector, "failed while creating service export selector")
 		return reconcile.Result{}, nil
 	}
 
@@ -130,11 +130,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	federatedServices, errConvert := convert(exportedServices.Items)
 	if errConvert != nil {
-		return reconcile.Result{}, errConvert
+		// TODO: report status
+		logger.Error(errConvert, "failed while creating service export selector")
 	}
 	if errPush := server.PushAll(xds.PushRequest{TypeUrl: discovery.FederatedServiceTypeUrl, Resources: federatedServices}); errPush != nil {
+		// TODO: report status
 		logger.Error(errPush, "failed pushing SotW to subscribed remotes")
-		return reconcile.Result{}, errPush
 	}
 
 	meshFederation.Status.ExportedServices = []string{}
@@ -180,6 +181,7 @@ func (r *Reconciler) SetupWithManager(mgr manager.Manager) error {
 		Owns(&v1alpha3.Gateway{}).
 		Owns(&routev1.Route{}).
 		// We don't need a predicate first, unless we really want to check old values -> all the logic can be done in mapper
+		// TODO(design): initial reconcile will trigger a lot of requests - one for each service. This can become expensive.
 		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(r.handleServicesToExport)).
 		WithEventFilter(predicate.Or(predicate.GenerationChangedPredicate{}, controller.FinalizerChanged())).
 		Complete(r)
