@@ -142,6 +142,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			logger.Error(err, "failed to reconcile routes")
 			return ctrl.Result{}, err
 		}
+		// TODO: move this to RemoteMesh controller and for all remotes if at least one needs DNS resolution
 		// TODO: We should run DNS resolver when ingress address is DNS as well, not only when remote ingress is OpenShift Router
 		r.dnsResolverCtx = context.Background()
 		go r.resolveRemoteIP(r.dnsResolverCtx)

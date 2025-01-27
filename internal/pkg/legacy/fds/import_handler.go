@@ -115,9 +115,10 @@ func mapPorts(ports []*fdsv1alpha1.ServicePort) []v1alpha1.Port {
 	var out []v1alpha1.Port
 	for _, port := range ports {
 		out = append(out, v1alpha1.Port{
-			Name:     port.Name,
-			Number:   int32(port.Number),
-			Protocol: port.Protocol,
+			Name:       port.Name,
+			Number:     int32(port.Number),
+			Protocol:   port.Protocol,
+			TargetPort: int32(port.TargetPort),
 		})
 	}
 	return out

@@ -27,16 +27,13 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	networkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
-	istiokube "istio.io/istio/pkg/kube"
 	istiolog "istio.io/istio/pkg/log"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/informers"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	v1 "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -47,7 +44,6 @@ import (
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/istio"
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/fds"
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/kube"
 	"github.com/openshift-service-mesh/federation/internal/pkg/networking"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adsc"
@@ -141,7 +137,7 @@ func main() {
 		log.Errorf("unable to create controller for MeshFederation custom resource: %s", err)
 		os.Exit(1)
 	}
-	if err = federatedservice.NewReconciler(mgr.GetClient()).SetupWithManager(mgr); err != nil {
+	if err = federatedservice.NewReconciler(mgr.GetClient(), config.PodNamespace(), cfg.MeshPeers.Remotes).SetupWithManager(mgr); err != nil {
 		log.Errorf("unable to create FederatedService controller: %s", err)
 		os.Exit(1)
 	}
@@ -167,59 +163,29 @@ func main() {
 		}
 	}()
 
-	kubeConfig, err := rest.InClusterConfig()
-	if err != nil {
-		log.Fatalf("failed to create in-cluster config: %v", err)
-	}
-
-	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
-	if err != nil {
-		log.Fatalf("failed to create Istio client: %v", err)
-	}
-
-	importedServiceStore := fds.NewImportedServiceStore()
+	// TODO: Move to RemoteMesh controller
 	for _, remote := range cfg.MeshPeers.Remotes {
-		startFDSClient(ctx, remote, mgr.GetClient())
+		if mgr.GetCache().WaitForCacheSync(context.Background()) {
+			createServiceEntriesForRemoteMeshes(context.Background(), mgr.GetClient(), remote)
+			startFDSClient(ctx, remote, mgr.GetClient())
+		}
 	}
-
-	informerFactory := informers.NewSharedInformerFactory(istioClient.Kube(), 0)
-	serviceLister := informerFactory.Core().V1().Services().Lister()
-	informerFactory.Start(ctx.Done())
-	startReconciler(ctx, cfg, serviceLister, meshConfigPushRequests, importedServiceStore)
 
 	<-ctx.Done()
 }
 
-func startReconciler(ctx context.Context, cfg *config.Federation, serviceLister v1.ServiceLister, meshConfigPushRequests chan xds.PushRequest, importedServiceStore *fds.ImportedServiceStore) {
-
-	kubeConfig, err := rest.InClusterConfig()
-	if err != nil {
-		log.Fatalf("failed to create in-cluster config: %v", err)
+func createServiceEntriesForRemoteMeshes(ctx context.Context, c client.Client, remote config.Remote) {
+	istioConfigFactory := istio.ConfigFactory{}
+	se := istioConfigFactory.ServiceEntryForRemoteFederationController(remote)
+	serviceEntry := &networkingv1alpha3.ServiceEntry{
+		ObjectMeta: se.ObjectMeta,
 	}
-
-	istioClient, err := istiokube.NewClient(istiokube.NewClientConfigForRestConfig(kubeConfig), "")
-	if err != nil {
-		log.Fatalf("failed to create Istio client: %v", err)
+	if _, err := controllerutil.CreateOrUpdate(ctx, c, serviceEntry, func() error {
+		serviceEntry.Spec = se.Spec
+		return nil
+	}); err != nil {
+		log.Fatalf("failed to create ServiceEntry for remote mesh: %v", err)
 	}
-
-	namespace := cfg.Namespace()
-
-	istioConfigFactory := istio.NewConfigFactory(*cfg, serviceLister, importedServiceStore, namespace)
-	reconcilers := []kube.Reconciler{
-		kube.NewServiceEntryReconciler(istioClient, istioConfigFactory),
-		kube.NewWorkloadEntryReconciler(istioClient, istioConfigFactory),
-	}
-
-	if cfg.MeshPeers.AnyRemotePeerWithOpenshiftRouterIngress() {
-		reconcilers = append(reconcilers, kube.NewDestinationRuleReconciler(istioClient, istioConfigFactory))
-	}
-
-	rm := kube.NewReconcilerManager(meshConfigPushRequests, reconcilers...)
-	if err := rm.ReconcileAll(ctx); err != nil {
-		log.Fatalf("initial Istio resource reconciliation failed: %v", err)
-	}
-
-	go rm.Start(ctx)
 }
 
 func startFDSClient(ctx context.Context, remote config.Remote, c client.Client) {

@@ -17,11 +17,14 @@ package federatedservice
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/fields"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	federationv1alpha1 "github.com/openshift-service-mesh/federation/api/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 )
 
 // +kubebuilder:rbac:groups=federation.openshift-service-mesh.io,resources=federatedservices,verbs=get;list;watch;create;update;patch;delete
@@ -31,20 +34,75 @@ import (
 // Reconciler ensure that cluster is configured according to the spec defined in FederatedService
 type Reconciler struct {
 	client.Client
+
+	configNamespace string
+	remotes         []config.Remote
 }
 
-func NewReconciler(c client.Client) *Reconciler {
-	return &Reconciler{Client: c}
+func NewReconciler(c client.Client, configNamespace string, remotes []config.Remote) *Reconciler {
+	return &Reconciler{
+		Client:          c,
+		configNamespace: configNamespace,
+		remotes:         remotes,
+	}
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log.FromContext(ctx).Info("Reconciling object", "name", req.Name, "namespace", req.Namespace)
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling object")
+
+	var federatedService federationv1alpha1.FederatedService
+	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: req.Name}, &federatedService); err != nil {
+		if errors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
+	}
+
+	if !federatedService.DeletionTimestamp.IsZero() {
+		logger.Info("Object is being deleted", "name", req.Name, "namespace", req.Namespace)
+		// TODO: finalize child resources
+		return ctrl.Result{}, nil
+	}
+
+	var relatedFederatedServices federationv1alpha1.FederatedServiceList
+	if err := r.Client.List(ctx, &relatedFederatedServices, &client.ListOptions{
+		FieldSelector: fields.OneTermEqualSelector(".spec.host", federatedService.Spec.Host),
+	}); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	for _, svc := range relatedFederatedServices.Items {
+		if !svc.DeletionTimestamp.IsZero() {
+			logger.Info("Object is being deleted", "name", svc.Name, "namespace", svc.Namespace)
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
+
+	// TODO: validate conflicts in ports and labels
+
+	sourceMeshes := []string{federatedService.Labels["federation.openshift-service-mesh.io/source-mesh"]}
+	for _, svc := range relatedFederatedServices.Items {
+		sourceMeshes = append(sourceMeshes, svc.Labels["federation.openshift-service-mesh.io/source-mesh"])
+	}
+
+	if err := r.updateServiceOrWorkloadEntries(ctx, federatedService, sourceMeshes); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &federationv1alpha1.FederatedService{}, ".spec.host", extractHostIndex); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&federationv1alpha1.FederatedService{}).
+		// TODO: reconcile child resources
 		Complete(r)
+}
+
+func extractHostIndex(obj client.Object) []string {
+	return []string{obj.(*federationv1alpha1.FederatedService).Spec.Host}
 }

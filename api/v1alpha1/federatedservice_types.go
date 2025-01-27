@@ -31,9 +31,10 @@ type FederatedServiceSpec struct {
 }
 
 type Port struct {
-	Name     string `json:"name,omitempty"`
-	Number   int32  `json:"number,omitempty"`
-	Protocol string `json:"protocol,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Number     int32  `json:"number,omitempty"`
+	Protocol   string `json:"protocol,omitempty"`
+	TargetPort int32  `json:"targetPort,omitempty"`
 }
 
 // FederatedServiceStatus defines the observed state of FederatedService.
