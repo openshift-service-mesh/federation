@@ -37,6 +37,7 @@ func TestMain(m *testing.M) {
 		Setup(setup.DeployControlPlanes("k8s")).
 		Setup(coredns.PatchHosts).
 		Setup(setup.InstallOrUpgradeFederationControllers(setup.RemoteAddressDNSName{})).
+		Setup(setup.CreateMeshFederationCR).
 		Setup(setup.EnsureStrictMutualTLS)
 
 	setup.DeployEcho(suite)

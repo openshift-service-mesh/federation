@@ -16,29 +16,21 @@ package istio
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
-	"google.golang.org/protobuf/types/known/structpb"
 	istionetv1alpha3 "istio.io/api/networking/v1alpha3"
 	"istio.io/client-go/pkg/apis/networking/v1alpha3"
 	istiolog "istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/maps"
 	"istio.io/istio/pkg/slices"
-	"istio.io/istio/pkg/util/protomarshal"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	v1 "k8s.io/client-go/listers/core/v1"
 
 	"github.com/openshift-service-mesh/federation/internal/api/federation/v1alpha1"
 	"github.com/openshift-service-mesh/federation/internal/pkg/config"
 	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/fds"
 	"github.com/openshift-service-mesh/federation/internal/pkg/networking"
-)
-
-const (
-	federationIngressGatewayName = "federation-ingress-gateway"
 )
 
 type ConfigFactory struct {
@@ -129,113 +121,6 @@ func (cf *ConfigFactory) DestinationRules() []*v1alpha3.DestinationRule {
 	}
 
 	return destinationRules
-}
-
-func (cf *ConfigFactory) IngressGateway() (*v1alpha3.Gateway, error) {
-	gateway := &v1alpha3.Gateway{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      federationIngressGatewayName,
-			Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-			Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
-		},
-		Spec: istionetv1alpha3.Gateway{
-			Selector: cf.cfg.MeshPeers.Local.Gateways.Ingress.Selector,
-			Servers: []*istionetv1alpha3.Server{{
-				Hosts: []string{},
-				Port: &istionetv1alpha3.Port{
-					Number:   cf.cfg.MeshPeers.Local.Gateways.Ingress.Port.Number,
-					Name:     cf.cfg.MeshPeers.Local.Gateways.Ingress.Port.Name,
-					Protocol: "TLS",
-				},
-				Tls: &istionetv1alpha3.ServerTLSSettings{
-					Mode: istionetv1alpha3.ServerTLSSettings_AUTO_PASSTHROUGH,
-				},
-			}},
-		},
-	}
-
-	hosts := []string{fmt.Sprintf("federation-discovery-service-%s.%s.svc.cluster.local", cf.cfg.MeshPeers.Local.Name, cf.namespace)}
-	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
-		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
-		services, err := cf.serviceLister.List(matchLabels)
-		if err != nil {
-			return nil, fmt.Errorf("error listing services (selector=%s): %w", matchLabels, err)
-		}
-		for _, svc := range services {
-			hosts = append(hosts, fmt.Sprintf("%s.%s.svc.cluster.local", svc.Name, svc.Namespace))
-		}
-	}
-	// ServiceLister.List is not idempotent, so to avoid redundant XDS push from Istio to proxies,
-	// we must return hostnames in the same order.
-	sort.Strings(hosts)
-	gateway.Spec.Servers[0].Hosts = hosts
-
-	return gateway, nil
-}
-
-// EnvoyFilters returns patches for SNI filters matching SNIs of exported services in federation ingress gateway.
-// These patches add SNI compatible with https://datatracker.ietf.org/doc/html/rfc952 required by OpenShift Router.
-// This function returns nil when the local ingress type is "istio".
-func (cf *ConfigFactory) EnvoyFilters() []*v1alpha3.EnvoyFilter {
-	if cf.cfg.MeshPeers.Local.IngressType != config.OpenShiftRouter {
-		return nil
-	}
-
-	createEnvoyFilter := func(svcName, svcNamespace string, port int32) *v1alpha3.EnvoyFilter {
-		buildPatchStruct := func(config string) *structpb.Struct {
-			val := &structpb.Struct{}
-			if err := protomarshal.UnmarshalString(config, val); err != nil {
-				fmt.Printf("error unmarshalling envoyfilter config %q: %v", config, err)
-			}
-			return val
-		}
-		return &v1alpha3.EnvoyFilter{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("sni-%s-%s-%d", svcName, svcNamespace, port),
-				Namespace: cf.cfg.MeshPeers.Local.ControlPlane.Namespace,
-				Labels:    map[string]string{"federation.openshift-service-mesh.io/peer": "todo"},
-			},
-			Spec: istionetv1alpha3.EnvoyFilter{
-				WorkloadSelector: &istionetv1alpha3.WorkloadSelector{
-					Labels: cf.cfg.MeshPeers.Local.Gateways.Ingress.Selector,
-				},
-				ConfigPatches: []*istionetv1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{{
-					ApplyTo: istionetv1alpha3.EnvoyFilter_FILTER_CHAIN,
-					Match: &istionetv1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
-						ObjectTypes: &istionetv1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-							Listener: &istionetv1alpha3.EnvoyFilter_ListenerMatch{
-								Name: fmt.Sprintf("0.0.0.0_%d", cf.cfg.MeshPeers.Local.Gateways.Ingress.Port.Number),
-								FilterChain: &istionetv1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
-									Sni: fmt.Sprintf("outbound_.%d_._.%s.%s.svc.cluster.local", port, svcName, svcNamespace),
-								},
-							},
-						},
-					},
-					Patch: &istionetv1alpha3.EnvoyFilter_Patch{
-						Operation: istionetv1alpha3.EnvoyFilter_Patch_MERGE,
-						Value:     buildPatchStruct(fmt.Sprintf(`{"filter_chain_match":{"server_names":["%s"]}}`, routerCompatibleSNI(svcName, svcNamespace, uint32(port)))),
-					},
-				}},
-			},
-		}
-	}
-
-	envoyFilters := []*v1alpha3.EnvoyFilter{
-		createEnvoyFilter(fmt.Sprintf("federation-discovery-service-%s", cf.cfg.MeshPeers.Local.Name), "istio-system", 15080),
-	}
-	for _, exportLabelSelector := range cf.cfg.ExportedServiceSet.GetLabelSelectors() {
-		matchLabels := labels.SelectorFromSet(exportLabelSelector.MatchLabels)
-		services, err := cf.serviceLister.List(matchLabels)
-		if err != nil {
-			fmt.Printf("error listing services (selector=%s): %v", matchLabels, err)
-		}
-		for _, svc := range services {
-			for _, port := range svc.Spec.Ports {
-				envoyFilters = append(envoyFilters, createEnvoyFilter(svc.Name, svc.Namespace, port.Port))
-			}
-		}
-	}
-	return envoyFilters
 }
 
 func (cf *ConfigFactory) ServiceEntries() ([]*v1alpha3.ServiceEntry, error) {

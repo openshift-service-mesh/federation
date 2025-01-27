@@ -17,11 +17,23 @@ package meshfederation
 import (
 	"context"
 
+	networkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/openshift-service-mesh/federation/api/v1alpha1"
+	"github.com/openshift-service-mesh/federation/internal/pkg/config"
+	"github.com/openshift-service-mesh/federation/internal/pkg/fds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds/adss"
 )
 
 // +kubebuilder:rbac:groups=federation.openshift-service-mesh.io,resources=meshfederations,verbs=get;list;watch;create;update;patch;delete
@@ -31,14 +43,110 @@ import (
 // Reconciler ensure that cluster is configured according to the spec defined in MeshFederation object.
 type Reconciler struct {
 	client.Client
+	namespace string
+
+	fdsServer    *adss.Server
+	serverCtx    context.Context
+	pushRequests chan xds.PushRequest
+
+	instance *v1alpha1.MeshFederation
+
+	remotes []config.Remote
+
+	dnsResolverCtx         context.Context
+	meshConfigPushRequests chan xds.PushRequest
 }
 
-func NewReconciler(c client.Client) *Reconciler {
-	return &Reconciler{Client: c}
+func NewReconciler(c client.Client, remotes []config.Remote, meshConfigPushRequests chan xds.PushRequest) *Reconciler {
+	return &Reconciler{
+		Client:                 c,
+		namespace:              config.PodNamespace(),
+		remotes:                remotes,
+		meshConfigPushRequests: meshConfigPushRequests,
+	}
 }
 
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log.FromContext(ctx).Info("Reconciling object", "namespace", req.Namespace)
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling object")
+
+	instance := &v1alpha1.MeshFederation{}
+	if err := r.Client.Get(ctx, req.NamespacedName, instance); err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("Object not found, must have been deleted", "name", req.Name, "namespace", req.Namespace)
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	if !instance.DeletionTimestamp.IsZero() {
+		logger.Info("Object is being deleted", "name", req.Name, "namespace", req.Namespace)
+
+		// stop FDS server
+		if r.serverCtx != nil {
+			r.serverCtx.Done()
+		}
+		r.fdsServer = nil
+		close(r.pushRequests)
+
+		// stop DNS reconciler
+		if r.dnsResolverCtx != nil {
+			r.dnsResolverCtx.Done()
+		}
+
+		// TODO: Handle finalizer
+
+		r.instance = nil
+
+		return ctrl.Result{}, nil
+	}
+
+	r.instance = instance
+
+	if err := r.reconcilePeerAuthentication(ctx); err != nil {
+		logger.Error(err, "failed to reconcile peer authentication")
+		return ctrl.Result{}, err
+	}
+
+	// Start FDS server
+	if r.fdsServer == nil {
+		r.pushRequests = make(chan xds.PushRequest)
+		r.fdsServer = adss.NewServer(r.pushRequests, fds.NewDiscoveryResponseGenerator(r.Client, instance.Spec.ExportRules.ServiceSelectors))
+		r.serverCtx = context.Background()
+		// TODO: restart server if necessary
+		go func() {
+			if err := r.fdsServer.Run(r.serverCtx); err != nil {
+				log.FromContext(ctx).Error(err, "failed to run FDS server")
+				panic("failed to run FDS server")
+			}
+		}()
+	}
+
+	federatedServices, svcErr := r.reconcileFederatedServices(ctx)
+	if svcErr != nil {
+		logger.Error(svcErr, "failed to reconcile federated services")
+		return ctrl.Result{}, svcErr
+	}
+
+	if err := r.reconcileGateway(ctx, federatedServices); err != nil {
+		logger.Error(err, "failed to reconcile gateway")
+		return ctrl.Result{}, err
+	}
+
+	if r.instance.Spec.IngressConfig.Type == string(config.OpenShiftRouter) {
+		if err := r.reconcileEnvoyFilters(ctx, federatedServices); err != nil {
+			logger.Error(err, "failed to reconcile envoy filters")
+			return ctrl.Result{}, err
+		}
+		if err := r.reconcileRoutes(ctx, federatedServices); err != nil {
+			logger.Error(err, "failed to reconcile routes")
+			return ctrl.Result{}, err
+		}
+		// TODO: We should run DNS resolver when ingress address is DNS as well, not only when remote ingress is OpenShift Router
+		r.dnsResolverCtx = context.Background()
+		go r.resolveRemoteIP(r.dnsResolverCtx)
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -46,5 +154,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.MeshFederation{}).
+		Owns(&securityv1beta1.PeerAuthentication{}).
+		Owns(&networkingv1alpha3.Gateway{}).
+		Watches(
+			&corev1.Service{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueRequestForCurrentInstance),
+			builder.WithPredicates(r.enqueueIfMatchExportRules()),
+		).
 		Complete(r)
+}
+
+func (r *Reconciler) enqueueRequestForCurrentInstance(_ context.Context, _ client.Object) []reconcile.Request {
+	if r.instance == nil {
+		return []reconcile.Request{}
+	}
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{
+		Name:      r.instance.Name,
+		Namespace: r.instance.Namespace,
+	}}}
 }

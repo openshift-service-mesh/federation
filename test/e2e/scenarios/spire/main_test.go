@@ -36,6 +36,7 @@ func TestMain(m *testing.M) {
 		Setup(enableTrustDomainFederation).
 		Setup(setup.DeployControlPlanes("spire")).
 		Setup(setup.InstallOrUpgradeFederationControllers(setup.WithSpire{})).
+		Setup(setup.CreateMeshFederationCR).
 		Setup(setup.EnsureStrictMutualTLS)
 
 	setup.DeployEcho(suite, setup.WithSpire{})
