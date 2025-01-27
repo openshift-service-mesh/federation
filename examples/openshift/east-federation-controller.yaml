@@ -1,20 +1,7 @@
 federation:
   meshPeers:
-    local:
-      name: east
-      gateways:
-        ingress:
-          selector:
-            app: federation-ingress-gateway
-      ingressType: openshift-router
     remotes:
     - name: west
       ingressType: openshift-router
       port: 443
       network: west-network
-  exportedServiceSet:
-    rules:
-    - type: LabelSelector
-      labelSelectors:
-      - matchLabels:
-          export-service: "true"

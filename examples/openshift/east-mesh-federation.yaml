@@ -1,0 +1,18 @@
+apiVersion: federation.openshift-service-mesh.io/v1alpha1
+kind: MeshFederation
+metadata:
+  name: east
+  namespace: istio-system
+spec:
+  ingress:
+    type: openshift-router
+    gateway:
+      selector:
+        app: federation-ingress-gateway
+      portConfig:
+        name: tls-passthrough
+        number: 15443
+  export:
+    serviceSelectors:
+      matchLabels:
+        export: "true"

@@ -1,17 +1,7 @@
+image:
+  tag: latest-local
 federation:
   meshPeers:
-    local:
-      name: east
-      gateways:
-        ingress:
-          selector:
-            app: federation-ingress-gateway
     remotes:
     - name: west
       network: west-network
-  exportedServiceSet:
-    rules:
-    - type: LabelSelector
-      labelSelectors:
-        - matchLabels:
-            export-service: "true"

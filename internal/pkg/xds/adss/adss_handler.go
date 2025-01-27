@@ -31,7 +31,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	istiolog "istio.io/istio/pkg/log"
 
-	"github.com/openshift-service-mesh/federation/internal/pkg/legacy/xds"
+	"github.com/openshift-service-mesh/federation/internal/pkg/xds"
 )
 
 var log = istiolog.RegisterScope("adss", "Aggregated Discovery Service Server")

@@ -105,11 +105,11 @@ kwest apply -f examples/openshift/west-federation-ingress-gateway.yaml
 On KinD:
 ```shell
 WEST_GATEWAY_IP=$(kwest get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-east install east chart -n istio-system \
+helm-east upgrade --install east chart -n istio-system \
   --values examples/kind/east-federation-controller.yaml \
   --set "federation.meshPeers.remotes[0].addresses[0]=$WEST_GATEWAY_IP"
 EAST_GATEWAY_IP=$(keast get svc federation-ingress-gateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-helm-west install west chart -n istio-system \
+helm-west upgrade --install west chart -n istio-system \
   --values examples/kind/west-federation-controller.yaml \
   --set "federation.meshPeers.remotes[0].addresses[0]=$EAST_GATEWAY_IP"
 ```
@@ -117,11 +117,25 @@ helm-west install west chart -n istio-system \
 On OpenShift:
 ```shell
 WEST_CONSOLE_URL=$(kwest get routes console -n openshift-console -o jsonpath='{.spec.host}')
-helm-east install east chart -n istio-system --values examples/openshift/east-federation-controller.yaml \
+helm-east upgrade --install east chart -n istio-system --values examples/openshift/east-federation-controller.yaml \
   --set "federation.meshPeers.remotes[0].addresses[0]=$WEST_CONSOLE_URL"
 EAST_CONSOLE_URL=$(keast get routes console -n openshift-console -o jsonpath='{.spec.host}')
-helm-west install west chart -n istio-system --values examples/openshift/west-federation-controller.yaml \
+helm-west upgrade --install west chart -n istio-system --values examples/openshift/west-federation-controller.yaml \
   --set "federation.meshPeers.remotes[0].addresses[0]=$EAST_CONSOLE_URL"
+```
+
+### Enable mesh federation
+
+On KinD:
+```shell
+keast apply -f examples/kind/east-mesh-federation.yaml
+kwest apply -f examples/kind/west-mesh-federation.yaml
+```
+
+On OpenShift:
+```shell
+keast apply -f examples/openshift/east-mesh-federation.yaml
+kwest apply -f examples/openshift/west-mesh-federation.yaml
 ```
 
 ### Deploy and export services
@@ -156,12 +170,12 @@ keast delete sa bookinfo-ratings
 
 3. Export services:
 ```shell
-kwest label svc productpage export-service=true
-kwest label svc reviews export-service=true
-kwest label svc ratings export-service=true
-keast label svc productpage export-service=true
-keast label svc reviews export-service=true
-keast label svc details export-service=true
+kwest label svc productpage export=true
+kwest label svc reviews export=true
+kwest label svc ratings export=true
+keast label svc productpage export=true
+keast label svc reviews export=true
+keast label svc details export=true
 ```
 
 4. Get gateway addresses:
