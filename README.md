@@ -11,8 +11,8 @@ With end-to-end mTLS authorization can be handled directly by the federated appl
 
 [Multi-primary](https://istio.io/latest/docs/setup/install/multicluster/multi-primary_multi-network/) and
 [primary-remote](https://istio.io/latest/docs/setup/install/multicluster/primary-remote_multi-network/) topologies
-are great solutions for expanding single mesh to multiple k8s clusters for better system resiliency and higher availability.
-However, these solutions do not fit well in the following cases:
+are great solutions for expanding single mesh to multiple k8s clusters, giving better system resiliency and higher availability.
+However, they do not fit well in the following cases:
 
 1. Decentralized control and ownership of clusters.
 
