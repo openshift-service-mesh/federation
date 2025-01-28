@@ -97,6 +97,6 @@ it serves a fundamentally different purpose, making it an unsuitable fit for imp
 
 #### Emcee
 
-[Emcee](https://github.com/istio-ecosystem/emcee) was a PoC of multi-mesh deployment, but that project has been inactive for 5 years,
-and there is no clear value in contributing our ideas, because that would require to change all APIs and general assumptions for that project,
-so it's easier to start from scratch.
+[Emcee](https://github.com/istio-ecosystem/emcee), a proof-of-concept for mesh federation, has been inactive for over five years.
+Reviving the project would require significant changes to its APIs and underlying assumptions, making it more practical
+to start fresh rather than build on the existing codebase.
