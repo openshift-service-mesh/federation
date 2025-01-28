@@ -47,7 +47,7 @@ However, these solutions do not fit well in the following cases:
 
 ## High-level architecture
 
-![architecture](docs/img/architecture.jpg)
+![architecture](docs/arch/diagrams/overview.jpg)
 
 ## How it works
 
