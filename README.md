@@ -3,11 +3,9 @@
 This project implements Istio mesh federation using a Kubernetes controller that provides an API
 for managing multi-mesh communication, implements service discovery and automates the management of Istio configuration.
 
-Mesh federation enables mTLS communication between applications across mesh boundaries.
-Each mesh can federate a subset of its services to allow applications from other meshes to connect to these services.
-
-Federated services are exposed on a passthrough gateway, so mTLS is not terminated at the edge of the cluster,
-and authorization can be performed by the federated application.
+Mesh federation enables secure communication between applications across mesh boundaries using mTLS.
+Each mesh can federate a subset of its services, allowing applications from other meshes to connect securely.
+With end-to-end mTLS authorization can be handled directly by the federated application.
 
 ## Multi-primary vs federation
 
