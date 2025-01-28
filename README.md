@@ -9,19 +9,6 @@ Each mesh can federate a subset of its services to allow applications from other
 Federated services are exposed on a passthrough gateway, so mTLS is not terminated at the edge of the cluster,
 and authorization can be performed by the federated application.
 
-## How it works
-
-Controllers are deployed with sidecars like any other application in the mesh. Controllers connect to remote peers
-and send a discovery request to subscribe to federated services.
-When a controller receives discovery response with a federated service, it creates `ServiceEntriy` or `WorkloadEntry`
-in the local cluster depending on whether the service exists locally.
-The controller also watches local `Service` objects and checks if they match the export rules - if so,
-it adds the service's FQDN to the auto-passthrough `Gateway` hosts.
-
-## High-level architecture
-
-![architecture](docs/img/architecture.jpg)
-
 ## Multi-primary vs federation
 
 [Multi-primary](https://istio.io/latest/docs/setup/install/multicluster/multi-primary_multi-network/) and
@@ -58,27 +45,59 @@ However, these solutions do not fit well in the following cases:
 
    **Reason**: Since federated meshes don’t rely on a shared control plane, issues are localized to individual clusters.
 
+## High-level architecture
+
+![architecture](docs/img/architecture.jpg)
+
+## How it works
+
+### Service discovery
+
+#### Import
+
+Controllers connect to each other using gRPC protocol and subscribe to `FederatedService` API.
+When a controller receives an update, it creates `ServiceEntry` or `WorkloadEntry` depending on the local cluster state.
+It also applies client-side configurations using `DestinationRule` if the mesh federation requires customizing SNI for cross-cluster traffic.
+
+#### Export
+
+Controllers connect to the local kube-apiserver to discover local services matching export rules.
+When a controller receives an update from Kubernetes about a `Service` matching export rules,
+it is exposed on a federation ingress gateway. The federation ingress gateway is very similar to the east-west gateway
+in multi-primary and primary-remote deployments, but it exposes only one TLS auto-passthrough port.
+
+### Security
+
+The federation controller is deployed within each federated mesh with a sidecar like any other application.
+Each controller creates `PeerAuthentication` to enable strict mTLS for itself and configures proper `AuthorizationPolicy`
+to allow traffic only from the configured remote controllers.
+
+Controllers DO NOT enforce any authz policy at the mesh boundaries to avoid mTLS termination between applications.
+Application or cluster admins are responsible for configuring their authz policies, and it is highly recommended
+to deny all traffic by default and allow only selected services.
+
 ## Identity and trust model
 
 This controller does not provide any mechanism to share trust bundles between meshes using different CAs.
-It can only enable mTLS communication between meshes if all use the same CA or use SPIRE with enabled trust bundle federation.
+It can only enable mTLS communication between meshes when all clusters use the same root CA or use SPIRE
+with enabled trust bundle federation.
 
 ## Getting started
 
 Follow these guides to see how it works in practice:
-1. [Simple multi-cluster bookinfo deployment](examples/README.md).
+1. [Simple multi-mesh bookinfo deployment](examples/README.md).
 2. [Integration with SPIRE](examples/spire/README.md).
 
 ## Comparing to other projects
 
 #### Admiral
 
-Admiral is primarily designed to manage multi-cluster service discovery and traffic distribution in Istio,
-focusing on use cases where clusters are part of a single logical mesh, such as multi-primary or primary-remote topologies.
-Admiral does not natively support mesh federation in the way Istio defines it, so it's a very different project
-and federation controller is not an alternative for it.
+[Admiral](https://github.com/istio-ecosystem/admiral) is primarily designed to manage multi-cluster service discovery
+and traffic distribution in Istio, focusing on use cases where clusters are part of a single logical mesh,
+such as multi-primary or primary-remote topologies, so it does not seem like a right place to implement multi-mesh APIs.
 
-#### SPIRE
+#### Emcee
 
-SPIRE federation enables secure communication and authentication for workloads in different trust domains integrated with different CAs.
-These projects ideally complement each other, as SPIRE federates identities, and federation controller federates Istio services and endpoints.
+[Emcee](https://github.com/istio-ecosystem/emcee) was a PoC of multi-mesh deployment, but that project has been inactive for 5 years,
+and there is no clear value in contributing our ideas, because that would require to change all APIs and general assumptions for that project,
+so it's easier to start from scratch.
