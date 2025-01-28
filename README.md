@@ -1,6 +1,7 @@
 # Federation
 
-A Kubernetes controller that provides discovery service for Istio mesh federation.
+This project implements Istio mesh federation using a Kubernetes controller that provides an API
+for managing multi-mesh communication, implements service discovery and automates the management of Istio configuration.
 
 Mesh federation enables mTLS communication between applications across mesh boundaries.
 Each mesh can federate a subset of its services to allow applications from other meshes to connect to these services.
