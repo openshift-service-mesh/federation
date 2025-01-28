@@ -90,9 +90,10 @@ Follow these guides to see how it works in practice:
 
 #### Admiral
 
-[Admiral](https://github.com/istio-ecosystem/admiral) is primarily designed to manage multi-cluster service discovery
-and traffic distribution in Istio, focusing on use cases where clusters are part of a single logical mesh,
-such as multi-primary or primary-remote topologies, so it does not seem like a right place to implement multi-mesh APIs.
+While [Admiral](https://github.com/istio-ecosystem/admiral) is designed to manage multi-cluster service discovery
+and traffic distribution in Istio, it focuses on scenarios where clusters operate as part of a single logical mesh,
+such as multi-primary or primary-remote topologies. Since it does not natively support mesh federation,
+it serves a fundamentally different purpose, making it an unsuitable fit for implementing multi-mesh APIs.
 
 #### Emcee
 
