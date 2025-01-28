@@ -25,9 +25,9 @@ However, they do not fit well in the following cases:
 
     **Use case**: Clusters communicate over public networks without a shared private network (e.g., VPC peering).
 
-    **Reason**: Both federation and multi-primary rely on gateway-based communication for the data-plane traffic,
-    but in multi-primary deployment control planes need access to remote kube-apiservers and that usually requires
-    additional network configuration for secure access, as most users do not want to expose kube-apiserver to the internet.
+    **Reason**: Federation and multi-primary both use gateway-based communication for data-plane traffic.
+    Multi-primary deployments, however, require control planes to access remote kube-apiservers.
+    This often requires extra network configuration, as users typically do not want to expose kube-apiservers to the internet.
 
 1. Limited service sharing.
 
