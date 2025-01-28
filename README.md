@@ -70,7 +70,7 @@ The federation controller is deployed within each federated mesh with a sidecar 
 Each controller creates `PeerAuthentication` to enable strict mTLS for itself and configures proper `AuthorizationPolicy`
 to allow traffic only from the configured remote controllers.
 
-Controllers DO NOT enforce any authz policy at the mesh boundaries to avoid mTLS termination between applications.
+Controllers **DO NOT** enforce any authorization policy at the mesh boundaries to avoid mTLS termination between applications.
 Application or cluster admins are responsible for configuring their authz policies, and it is highly recommended
 to deny all traffic by default and allow only selected services.
 
