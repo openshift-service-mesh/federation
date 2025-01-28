@@ -39,7 +39,7 @@ However, they do not fit well in the following cases:
 
 1. Operational simplicity for isolated meshes.
 
-   **Use case**: You want to simplify troubleshooting and upgrades by isolating cluster-specific issues.
+   **Use case**: Simplified troubleshooting and upgrades by isolating cluster-specific issues.
 
    **Reason**: Since federated meshes don’t rely on a shared control plane, issues are localized to individual clusters.
 
