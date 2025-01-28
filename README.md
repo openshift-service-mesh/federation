@@ -18,7 +18,7 @@ in the local cluster depending on whether the service exists locally.
 The controller also watches local `Service` objects and checks if they match the export rules - if so,
 it adds the service's FQDN to the auto-passthrough `Gateway` hosts.
 
-### Architecture
+## High-level architecture
 
 ![architecture](docs/img/architecture.jpg)
 
