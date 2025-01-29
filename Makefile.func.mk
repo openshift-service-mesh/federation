@@ -2,7 +2,7 @@ define go-mod-version
 $(shell go mod graph | grep $(1) | head -n 1 | cut -d'@' -f 2)
 endef
 
-# Using controller-gen to fetch external CRDs and put them in defined folder folder
+# Using controller-gen to fetch external CRDs and put them in defined folder.
 # They can be used e.g. in testing using EnvTest where controller under test
 # requires additional resources to manage.
 #

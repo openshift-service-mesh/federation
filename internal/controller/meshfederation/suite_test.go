@@ -50,6 +50,7 @@ var _ = SynchronizedBeforeSuite(func(ctx context.Context) {
 	newMeshFederationCtrl := func(cl client.Client) controller.Reconciler {
 		return meshfederation.NewReconciler(cl)
 	}
+
 	envTest, cancelFunc = k8senvtest.StartWithControllers(GinkgoT(), newMeshFederationCtrl)
 }, func() {})
 

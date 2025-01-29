@@ -67,8 +67,8 @@ define local_tag
 $(TAG)$(shell [ "$(USE_LOCAL_IMAGE)" = "true" ] && echo "-local")
 endef
 
-.PHONY: e2e
 TEST_SUITES ?= remote_ip remote_dns_name spire
+.PHONY: e2e
 e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
 	@local_tag=$(call local_tag); \
 	$(foreach suite, $(TEST_SUITES), \

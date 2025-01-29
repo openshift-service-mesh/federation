@@ -54,12 +54,12 @@ type Client struct {
 	*Cleaner
 }
 
-func (c *Client) DeleteAll(objects ...client.Object) {
+func (c *Client) DeleteAll(ctx context.Context, objects ...client.Object) {
 	if c.Cleaner == nil {
 		c.Cleaner = CreateCleaner(c.Client, c.Config, 10*time.Second, 250*time.Millisecond)
 	}
 
-	c.Cleaner.DeleteAll(objects...)
+	c.Cleaner.DeleteAll(ctx, objects...)
 }
 
 // Configure creates a new configuration for the Kubernetes EnvTest.

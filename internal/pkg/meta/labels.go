@@ -12,19 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package meta
 
-import (
-	"context"
+import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-)
+func AddLabel(obj metav1.Object, key, value string) {
+	existingLabels := obj.GetLabels()
+	if existingLabels == nil {
+		existingLabels = make(map[string]string)
+	}
 
-// Reconciler defines required functions for each
-type Reconciler interface {
-	Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
-	SetupWithManager(mgr ctrl.Manager) error
+	existingLabels[key] = value
+	obj.SetLabels(existingLabels)
 }
-
-type SubReconciler[T client.Object] func(ctx context.Context, cl client.Client, parent T) (ctrl.Result, error)

@@ -44,7 +44,7 @@ func NewExportedServicesGenerator(cfg config.Federation, serviceLister v1.Servic
 }
 
 func (g *ExportedServicesGenerator) GetTypeUrl() string {
-	return xds.ExportedServiceTypeUrl
+	return xds.FederatedServiceTypeUrl
 }
 
 func (g *ExportedServicesGenerator) GenerateResponse() ([]*anypb.Any, error) {

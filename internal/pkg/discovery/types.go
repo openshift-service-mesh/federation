@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package controller
+package discovery
 
-import (
-	"context"
+import "google.golang.org/protobuf/types/known/anypb"
 
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-)
+const FederatedServiceTypeUrl = "federation.openshift-service-mesh.io/v1alpha1/FederatedService"
 
-// Reconciler defines required functions for each
-type Reconciler interface {
-	Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
-	SetupWithManager(mgr ctrl.Manager) error
+// PushRequest notifies ADS server that it should send DiscoveryResponse to subscribers.
+type PushRequest struct {
+	// TypeUrl specifies DiscoveryResponse type and must always be set.
+	TypeUrl string
+	// Resources contains data to be sent to subscribers.
+	// If it is not set, ADS server will trigger proper request handler to generate resources of given type.
+	Resources []*anypb.Any
 }
-
-type SubReconciler[T client.Object] func(ctx context.Context, cl client.Client, parent T) (ctrl.Result, error)

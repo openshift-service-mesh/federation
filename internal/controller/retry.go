@@ -26,7 +26,7 @@ import (
 // logic for updating resource object.
 type MutateFn[T client.Object] func(saved T)
 
-// ClientCallFn defines what client.Client operation on a given object should be performed.
+// ClientCallFn defines what client.client operation on a given object should be performed.
 type ClientCallFn[T client.Object] func(ctx context.Context, cli client.Client, obj T) error
 
 // RetryUpdate attempts to update a specified Kubernetes resource and retries on conflict.
