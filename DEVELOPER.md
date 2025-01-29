@@ -1,42 +1,51 @@
 ## Development
 
 ### Prerequisites
+
+To get started, ensure you have the following tools installed on your system:
+
+#### Required
+
 1. Go 1.22+
-2. protoc 3.19.0+
-3. protoc-gen-go v1.30.0+
-4. protoc-get-golang-deepcopy
+1. `make`
+
+#### Recommended
+
+1. A container runtime such as [Docker](https://www.docker.com/) **or** [Podman](https://podman.io/).
+1. [KinD](https://kind.sigs.k8s.io/) for end-to-end tests.
+
+> [!TIP]
+> All other tools will be automatically downloaded to the local `./bin` directory when executing `make` targets.
 
 ### Commands
 
-1. Compile controller:
+You can build the project with a single `make` command.
+
+> [!TIP]
+> Run `make help` to list all available targets.
+
+Below are some commonly used targets with customizations
+
+1. Build image with the custom tag in your own repository:
     ```shell
-    make
+    make docker-build -e HUB=quay.io/maistra-dev -e TAG=test
     ```
-1. Run unit tests:
+1. Push image to your own repository and custom tag:
     ```shell
-    make test
+    make docker-push -e HUB=quay.io/maistra-dev -e TAG=test 
     ```
-1. Build image:
-    ```shell
-    HUB=quay.io/maistra-dev TAG=test make docker-build
-    ```
-1. Push image:
-    ```shell
-    HUB=quay.io/maistra-dev TAG=test make docker-push
-    ```
-1. Run e2e tests:
+1. Run all E2E test suites:
     ```shell
     make e2e
     ```
-1. Run e2e tests with specific Istio version and custom controller image:
+1. Run specific test suite:
     ```shell
-    HUB=quay.io/maistra-dev TAG=test ISTIO_VERSION=1.23.0 make e2e
+    make e2e -e TEST_SUITES="spire"
     ```
-1. Run specific test suites:
+1. Run e2e tests against specific Istio version and custom controller image:
     ```shell
-    TEST_SUITES="spire" make e2e
+    make e2e -e HUB=quay.io/maistra-dev -e TAG=test -e ISTIO_VERSION=1.23.0
     ```
-1. Customize federation controller image used in tests (`TAG` is ignored if `USE_LOCAL_IMAGE=true` or not set):
-   ```shell
-   USE_LOCAL_IMAGE=false HUB=quay.io/maistra-dev TAG=0.1 make e2e
-   ```
+
+> [!TIP]
+> Set the `USE_LOCAL_IMAGE` environment variable to `true` to push and use the locally built image in KinD clusters. 
