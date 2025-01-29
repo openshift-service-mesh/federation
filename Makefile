@@ -68,8 +68,10 @@ $(TAG)$(shell [ "$(USE_LOCAL_IMAGE)" = "true" ] && echo "-local")
 endef
 
 .PHONY: e2e
+ALL_TEST_SUITES = remote_ip remote_dns_name spire
 TEST_SUITES ?= remote_ip remote_dns_name spire
 e2e: kind-clusters ## Runs end-to-end tests against KinD clusters
+	@echo "Running '$(TEST_SUITES)'. Available test suites: '$(ALL_TEST_SUITES)'"
 	@local_tag=$(call local_tag); \
 	$(foreach suite, $(TEST_SUITES), \
 		PATH=$(LOCALBIN):$$PATH \
