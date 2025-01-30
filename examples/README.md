@@ -200,6 +200,17 @@ while true; do curl -v "http://$WEST_INGRESS_ADDR:80/productpage" > /dev/null; s
 kwest logs deploy/istio-ingressgateway -n istio-system --tail=3 | grep "UPSTREAM_HOST"
 ```
 
+### Observability
+
+```shell
+keast apply -f examples/openshift/enable-user-workload-monitoring.yaml
+keast apply -f examples/openshift/service-monitor.yaml
+keast apply -f examples/openshift/pod-monitor.yaml -n istio-system
+keast apply -f examples/openshift/pod-monitor.yaml
+keast apply -f examples/openshift/kiali-rbac.yaml
+keast apply -f examples/openshift/kiali.yaml
+```
+
 #### Cleanup
 
 ```shell
