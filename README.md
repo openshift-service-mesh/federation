@@ -29,20 +29,6 @@ However, they do not fit well in the following cases:
     Multi-primary deployments, however, require control planes to access remote kube-apiservers.
     This often requires extra network configuration, as users typically do not want to expose kube-apiservers to the internet.
 
-1. Limited service sharing.
-
-    **Use case**: Only a subset of services needs to be shared across clusters (e.g., common APIs or external-facing services).
-
-    **Reason**: Federation allows you to expose and consume specific services across meshes using service entries, 
-    without fully integrating the control planes. This is partially possible in multi-primary deployment, 
-    but exporting services could be limited only to namespaces matching configured discovery selectors.
-
-1. Operational simplicity for isolated meshes.
-
-   **Use case**: Simplified troubleshooting and upgrades by isolating cluster-specific issues.
-
-   **Reason**: Since federated meshes don’t rely on a shared control plane, issues are localized to individual clusters.
-
 ## High-level architecture
 
 ![architecture](docs/arch/diagrams/overview.svg)
@@ -85,18 +71,3 @@ with enabled trust bundle federation.
 Follow these guides to see how it works in practice:
 1. [Simple multi-mesh bookinfo deployment](examples/README.md).
 2. [Integration with SPIRE](examples/spire/README.md).
-
-## Comparing to other projects
-
-#### Admiral
-
-While [Admiral](https://github.com/istio-ecosystem/admiral) is designed to manage multi-cluster service discovery
-and traffic distribution in Istio, it focuses on scenarios where clusters operate as part of a single logical mesh,
-such as multi-primary or primary-remote topologies. Since it does not natively support mesh federation,
-it serves a fundamentally different purpose, making it an unsuitable fit for implementing multi-mesh APIs.
-
-#### Emcee
-
-[Emcee](https://github.com/istio-ecosystem/emcee), a proof-of-concept for mesh federation, has been inactive for over five years.
-Reviving the project would require significant changes to its APIs and underlying assumptions, making it more practical
-to start fresh rather than build on the existing codebase.
