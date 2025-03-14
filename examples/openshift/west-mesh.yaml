@@ -1,17 +1,17 @@
-apiVersion: sailoperator.io/v1alpha1
+apiVersion: sailoperator.io/v1
 kind: IstioCNI
 metadata:
   name: default
 spec:
-  version: v1.23.0
+  version: v1.24.3
   namespace: istio-cni
 ---
-apiVersion: sailoperator.io/v1alpha1
+apiVersion: sailoperator.io/v1
 kind: Istio
 metadata:
   name: default
 spec:
-  version: v1.23.0
+  version: v1.24.3
   namespace: istio-system
   updateStrategy:
     type: InPlace
@@ -30,5 +30,4 @@ spec:
       network: west-network
     pilot:
       env:
-        ROOT_CA_DIR: /etc/cacerts
         ENABLE_NATIVE_SIDECARS: "true"
