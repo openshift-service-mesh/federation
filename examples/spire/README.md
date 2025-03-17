@@ -26,7 +26,7 @@ indented_west_bundle=$(echo "$west_bundle" | jq -r '.' | sed 's/^/    /')
 (cat examples/spire/trust-bundle-federation.yaml; echo -e "  trustDomainBundle: |-\n$indented_west_bundle") | sed "s/\${CLUSTER}/west/g" | sed "s/\${BUNDLE_ENDPOINT}/$spire_bundle_endpoint_west/g" | keast apply -f -
 # west
 spire_bundle_endpoint_east=$(keast get svc spire-server -n spire -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-east_bundle=$(keast exec -c spire-server -n spire --stdin spire-server-0  -- /opt/spire/bin/spire-server bundle show -format spiffe -socketPath /tmp/spire-server/private/api.sock)
+east_bundle=$(keast exec -c spire-server -n spire --stdin spire-server-0  -- spire-server bundle show -format spiffe)
 indented_east_bundle=$(echo "$east_bundle" | jq -r '.' | sed 's/^/    /')
 (cat examples/spire/trust-bundle-federation.yaml; echo -e "  trustDomainBundle: |-\n$indented_east_bundle") | sed "s/\${CLUSTER}/east/g" | sed "s/\${BUNDLE_ENDPOINT}/$spire_bundle_endpoint_east/g" | kwest apply -f -
 ```
@@ -55,8 +55,16 @@ MIIDxzCCAq+gAwIBAgIRAOSC+9AxMNaNqWdzd3QfbucwDQYJKoZIhvcNAQELBQAw
 
 4. Deploy Istio:
 ```shell
-sed -e "s/\${LOCAL_CLUSTER}/east/g" -e "s/\${REMOTE_CLUSTER}/west/g" examples/spire/istio.yaml | istioctl-east install -y -f -
-sed -e "s/\${LOCAL_CLUSTER}/west/g" -e "s/\${REMOTE_CLUSTER}/east/g" examples/spire/istio.yaml | istioctl-west install -y -f -
+sed -e "s/\${LOCAL_CLUSTER}/east/g" \
+  -e "s/\${REMOTE_CLUSTER}/west/g" \
+  -e "s/\${LOCAL_BUNDLE_ENDPOINT}/$spire_bundle_endpoint_east/g" \
+  -e "s/\${REMOTE_BUNDLE_ENDPOINT}/$spire_bundle_endpoint_west/g" \
+  examples/spire/istio.yaml | istioctl-east install -y -f -
+sed -e "s/\${LOCAL_CLUSTER}/west/g" \
+  -e "s/\${REMOTE_CLUSTER}/east/g" \
+  -e "s/\${LOCAL_BUNDLE_ENDPOINT}/$spire_bundle_endpoint_west/g" \
+  -e "s/\${REMOTE_BUNDLE_ENDPOINT}/$spire_bundle_endpoint_east/g" \
+  examples/spire/istio.yaml | istioctl-west install -y -f -
 ```
 Verify Spire's registry:
 ```shell
@@ -94,21 +102,30 @@ helm-west install west-mesh chart -n istio-system \
 
 6. Deploy and export apps:
 ```shell
+# east
 keast label namespace default istio-injection=enabled
-keast apply -f examples/spire/east/sleep.yaml
+keast apply -f examples/spire/sleep.yaml
 keast apply -f examples/mtls.yaml -n istio-system
+# west
 kwest label namespace default istio-injection=enabled
-kwest apply -f examples/spire/west/httpbin.yaml
-kwest label service httpbin export-service=true
+kwest apply -f examples/spire/sleep.yaml
+kwest apply -f examples/spire/httpbin.yaml
 kwest apply -f examples/mtls.yaml -n istio-system
+kwest label service httpbin export-service=true
 ```
 
-7. Send a test request:
+7. Verify connectivity with the imported service:
 ```shell
 keast exec deploy/sleep -c sleep -- curl -v httpbin.default.svc.cluster.local:8000/headers
 ```
 Expected response:
 ```
+Host httpbin.default.svc.cluster.local:8000 was resolved.
+* IPv6: (none)
+* IPv4: 240.240.0.2
+*   Trying 240.240.0.2:8000...
+* Connected to httpbin.default.svc.cluster.local (240.240.0.2) port 8000
+* using HTTP/1.x
 > GET /headers HTTP/1.1
 > Host: httpbin.default.svc.cluster.local:8000
 > User-Agent: curl/8.10.1
@@ -124,8 +141,7 @@ Expected response:
 < x-envoy-upstream-service-time: 0
 < server: envoy
 < 
-{ [627 bytes data]
-100   627  100   627    0     0   317k      0 --:--:-- --:--:-- --:--:--  612k
+{ [561 bytes data]
 * Connection #0 to host httpbin.default.svc.cluster.local left intact
 {
   "headers": {
@@ -142,7 +158,7 @@ Expected response:
       "1"
     ],
     "X-Forwarded-Client-Cert": [
-      "By=spiffe://west.local/ns/default/sa/httpbin;Hash=49d0778341d0807c13439f203387a780d5110791d859aa1358364b283f018b51;Subject=\"x500UniqueIdentifier=3976473ba59715fdcaaeba3e5b4c6bda,O=SPIRE,C=US\";URI=spiffe://east.local/ns/default/sa/sleep"
+      "By=spiffe://west.local/ns/default/sa/httpbin;Hash=20d7bd38024492e9018d3427f60e3515e80c252122ee88afb40127ab8e6774ed;Subject=\"\";URI=spiffe://east.local/ns/default/sa/sleep"
     ],
     "X-Forwarded-Proto": [
       "http"
@@ -152,4 +168,94 @@ Expected response:
     ]
   }
 }
+```
+
+8. Configure authorization policy for httpbin that allows requests only from sleep in west.local trust domain:
+```shell
+kwest apply -f examples/spire/authz-policy.yaml
+```
+
+9. Send a test request from sleep in the east cluster:
+```shell
+keast exec deploy/sleep -c sleep -- curl -v httpbin.default.svc.cluster.local:8000/headers
+```
+Now it should return 403:
+```
+Host httpbin.default.svc.cluster.local:8000 was resolved.
+* IPv6: (none)
+* IPv4: 240.240.0.2
+*   Trying 240.240.0.2:8000...
+* Connected to httpbin.default.svc.cluster.local (240.240.0.2) port 8000
+* using HTTP/1.x
+> GET /headers HTTP/1.1
+> Host: httpbin.default.svc.cluster.local:8000
+> User-Agent: curl/8.12.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 403 Forbidden
+< content-length: 19
+< content-type: text/plain
+< date: Mon, 17 Mar 2025 14:05:58 GMT
+< server: envoy
+< x-envoy-upstream-service-time: 8
+< 
+{ [19 bytes data]
+* Connection #0 to host httpbin.default.svc.cluster.local left intact
+```
+
+10. Send a test request from sleep in the west cluster:
+```shell
+kwest exec deploy/sleep -c sleep -- curl -v httpbin.default.svc.cluster.local:8000/headers
+```
+It should succeed:
+```
+Host httpbin.default.svc.cluster.local:8000 was resolved.
+* IPv6: (none)
+* IPv4: 10.96.100.85
+*   Trying 10.96.100.85:8000...
+* Connected to httpbin.default.svc.cluster.local (10.96.100.85) port 8000
+* using HTTP/1.x
+> GET /headers HTTP/1.1
+> Host: httpbin.default.svc.cluster.local:8000
+> User-Agent: curl/8.12.1
+> Accept: */*
+> 
+* Request completely sent off
+< HTTP/1.1 200 OK
+< access-control-allow-credentials: true
+< access-control-allow-origin: *
+< content-type: application/json; charset=utf-8
+< date: Mon, 17 Mar 2025 14:07:01 GMT
+< content-length: 561
+< x-envoy-upstream-service-time: 7
+< server: envoy
+{
+  "headers": {
+    "Accept": [
+      "*/*"
+    ],
+    "Host": [
+      "httpbin.default.svc.cluster.local:8000"
+    ],
+    "User-Agent": [
+      "curl/8.12.1"
+    ],
+    "X-Envoy-Attempt-Count": [
+      "1"
+    ],
+    "X-Forwarded-Client-Cert": [
+      "By=spiffe://west.local/ns/default/sa/httpbin;Hash=b5b574fb226390182ac75dcb70fc035e55ef9a21af41a348bd27b271e63d808b;Subject=\"\";URI=spiffe://west.local/ns/default/sa/sleep"
+    ],
+    "X-Forwarded-Proto": [
+      "http"
+    ],
+    "X-Request-Id": [
+      "9cddd4d1-514a-4833-ade5-7108ca0fbd5b"
+    ]
+  }
+}
+< 
+{ [561 bytes data]
+* Connection #0 to host httpbin.default.svc.cluster.local left intact
 ```

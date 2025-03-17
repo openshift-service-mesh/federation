@@ -1,0 +1,13 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: httpbin
+spec:
+  selector:
+    matchLabels:
+      app: httpbin
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["west.local/ns/default/sa/sleep"]
