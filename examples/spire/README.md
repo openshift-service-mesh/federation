@@ -57,12 +57,10 @@ MIIDxzCCAq+gAwIBAgIRAOSC+9AxMNaNqWdzd3QfbucwDQYJKoZIhvcNAQELBQAw
 ```shell
 sed -e "s/\${LOCAL_CLUSTER}/east/g" \
   -e "s/\${REMOTE_CLUSTER}/west/g" \
-  -e "s/\${LOCAL_BUNDLE_ENDPOINT}/$spire_bundle_endpoint_east/g" \
   -e "s/\${REMOTE_BUNDLE_ENDPOINT}/$spire_bundle_endpoint_west/g" \
   examples/spire/istio.yaml | istioctl-east install -y -f -
 sed -e "s/\${LOCAL_CLUSTER}/west/g" \
   -e "s/\${REMOTE_CLUSTER}/east/g" \
-  -e "s/\${LOCAL_BUNDLE_ENDPOINT}/$spire_bundle_endpoint_west/g" \
   -e "s/\${REMOTE_BUNDLE_ENDPOINT}/$spire_bundle_endpoint_east/g" \
   examples/spire/istio.yaml | istioctl-west install -y -f -
 ```

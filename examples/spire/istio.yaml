@@ -13,7 +13,7 @@ spec:
         ISTIO_META_DNS_CAPTURE: "true"
         ISTIO_META_DNS_AUTO_ALLOCATE: "true"
     caCertificates:
-    - spiffeBundleUrl: https://${LOCAL_BUNDLE_ENDPOINT}:8443
+    - spiffeBundleUrl: https://spire-server.spire.svc.cluster.local:8443
       trustDomains:
       - ${LOCAL_CLUSTER}.local
     - spiffeBundleUrl: https://${REMOTE_BUNDLE_ENDPOINT}:8443
