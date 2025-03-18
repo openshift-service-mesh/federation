@@ -35,7 +35,6 @@ import (
 var spireComponents = []string{
 	"daemonset/spire-spiffe-csi-driver",
 	"statefulset/spire-server",
-	"deployment/spire-spiffe-oidc-discovery-provider",
 	"daemonset/spire-agent",
 }
 
