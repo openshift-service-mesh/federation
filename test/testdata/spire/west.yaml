@@ -37,6 +37,8 @@ spire-server:
           federatesWith:
           - east.local
           - central.local
+        oidc-discovery-provider:
+          enabled: false
         test-keys:
           enabled: false
 
@@ -48,6 +50,4 @@ spire-agent:
     defaultAllBundlesName: ROOTCA
 
 spiffe-oidc-discovery-provider:
-  tls:
-    spire:
-      enabled: false
+  enabled: false
